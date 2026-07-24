@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: llm-assistant-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-llm_assistant}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - llm-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: llm-assistant-backend
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-llm_assistant}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      JWT_SECRET: ${JWT_SECRET:-change_this_secret_in_production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - llm-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: llm-assistant-frontend
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5000/api}
+      NODE_OPTIONS: "--max-old-space-size=2048"
+    depends_on:
+      - backend
+    networks:
+      - llm-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  llm-network:
+    driver: bridge

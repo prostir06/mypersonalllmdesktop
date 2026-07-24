@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+**/node_modules/
+/.pnp
+.pnp.js
+
+# Testing & Coverage
+/coverage
+**/coverage
+
+# Production & Build outputs
+/build
+/dist
+**/build
+**/dist
+
+# Logs
+logs/
+**/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+**/.env
+**/.env.local
+!**/.env.example
+
+# IDE & OS Metadata
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Database backups
+*.sql.bak
