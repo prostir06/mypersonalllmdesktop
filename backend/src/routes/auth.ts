@@ -33,5 +33,4 @@ router.post(
 
 router.post('/refresh', refresh);
 
-export default router;
-module.exports = router;
+export = router;

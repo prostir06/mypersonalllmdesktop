@@ -5,10 +5,17 @@ import { validationResult } from 'express-validator';
 import prisma from '../config/prisma';
 import logger from '../logger';
 
+class JwtSecretMissingError extends Error {
+  constructor() {
+    super('JWT_SECRET is not configured');
+    this.name = 'JwtSecretMissingError';
+  }
+}
+
 function requireJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('JWT_SECRET is not configured');
+    throw new JwtSecretMissingError();
   }
   return secret;
 }
@@ -19,13 +26,19 @@ function signUserToken(userId: number): string {
   return jwt.sign({ userId }, secret, { expiresIn });
 }
 
-let cachedDummyHash: string | null = null;
+let dummyHashPromise = bcrypt.hash('dummy-password-for-timing', 12);
+void dummyHashPromise.catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.warn(`Failed to warm dummy bcrypt hash: ${message}`);
+});
 
 async function getDummyHash(): Promise<string> {
-  if (!cachedDummyHash) {
-    cachedDummyHash = await bcrypt.hash('dummy-password-for-timing', 12);
+  try {
+    return await dummyHashPromise;
+  } catch {
+    dummyHashPromise = bcrypt.hash('dummy-password-for-timing', 12);
+    return dummyHashPromise;
   }
-  return cachedDummyHash;
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
@@ -60,7 +73,7 @@ export async function register(req: Request, res: Response): Promise<void> {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/register error: ${message}`);
-    if (message.includes('JWT_SECRET')) {
+    if (error instanceof JwtSecretMissingError) {
       res.status(500).json({ error: 'Помилка конфігурації сервера' });
       return;
     }
@@ -93,6 +106,10 @@ export async function login(req: Request, res: Response): Promise<void> {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/login error: ${message}`);
+    if (error instanceof JwtSecretMissingError) {
+      res.status(500).json({ error: 'Помилка конфігурації сервера' });
+      return;
+    }
     res.status(500).json({ error: 'Помилка сервера при вході' });
   }
 }
@@ -124,6 +141,10 @@ export async function refresh(req: Request, res: Response): Promise<void> {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/refresh error: ${message}`);
+    if (error instanceof JwtSecretMissingError) {
+      res.status(500).json({ error: 'Помилка конфігурації сервера' });
+      return;
+    }
     res.status(401).json({ error: 'Невалідний токен' });
   }
 }

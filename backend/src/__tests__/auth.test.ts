@@ -120,6 +120,39 @@ describe('Auth API (Prisma)', () => {
         .send({ email: 'x@y.com', password: 'Password1', name: 'Xena' });
 
       expect(res.status).toBe(500);
+      expect(res.body.error).toBe('Помилка конфігурації сервера');
+    });
+
+    it('login returns 500 when JWT_SECRET missing', async () => {
+      const bcrypt = require('bcryptjs');
+      const hash = await bcrypt.hash('Password1', 4);
+      delete process.env.JWT_SECRET;
+      mockedPrisma.user.findUnique.mockResolvedValue({
+        id: 7,
+        email: 'a@b.com',
+        password: hash,
+        name: 'Ada',
+      });
+
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'a@b.com', password: 'Password1' });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('Помилка конфігурації сервера');
+    });
+
+    it('refresh returns 500 when JWT_SECRET missing', async () => {
+      const jwt = require('jsonwebtoken');
+      const token = jwt.sign({ userId: 7 }, original, { expiresIn: '1h' });
+      delete process.env.JWT_SECRET;
+
+      const res = await request(app)
+        .post('/api/auth/refresh')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('Помилка конфігурації сервера');
     });
   });
 });
