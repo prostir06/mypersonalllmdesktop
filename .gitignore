@@ -44,3 +44,7 @@ Thumbs.db
 *.sql.bak
 
 .worktrees/
+
+# Superpowers SDD scratch
+.superpowers/
+
