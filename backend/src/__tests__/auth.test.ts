@@ -102,4 +102,24 @@ describe('Auth API (Prisma)', () => {
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
   });
+
+  describe('JWT_SECRET required', () => {
+    const original = process.env.JWT_SECRET;
+
+    afterEach(() => {
+      process.env.JWT_SECRET = original;
+    });
+
+    it('register returns 500 when JWT_SECRET missing', async () => {
+      delete process.env.JWT_SECRET;
+      mockedPrisma.user.findUnique.mockResolvedValue(null);
+      mockedPrisma.user.create.mockResolvedValue({ id: 1 });
+
+      const res = await request(app)
+        .post('/api/auth/register')
+        .send({ email: 'x@y.com', password: 'Password1', name: 'Xena' });
+
+      expect(res.status).toBe(500);
+    });
+  });
 });

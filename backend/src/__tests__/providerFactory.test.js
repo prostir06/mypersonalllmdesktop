@@ -4,10 +4,6 @@
  * Дотримання стандарту: StandardJS / Jest
  */
 
-const ProviderFactory = require('../services/providerFactory');
-const openaiService = require('../services/openaiService');
-const ollamaService = require('../services/ollamaService');
-
 jest.mock('../services/openaiService', () => ({
   sendOpenAIMessage: jest.fn().mockResolvedValue({ content: 'OpenAI Test Response', usage: { total_tokens: 10 }, model: 'gpt-3.5-turbo' }),
   streamOpenAIMessage: jest.fn().mockImplementation((messages, model, options, onChunk) => {
@@ -21,6 +17,10 @@ jest.mock('../services/ollamaService', () => ({
   sendOllamaMessage: jest.fn().mockResolvedValue({ content: 'Ollama Test Response', usage: {}, model: 'llama2' }),
   streamOllamaMessage: jest.fn().mockResolvedValue({ content: 'Ollama Stream Response', model: 'llama2' })
 }));
+
+const ProviderFactory = require('../services/providerFactory');
+const openaiService = require('../services/openaiService');
+const ollamaService = require('../services/ollamaService');
 
 describe('ProviderFactory Service Unit Tests', () => {
   afterEach(() => {

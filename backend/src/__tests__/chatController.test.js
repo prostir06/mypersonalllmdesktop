@@ -4,10 +4,6 @@
  * Стандарт: StandardJS / Jest
  */
 
-const ChatController = require('../controllers/chatController')
-const pool = require('../config/database')
-const ProviderFactory = require('../services/providerFactory')
-
 // Мокаємо залежності для ізольованого тестування
 jest.mock('../config/database')
 jest.mock('../services/providerFactory')
@@ -16,6 +12,10 @@ jest.mock('../logger', () => ({
   error: jest.fn(),
   warn: jest.fn()
 }))
+
+const ChatController = require('../controllers/chatController')
+const pool = require('../config/database')
+const ProviderFactory = require('../services/providerFactory')
 
 describe('ChatController Unit Tests', () => {
   let req, res, next

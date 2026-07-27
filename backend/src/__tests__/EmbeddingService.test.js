@@ -1,9 +1,9 @@
+jest.mock('axios');
+jest.mock('../logger');
+
 const EmbeddingService = require('../services/EmbeddingService');
 const axios = require('axios');
 const logger = require('../logger');
-
-jest.mock('axios');
-jest.mock('../logger');
 
 describe('EmbeddingService', () => {
   const originalEnv = process.env;

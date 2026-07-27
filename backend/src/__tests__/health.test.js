@@ -6,6 +6,23 @@
  */
 
 const request = require('supertest');
+
+jest.mock('../config/prisma', () => ({
+  __esModule: true,
+  default: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn()
+    }
+  },
+  prisma: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn()
+    }
+  }
+}));
+
 const app = require('../server');
 
 describe('API Integration & Health Tests', () => {

@@ -1,10 +1,10 @@
-const DocumentService = require('../services/DocumentService');
-const EmbeddingService = require('../services/EmbeddingService');
-const pool = require('../config/database');
-
 jest.mock('../config/database');
 jest.mock('../services/EmbeddingService');
 jest.mock('../logger');
+
+const DocumentService = require('../services/DocumentService');
+const EmbeddingService = require('../services/EmbeddingService');
+const pool = require('../config/database');
 
 describe('DocumentService', () => {
   beforeEach(() => {
