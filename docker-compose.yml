@@ -53,11 +53,12 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
     container_name: llm-assistant-frontend
     ports:
       - "3000:80"
     environment:
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5000/api}
       NODE_OPTIONS: "--max-old-space-size=2048"
     depends_on:
       - backend

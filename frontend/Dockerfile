@@ -15,8 +15,8 @@ RUN npm ci --legacy-peer-deps
 
 # Копіюємо решту коду та збираємо
 COPY . .
-ARG REACT_APP_API_URL=http://localhost:5000/api
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ARG VITE_API_URL=http://localhost:5000/api
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # --- Stage 2: Serve with Nginx ---
