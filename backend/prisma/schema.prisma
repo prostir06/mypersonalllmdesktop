@@ -38,6 +38,7 @@ model UserSettings {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId], map: "idx_user_settings_user_id")
   @@map("user_settings")
 }
 
@@ -51,6 +52,8 @@ model Conversation {
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
 
+  @@index([userId], map: "idx_conversations_user_id")
+  @@index([userId, updatedAt(sort: Desc)], map: "idx_conversations_user_updated")
   @@map("conversations")
 }
 
@@ -63,6 +66,8 @@ model Message {
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+  @@index([conversationId], map: "idx_messages_conversation_id")
+  @@index([conversationId, createdAt(sort: Asc)], map: "idx_messages_conv_created")
   @@map("messages")
 }
 
@@ -80,6 +85,8 @@ model LlmModel {
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId], map: "idx_llm_models_user_id")
+  @@index([provider], map: "idx_llm_models_provider")
   @@map("llm_models")
 }
 
@@ -94,6 +101,7 @@ model Document {
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   chunks DocumentChunk[]
 
+  @@index([userId], map: "idx_documents_user_id")
   @@map("documents")
 }
 
@@ -107,5 +115,6 @@ model DocumentChunk {
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@index([documentId], map: "idx_document_chunks_doc_id")
   @@map("document_chunks")
 }

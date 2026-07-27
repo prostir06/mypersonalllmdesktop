@@ -100,6 +100,51 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 -- CreateIndex
 CREATE UNIQUE INDEX "user_settings_user_id_key" ON "user_settings"("user_id");
 
+-- CreateIndex
+CREATE INDEX "idx_user_settings_user_id" ON "user_settings"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_conversations_user_id" ON "conversations"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_conversations_user_updated" ON "conversations"("user_id", "updated_at" DESC);
+
+-- CreateIndex
+CREATE INDEX "idx_messages_conversation_id" ON "messages"("conversation_id");
+
+-- CreateIndex
+CREATE INDEX "idx_messages_conv_created" ON "messages"("conversation_id", "created_at" ASC);
+
+-- CreateIndex
+CREATE INDEX "idx_llm_models_user_id" ON "llm_models"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_llm_models_provider" ON "llm_models"("provider");
+
+-- CreateIndex
+CREATE INDEX "idx_documents_user_id" ON "documents"("user_id");
+
+-- CreateIndex
+CREATE INDEX "idx_document_chunks_doc_id" ON "document_chunks"("document_id");
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS idx_messages_content_search
+  ON messages USING gin(to_tsvector('simple', content));
+
+-- CreateIndex
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding_hnsw
+  ON document_chunks
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+-- SeedData
+INSERT INTO llm_models (name, model_id, description, provider, is_default) VALUES
+('GPT-3.5 Turbo', 'gpt-3.5-turbo', 'Fast and efficient model', 'openai', true),
+('GPT-4', 'gpt-4', 'Most capable model', 'openai', true),
+('GPT-4 Turbo', 'gpt-4-turbo-preview', 'Improved version of GPT-4', 'openai', true),
+('Llama 2', 'llama2', 'Local Ollama model', 'ollama', true)
+ON CONFLICT DO NOTHING;
+
 -- AddForeignKey
 ALTER TABLE "user_settings" ADD CONSTRAINT "user_settings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
