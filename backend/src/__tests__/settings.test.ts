@@ -1,0 +1,152 @@
+import express from 'express';
+
+const request = require('supertest');
+const jwt = require('jsonwebtoken');
+
+jest.mock('../config/prisma', () => ({
+  __esModule: true,
+  default: {
+    userSettings: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
+  },
+  prisma: {
+    userSettings: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
+  },
+}));
+
+jest.mock('../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+}));
+
+process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
+
+import prisma from '../config/prisma';
+import settingsRouter from '../routes/settings';
+
+const app = express();
+app.use(express.json());
+app.use('/api/settings', settingsRouter);
+
+const mockedPrisma = prisma as unknown as {
+  userSettings: {
+    findUnique: jest.Mock;
+    upsert: jest.Mock;
+  };
+};
+
+describe('Settings API (Prisma)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('GET without token returns defaults including system_prompt', async () => {
+    const res = await request(app).get('/api/settings');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      default_model: 'gpt-3.5-turbo',
+      temperature: 0.7,
+      max_tokens: 2000,
+      default_provider: 'openai',
+      system_prompt: '',
+    });
+    expect(res.body).toHaveProperty('default_ollama_host');
+    expect(res.body).not.toHaveProperty('defaultModel');
+    expect(mockedPrisma.userSettings.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('GET with valid token and row returns snake_case including system_prompt', async () => {
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 9,
+      defaultModel: 'gpt-4o',
+      temperature: { toString: () => '0.5' }, // Decimal-like
+      maxTokens: 1500,
+      defaultProvider: 'openai',
+      defaultOllamaHost: 'http://ollama.local/v1',
+      systemPrompt: 'Be concise',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+    });
+
+    const res = await request(app)
+      .get('/api/settings')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      default_model: 'gpt-4o',
+      temperature: 0.5,
+      max_tokens: 1500,
+      default_provider: 'openai',
+      default_ollama_host: 'http://ollama.local/v1',
+      system_prompt: 'Be concise',
+    });
+    expect(mockedPrisma.userSettings.findUnique).toHaveBeenCalledWith({
+      where: { userId: 9 },
+    });
+  });
+
+  it('PUT upserts partial update and returns full snake_case row', async () => {
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 9,
+      defaultModel: 'gpt-3.5-turbo',
+      temperature: 0.7,
+      maxTokens: 2000,
+      defaultProvider: 'openai',
+      defaultOllamaHost: 'http://127.0.0.1:11434/v1/chat/completions',
+      systemPrompt: '',
+    });
+    mockedPrisma.userSettings.upsert.mockResolvedValue({
+      id: 1,
+      userId: 9,
+      defaultModel: 'gpt-4o',
+      temperature: 0.7,
+      maxTokens: 2000,
+      defaultProvider: 'openai',
+      defaultOllamaHost: 'http://127.0.0.1:11434/v1/chat/completions',
+      systemPrompt: 'Hi',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-03T00:00:00.000Z'),
+    });
+
+    const res = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ default_model: 'gpt-4o', system_prompt: 'Hi' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.default_model).toBe('gpt-4o');
+    expect(res.body.system_prompt).toBe('Hi');
+    expect(res.body.user_id).toBe(9);
+    expect(res.body).toHaveProperty('id');
+    expect(mockedPrisma.userSettings.upsert).toHaveBeenCalled();
+    const upsertArg = mockedPrisma.userSettings.upsert.mock.calls[0][0];
+    expect(upsertArg.where).toEqual({ userId: 9 });
+    expect(upsertArg.create.defaultModel).toBe('gpt-4o');
+    expect(upsertArg.create.systemPrompt).toBe('Hi');
+  });
+
+  it('PUT returns 400 for invalid temperature', async () => {
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    const res = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ temperature: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty('errors');
+    expect(mockedPrisma.userSettings.upsert).not.toHaveBeenCalled();
+  });
+});
