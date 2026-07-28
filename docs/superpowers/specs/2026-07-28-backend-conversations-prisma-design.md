@@ -32,7 +32,7 @@ server.js (JS + ts-node)
        ├─ auth.js on all routes
        └─ conversationsController.ts
             ├─ list / get / create / update → prisma.conversation
-            ├─ delete → prisma.conversation.delete({ where: { id, userId } })
+            ├─ delete → prisma.conversation.deleteMany({ where: { id, userId } })
             │            messages removed by FK ON DELETE CASCADE
             └─ export → conversation + messages → md | json | txt
 ```
