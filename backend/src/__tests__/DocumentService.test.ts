@@ -9,7 +9,7 @@ jest.mock('../config/prisma', () => ({
     documentChunk: {
       create: jest.fn(),
     },
-    $executeRaw: jest.fn(),
+    $executeRawUnsafe: jest.fn(),
   },
 }));
 
@@ -35,7 +35,7 @@ const mockedPrisma = prisma as unknown as {
     deleteMany: jest.Mock;
   };
   documentChunk: { create: jest.Mock };
-  $executeRaw: jest.Mock;
+  $executeRawUnsafe: jest.Mock;
 };
 
 const mockedEmbed = EmbeddingService as unknown as {
@@ -82,7 +82,7 @@ describe('DocumentService (Prisma)', () => {
       });
       mockedEmbed.isAvailable.mockReturnValue(true);
       mockedEmbed.generateBatchEmbeddings.mockResolvedValue([[0.1, 0.2]]);
-      mockedPrisma.$executeRaw.mockResolvedValue(1);
+      mockedPrisma.$executeRawUnsafe.mockResolvedValue(1);
 
       const result = await DocumentService.uploadAndProcess(
         {
@@ -103,7 +103,7 @@ describe('DocumentService (Prisma)', () => {
       });
       expect(result.chunksCount).toBe(1);
       expect(mockedPrisma.document.create).toHaveBeenCalled();
-      expect(mockedPrisma.$executeRaw).toHaveBeenCalled();
+      expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
       expect(mockedPrisma.documentChunk.create).not.toHaveBeenCalled();
       // no DDL
       expect(JSON.stringify(mockedPrisma)).not.toMatch(/CREATE TABLE/i);
@@ -132,7 +132,7 @@ describe('DocumentService (Prisma)', () => {
       );
 
       expect(mockedPrisma.documentChunk.create).toHaveBeenCalled();
-      expect(mockedPrisma.$executeRaw).not.toHaveBeenCalled();
+      expect(mockedPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
     });
 
     it('throws when extracted text empty', async () => {
