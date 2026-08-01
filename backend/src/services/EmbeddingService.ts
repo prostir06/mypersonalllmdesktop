@@ -1,3 +1,7 @@
+/**
+ * OpenAI embeddings + pgvector / fallback chunk retrieval for RAG.
+ * findRelevantChunks never takes a pg Pool — all SQL goes through Prisma.
+ */
 import axios from 'axios';
 import prisma from '../config/prisma';
 import logger from '../logger';

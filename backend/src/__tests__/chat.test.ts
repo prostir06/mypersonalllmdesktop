@@ -117,4 +117,54 @@ describe('chat routes', () => {
     expect(res.text).toContain('"type":"token"');
     expect(res.text).toContain('"type":"done"');
   });
+
+  it('POST /stream returns 403 JSON before SSE headers', async () => {
+    const err: any = new Error('Forbidden');
+    err.statusCode = 403;
+    mockedChat.streamMessage.mockRejectedValue(err);
+
+    const res = await request(app)
+      .post('/api/chat/stream')
+      .send({ message: 'hi', conversationId: 9 });
+
+    expect(res.status).toBe(403);
+    expect(res.headers['content-type']).not.toMatch(/text\/event-stream/);
+    expect(res.body.error).toBe('Forbidden');
+  });
+
+  it('POST /stream emits SSE error after init', async () => {
+    mockedChat.streamMessage.mockImplementation(
+      async (
+        _input: unknown,
+        _onToken: (t: string) => void,
+        onInit?: (id: number) => void
+      ) => {
+        if (onInit) onInit(3);
+        throw new Error('provider boom');
+      }
+    );
+
+    const res = await request(app)
+      .post('/api/chat/stream')
+      .send({ message: 'hi', conversationId: 3 });
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('"type":"init"');
+    expect(res.text).toContain('"type":"error"');
+    expect(res.text).toContain('provider boom');
+  });
+
+  it('POST /send returns 500 on unexpected errors', async () => {
+    mockedChat.sendMessage.mockRejectedValue(new Error('boom'));
+    const res = await request(app).post('/api/chat/send').send({ message: 'hi' });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to send message');
+  });
+
+  it('GET /search returns 500 on service failure', async () => {
+    mockedChat.searchMessages.mockRejectedValue(new Error('db'));
+    const res = await request(app).get('/api/chat/search').query({ q: 'ab' });
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Помилка пошуку');
+  });
 });

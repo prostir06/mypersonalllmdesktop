@@ -63,6 +63,13 @@ describe('EmbeddingService (Prisma)', () => {
       expect(result).toEqual([0.1, 0.2]);
       expect(mockedAxios.post.mock.calls[0][1].input.length).toBeLessThanOrEqual(6000);
     });
+
+    it('returns null when OpenAI request fails', async () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      mockedAxios.post = jest.fn().mockRejectedValue(new Error('network'));
+      await expect(EmbeddingService.generateEmbedding('hi')).resolves.toBeNull();
+      expect(logger.error).toHaveBeenCalled();
+    });
   });
 
   describe('generateBatchEmbeddings', () => {
@@ -79,6 +86,14 @@ describe('EmbeddingService (Prisma)', () => {
       await expect(
         EmbeddingService.generateBatchEmbeddings(['first', 'second'])
       ).resolves.toEqual([[0.1], [0.2]]);
+    });
+
+    it('returns nulls when batch request fails', async () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      mockedAxios.post = jest.fn().mockRejectedValue(new Error('timeout'));
+      await expect(
+        EmbeddingService.generateBatchEmbeddings(['a', 'b'])
+      ).resolves.toEqual([null, null]);
     });
   });
 
@@ -117,6 +132,27 @@ describe('EmbeddingService (Prisma)', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('fallback')
       );
+    });
+
+    it('passes documentIds into vector query params', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          { content: 'scoped', filename: 'a.txt', similarity: 0.8 },
+        ]);
+
+      await EmbeddingService.findRelevantChunks([0.1], 9, [3, 7], 2);
+      const vectorCall = mockedPrisma.$queryRawUnsafe.mock.calls[1];
+      expect(vectorCall[0]).toContain('ANY');
+      expect(vectorCall).toContainEqual([3, 7]);
+    });
+
+    it('returns [] when DB throws', async () => {
+      mockedPrisma.$queryRawUnsafe.mockRejectedValue(new Error('db'));
+      await expect(
+        EmbeddingService.findRelevantChunks([0.1], 1, [], 5)
+      ).resolves.toEqual([]);
+      expect(logger.error).toHaveBeenCalled();
     });
 
     it('signature has no pool argument', () => {

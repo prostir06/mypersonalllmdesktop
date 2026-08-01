@@ -1,3 +1,6 @@
+/**
+ * Thin HTTP/SSE adapters over ChatService. Rate limits stay in server.js.
+ */
 import { Request, Response, NextFunction } from 'express';
 import ChatService = require('../services/ChatService');
 import logger from '../logger';

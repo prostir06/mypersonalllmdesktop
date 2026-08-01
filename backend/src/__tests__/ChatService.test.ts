@@ -47,6 +47,77 @@ describe('ChatService', () => {
     jest.clearAllMocks();
   });
 
+  describe('buildSystemContext', () => {
+    it('calls EmbeddingService without pool', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'Be helpful',
+      });
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'a.txt', similarity: 0.9 },
+      ]);
+
+      const msgs = await ChatService.buildSystemContext(
+        1,
+        { ragEnabled: true },
+        'query'
+      );
+
+      expect(mockedEmbed.findRelevantChunks).toHaveBeenCalledWith(
+        [0.1],
+        1,
+        [],
+        5
+      );
+      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(4);
+      expect(msgs[0].content).toBe('Be helpful');
+      expect(msgs[1].content).toContain('КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ');
+    });
+
+    it('continues when settings load fails', async () => {
+      mockedPrisma.userSettings.findUnique.mockRejectedValue(new Error('db down'));
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const msgs = await ChatService.buildSystemContext(1, {}, 'hi');
+      expect(msgs).toEqual([]);
+    });
+
+    it('continues when RAG fails', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'Keep going',
+      });
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockRejectedValue(new Error('embed fail'));
+
+      const msgs = await ChatService.buildSystemContext(
+        1,
+        { ragEnabled: true },
+        'q'
+      );
+      expect(msgs).toEqual([{ role: 'system', content: 'Keep going' }]);
+    });
+
+    it('sanitizes documentIds before RAG', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([]);
+
+      await ChatService.buildSystemContext(
+        1,
+        { documentIds: [1, -2, 3.5, '4', 'x'] as unknown as number[] },
+        'q'
+      );
+
+      expect(mockedEmbed.findRelevantChunks).toHaveBeenCalledWith(
+        null,
+        1,
+        [1, 4],
+        5
+      );
+    });
+  });
+
   describe('sendMessage', () => {
     it('creates conversation + two messages when conversationId missing', async () => {
       mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
@@ -97,6 +168,23 @@ describe('ChatService', () => {
         })
       ).rejects.toMatchObject({ statusCode: 403 });
     });
+
+    it('propagates provider failures', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.sendMessage.mockRejectedValue(new Error('provider down'));
+
+      await expect(
+        ChatService.sendMessage({
+          userId: 1,
+          conversationId: 10,
+          message: 'hi',
+          options: {},
+        })
+      ).rejects.toThrow('provider down');
+    });
   });
 
   describe('getHistory', () => {
@@ -105,6 +193,13 @@ describe('ChatService', () => {
       await expect(ChatService.getHistory(1, 5, 100, 0)).rejects.toMatchObject({
         statusCode: 404,
       });
+    });
+
+    it('throws 404 for invalid conversationId', async () => {
+      await expect(ChatService.getHistory(1, NaN, 100, 0)).rejects.toMatchObject({
+        statusCode: 404,
+      });
+      expect(mockedPrisma.conversation.findFirst).not.toHaveBeenCalled();
     });
 
     it('returns snake_case created_at', async () => {
@@ -153,34 +248,15 @@ describe('ChatService', () => {
         conversation_title: 'T',
       });
     });
-  });
 
-  describe('buildSystemContext', () => {
-    it('calls EmbeddingService without pool', async () => {
-      mockedPrisma.userSettings.findUnique.mockResolvedValue({
-        systemPrompt: 'Be helpful',
-      });
-      mockedEmbed.isAvailable.mockReturnValue(true);
-      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
-      mockedEmbed.findRelevantChunks.mockResolvedValue([
-        { content: 'chunk', filename: 'a.txt', similarity: 0.9 },
-      ]);
-
-      const msgs = await ChatService.buildSystemContext(
-        1,
-        { ragEnabled: true },
-        'query'
+    it('filters by conversationId when provided', async () => {
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      await ChatService.searchMessages(1, 'ab', '12');
+      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ conversationId: 12 }),
+        })
       );
-
-      expect(mockedEmbed.findRelevantChunks).toHaveBeenCalledWith(
-        [0.1],
-        1,
-        [],
-        5
-      );
-      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(4);
-      expect(msgs[0].content).toBe('Be helpful');
-      expect(msgs[1].content).toContain('КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ');
     });
   });
 

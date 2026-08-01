@@ -141,14 +141,26 @@ Avoid live OpenAI/Ollama in unit tests.
 
 ## Done Criteria
 
-- [ ] `chat.js`, `chatController.js`, `EmbeddingService.js` removed
-- [ ] Four chat endpoints on TS with HTTP/SSE parity
-- [ ] No `pool` in chat or EmbeddingService paths
-- [ ] System prompt via Prisma `userSettings`
-- [ ] Dead conversation update/delete removed from chat
-- [ ] Providers remain JS
-- [ ] Chat/Embedding tests pass; backend build/typecheck passes
-- [ ] No new schema migrations; no frontend changes
+- [x] `chat.js`, `chatController.js`, `EmbeddingService.js` removed
+- [x] Four chat endpoints on TS with HTTP/SSE parity
+- [x] No `pool` in chat or EmbeddingService paths
+- [x] System prompt via Prisma `userSettings`
+- [x] Dead conversation update/delete removed from chat
+- [x] Providers remained JS at Chat cutover (later ported separately — see providers design)
+- [x] Chat/Embedding tests pass; backend build/typecheck passes
+- [x] No new schema migrations; no frontend changes
+
+## Post-migration hardening (2026-08-01)
+
+Follow-up after the Prisma Chat cutover (errors + tests; no API contract change):
+
+| Change | Why |
+|--------|-----|
+| `sanitizeDocumentIds` before RAG | Only positive ints reach `ANY($n::int[])` |
+| Settings load failure → `logger.warn`, continue | Chat works without system prompt |
+| Invalid `conversationId` (NaN/≤0) → 404 before Prisma | Avoid odd Prisma errors |
+| Short module comments on ChatService / EmbeddingService / chatController | Orientation only |
+| Extra unit tests | Settings/RAG failure continuity; id sanitize; provider 500; SSE 403 JSON vs post-init error; embedding API/DB failures |
 
 ## Risks & Mitigations
 
@@ -162,4 +174,4 @@ Avoid live OpenAI/Ollama in unit tests.
 
 ## Approach Rationale
 
-Chosen: **Pattern A + ChatService + EmbeddingService.ts**, providers stay JS, full endpoint parity in one slice. Rejected a fat controller and splitting stream/RAG into a second project (user selected full Chat scope with RAG in-slice).
+Chosen: **Pattern A + ChatService + EmbeddingService.ts**, providers stay JS at Chat cutover, full endpoint parity in one slice. Rejected a fat controller and splitting stream/RAG into a second project (user selected full Chat scope with RAG in-slice).

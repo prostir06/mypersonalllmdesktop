@@ -1,3 +1,7 @@
+/**
+ * Chat orchestration: ownership, system prompt + RAG, provider calls, persistence.
+ * HTTP/SSE mapping lives in chatController — this layer throws ChatError for 4xx.
+ */
 import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
@@ -18,6 +22,14 @@ type ChatOptions = {
   image?: string;
   [key: string]: unknown;
 };
+
+/** Keep only positive integers so RAG filters cannot pass junk into SQL ANY(). */
+function sanitizeDocumentIds(ids: unknown): number[] {
+  if (!Array.isArray(ids)) return [];
+  return ids
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
 
 type SendInput = {
   userId: number;
@@ -80,11 +92,13 @@ class ChatService {
       if (settings?.systemPrompt) {
         systemMessages.push({ role: 'system', content: settings.systemPrompt });
       }
-    } catch {
-      // ignore missing settings
+    } catch (err: unknown) {
+      // Chat must continue without a system prompt if settings are unavailable
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`System prompt load skipped: ${message}`);
     }
 
-    const documentIds = options.documentIds || [];
+    const documentIds = sanitizeDocumentIds(options.documentIds);
     const ragEnabled = Boolean(options.ragEnabled || documentIds.length > 0);
 
     if (ragEnabled) {
@@ -257,6 +271,10 @@ class ChatService {
     limit: number,
     offset: number
   ) {
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      throw new ChatError(404, 'Conversation not found');
+    }
+
     const owned = await prisma.conversation.findFirst({
       where: { id: conversationId, userId },
       select: { id: true },
