@@ -49,7 +49,7 @@ const MessageInput = React.memo(({
       {/* Попередній перегляд прикріпленого зображення (Vision) */}
       {attachedImage && (
         <div
-          className="mb-2 d-flex align-items-center gap-2 p-2 rounded-3"
+          className="mb-2 d-flex align-items-center gap-2 p-2"
           style={{
             background: 'rgba(99,102,241,0.1)',
             border: '1px solid rgba(99,102,241,0.25)',

@@ -83,7 +83,7 @@ const Profile = () => {
         <img
           src={avatarUrl}
           alt="Аватар"
-          className="rounded-circle mb-3"
+          className="mb-3"
           width={96}
           height={96}
           style={{ border: '3px solid rgba(99,102,241,0.4)' }}

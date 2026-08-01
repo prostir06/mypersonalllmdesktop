@@ -335,9 +335,11 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     const requestOptions = {
       temperature,
       documentIds: selectedDocIds,
-      ragEnabled: selectedDocIds.length > 0
+      ragEnabled: selectedDocIds.length > 0,
+      image: attachedImage?.base64 || null
     };
 
+    let sentOk = false;
     try {
       setStreaming(true);
       setStreamedText('');
@@ -364,6 +366,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
       ]);
       setStreamedText('');
       if (onNewMessage) onNewMessage();
+      sentOk = true;
     } catch (err) {
       try {
         const response = await chatAPI.sendMessage(
@@ -375,6 +378,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
           { role: 'assistant', content: data.content, created_at: data.timestamp }
         ]);
         if (onNewMessage) onNewMessage(data.conversationId);
+        sentOk = true;
       } catch (fallbackErr) {
         const msg = fallbackErr.response?.data?.error || fallbackErr.message;
         setError(`Не вдалося отримати відповідь від AI: ${msg}`);
@@ -382,6 +386,13 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     } finally {
       setStreaming(false);
       setStreamedText('');
+      // Не тримаємо vision-картинку для наступних повідомлень
+      if (sentOk) {
+        setAttachedImage((prev) => {
+          if (prev?.url) URL.revokeObjectURL(prev.url);
+          return null;
+        });
+      }
     }
   };
 

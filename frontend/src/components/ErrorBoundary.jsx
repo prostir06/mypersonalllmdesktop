@@ -37,9 +37,9 @@ class ErrorBoundary extends React.Component {
             <p className="text-muted mb-4">
               Сталася несподівана помилка. Спробуйте перезавантажити сторінку.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <pre
-                className="text-start text-danger small p-3 rounded"
+                className="text-start text-danger small p-3"
                 style={{ background: 'rgba(239,68,68,0.1)', overflow: 'auto' }}
               >
                 {this.state.error.toString()}

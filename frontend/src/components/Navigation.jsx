@@ -41,21 +41,21 @@ const Navigation = () => {
             <Nav.Link
               as={Link}
               to="/dashboard"
-              className={`px-3 py-2 rounded-3 ${isActive('/dashboard') ? 'fw-bold text-primary' : ''}`}
+              className={`px-3 py-2 ${isActive('/dashboard') ? 'fw-bold text-primary' : ''}`}
             >
               💬 Чат
             </Nav.Link>
             <Nav.Link
               as={Link}
               to="/settings"
-              className={`px-3 py-2 rounded-3 ${isActive('/settings') ? 'fw-bold text-primary' : ''}`}
+              className={`px-3 py-2 ${isActive('/settings') ? 'fw-bold text-primary' : ''}`}
             >
               ⚙️ Налаштування AI
             </Nav.Link>
             <Nav.Link
               as={Link}
               to="/profile"
-              className={`px-3 py-2 rounded-3 ${isActive('/profile') ? 'fw-bold text-primary' : ''}`}
+              className={`px-3 py-2 ${isActive('/profile') ? 'fw-bold text-primary' : ''}`}
             >
               👤 Профіль
             </Nav.Link>
@@ -63,7 +63,7 @@ const Navigation = () => {
               variant="outline-secondary"
               size="sm"
               onClick={toggleTheme}
-              className="rounded-circle p-2 ms-2 border-0"
+              className="p-2 ms-2 border-0"
               title="Переключити тему"
               aria-label="Переключити тему"
             >
@@ -73,7 +73,7 @@ const Navigation = () => {
               variant="outline-danger"
               size="sm"
               onClick={handleLogout}
-              className="ms-2 px-3 rounded-3"
+              className="ms-2 px-3"
             >
               Вийти
             </Button>

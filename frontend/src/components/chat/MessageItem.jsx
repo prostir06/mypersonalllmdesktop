@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { Button } from 'react-bootstrap';
+import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -69,7 +70,13 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
  */
 const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
   return (
-    <div className={`message-bubble ${msg.role}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 15, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
+      layout
+      className={`message-bubble ${msg.role}`}
+    >
       <div className="message-header d-flex justify-content-between align-items-center">
         <span>{msg.role === 'user' ? '👤 Ви' : '🤖 Assistant'}</span>
         <div className="d-flex align-items-center gap-2">
@@ -100,7 +107,7 @@ const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
           {msg.content}
         </ReactMarkdown>
       </div>
-    </div>
+    </motion.div>
   );
 });
 
