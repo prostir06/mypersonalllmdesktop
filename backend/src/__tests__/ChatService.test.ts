@@ -1,0 +1,233 @@
+jest.mock('../config/prisma', () => ({
+  __esModule: true,
+  default: {
+    conversation: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
+    message: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+    },
+    userSettings: {
+      findUnique: jest.fn(),
+    },
+  },
+}));
+
+jest.mock('../services/EmbeddingService', () => ({
+  isAvailable: jest.fn(),
+  generateEmbedding: jest.fn(),
+  findRelevantChunks: jest.fn(),
+}));
+
+jest.mock('../services/providerFactory', () => ({
+  sendMessage: jest.fn(),
+  streamMessage: jest.fn(),
+}));
+
+jest.mock('../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+}));
+
+import prisma from '../config/prisma';
+import EmbeddingService from '../services/EmbeddingService';
+import ProviderFactory from '../services/providerFactory';
+import ChatService from '../services/ChatService';
+
+const mockedPrisma = prisma as any;
+const mockedEmbed = EmbeddingService as any;
+const mockedProvider = ProviderFactory as any;
+
+describe('ChatService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('sendMessage', () => {
+    it('creates conversation + two messages when conversationId missing', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Hi',
+        usage: { total_tokens: 10 },
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        message: 'Hello world',
+        provider: 'openai',
+        model: 'gpt-3.5-turbo',
+        options: {},
+      });
+
+      expect(mockedPrisma.conversation.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ userId: 1 }),
+      });
+      expect(result).toMatchObject({
+        conversationId: 42,
+        messageId: 101,
+        content: 'Hi',
+        role: 'assistant',
+      });
+      expect(mockedProvider.sendMessage).toHaveBeenCalled();
+    });
+
+    it('throws ChatError 403 for foreign conversation', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue(null);
+
+      await expect(
+        ChatService.sendMessage({
+          userId: 1,
+          conversationId: 99,
+          message: 'x',
+          options: {},
+        })
+      ).rejects.toMatchObject({ statusCode: 403 });
+    });
+  });
+
+  describe('getHistory', () => {
+    it('throws 404 when conversation not owned', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue(null);
+      await expect(ChatService.getHistory(1, 5, 100, 0)).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    });
+
+    it('returns snake_case created_at', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      const createdAt = new Date('2026-08-01T12:00:00Z');
+      mockedPrisma.message.findMany.mockResolvedValue([
+        { id: 1, role: 'user', content: 'a', createdAt },
+      ]);
+
+      const result = await ChatService.getHistory(1, 5, 100, 0);
+      expect(result.messages[0]).toEqual({
+        id: 1,
+        role: 'user',
+        content: 'a',
+        created_at: createdAt,
+      });
+    });
+  });
+
+  describe('searchMessages', () => {
+    it('scopes to user via conversation relation', async () => {
+      mockedPrisma.message.findMany.mockResolvedValue([
+        {
+          id: 1,
+          role: 'user',
+          content: 'hello',
+          createdAt: new Date(),
+          conversation: { id: 3, title: 'T' },
+        },
+      ]);
+
+      const result = await ChatService.searchMessages(7, 'he', undefined);
+      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            conversation: expect.objectContaining({ userId: 7 }),
+            content: expect.objectContaining({
+              contains: 'he',
+              mode: 'insensitive',
+            }),
+          }),
+        })
+      );
+      expect(result.results[0]).toMatchObject({
+        conversation_id: 3,
+        conversation_title: 'T',
+      });
+    });
+  });
+
+  describe('buildSystemContext', () => {
+    it('calls EmbeddingService without pool', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'Be helpful',
+      });
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'a.txt', similarity: 0.9 },
+      ]);
+
+      const msgs = await ChatService.buildSystemContext(
+        1,
+        { ragEnabled: true },
+        'query'
+      );
+
+      expect(mockedEmbed.findRelevantChunks).toHaveBeenCalledWith(
+        [0.1],
+        1,
+        [],
+        5
+      );
+      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(4);
+      expect(msgs[0].content).toBe('Be helpful');
+      expect(msgs[1].content).toContain('КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ');
+    });
+  });
+
+  describe('streamMessage', () => {
+    it('invokes provider stream and persists turn', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.streamMessage.mockImplementation(
+        async (
+          _p: string,
+          _m: unknown,
+          _model: string,
+          _o: unknown,
+          onToken: (t: string) => void
+        ) => {
+          onToken('A');
+          onToken('B');
+          return { content: 'AB' };
+        }
+      );
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 200, createdAt: new Date() });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const tokens: string[] = [];
+      const inits: number[] = [];
+      const result = await ChatService.streamMessage(
+        {
+          userId: 1,
+          conversationId: 10,
+          message: 'Hi',
+          options: {},
+        },
+        (t) => tokens.push(t),
+        (id) => inits.push(id)
+      );
+
+      expect(inits).toEqual([10]);
+      expect(tokens).toEqual(['A', 'B']);
+      expect(result).toMatchObject({
+        conversationId: 10,
+        messageId: 200,
+        content: 'AB',
+      });
+    });
+  });
+});
