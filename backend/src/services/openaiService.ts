@@ -1,15 +1,98 @@
-import axios from 'axios';
+import OpenAI from 'openai';
+import logger from '../logger';
 
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || 'dummy',
+});
 
-type ChatMessage = { role: string; content: unknown };
+const tools: OpenAI.Chat.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'calculate',
+      description:
+        'Evaluate a mathematical expression. Use this for ANY math calculation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          expression: {
+            type: 'string',
+            description: "The math expression to evaluate, e.g., '2 + 2'",
+          },
+        },
+        required: ['expression'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_current_time',
+      description: 'Get the current time and date in the local timezone.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+];
+
+type ChatMessage = { role: string; content?: unknown; [key: string]: unknown };
 type ProviderOptions = {
+  enableTools?: boolean;
   ollama_host?: string;
+  image?: string;
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
   [key: string]: unknown;
 };
+
+function buildBaseParams(
+  messages: ChatMessage[],
+  model: string,
+  options: ProviderOptions
+) {
+  const {
+    enableTools: _et,
+    ollama_host: _oh,
+    image: _img,
+    tools: _tools,
+    tool_choice: _tc,
+    stream: _stream,
+    ...rest
+  } = options;
+
+  return {
+    model,
+    messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
+    temperature: typeof rest.temperature === 'number' ? rest.temperature : 0.7,
+    max_tokens: typeof rest.max_tokens === 'number' ? rest.max_tokens : 2000,
+    ...(typeof rest.top_p === 'number' ? { top_p: rest.top_p } : {}),
+  };
+}
+
+function executeTool(name: string, args: { expression?: string }): string {
+  try {
+    if (name === 'calculate') {
+      const raw = args.expression || '';
+      if (raw.includes('**') || raw.includes('^')) {
+        throw new Error('Недійсний математичний вираз');
+      }
+      const safeExpression = raw.replace(/[^0-9+\-*/(). ]/g, '');
+      if (!safeExpression || safeExpression.includes('**')) {
+        throw new Error('Недійсний математичний вираз');
+      }
+      const safeEval = new Function('return (' + safeExpression + ')');
+      return String(safeEval());
+    }
+    if (name === 'get_current_time') {
+      return new Date().toLocaleString('uk-UA');
+    }
+    return 'Unknown tool: ' + name;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Помилка виконання інструмента ${name}: ${message}`);
+    return `Error evaluating: ${message}`;
+  }
+}
 
 async function sendOpenAIMessage(
   messages: ChatMessage[],
@@ -17,31 +100,58 @@ async function sendOpenAIMessage(
   options: ProviderOptions = {}
 ) {
   try {
-    const { ollama_host: _ollamaHost, ...payloadOptions } = options;
-    const payload = {
-      model,
-      messages,
-      temperature: payloadOptions.temperature || 0.7,
-      max_tokens: payloadOptions.max_tokens || 2000,
-      top_p: payloadOptions.top_p || 1,
-      ...payloadOptions,
-    };
+    const enableTools = options.enableTools === true;
+    const base = buildBaseParams(messages, model, options);
 
-    const response = await axios.post(OPENAI_API_URL, payload, {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
+    const response = await openai.chat.completions.create({
+      ...base,
+      ...(enableTools ? { tools, tool_choice: 'auto' as const } : {}),
     });
 
+    const choice = response.choices[0];
+    const workingMessages: ChatMessage[] = [...messages];
+
+    if (
+      enableTools &&
+      choice.message.tool_calls &&
+      choice.message.tool_calls.length > 0
+    ) {
+      workingMessages.push(choice.message as unknown as ChatMessage);
+
+      for (const toolCall of choice.message.tool_calls) {
+        if (toolCall.type !== 'function') continue;
+        let args: { expression?: string } = {};
+        try {
+          args = JSON.parse(toolCall.function.arguments || '{}');
+        } catch (parseError: unknown) {
+          logger.error(`Помилка парсингу аргументів інструмента: ${parseError}`);
+        }
+        const result = executeTool(toolCall.function.name, args);
+        workingMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: result,
+        });
+      }
+
+      const second = await openai.chat.completions.create(
+        buildBaseParams(workingMessages, model, options)
+      );
+
+      return {
+        content: second.choices[0].message.content || '',
+        usage: second.usage,
+        model: second.model,
+      };
+    }
+
     return {
-      content: response.data.choices[0].message.content as string,
-      usage: response.data.usage,
-      model: response.data.model as string,
+      content: choice.message.content || '',
+      usage: response.usage,
+      model: response.model,
     };
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: unknown }; message?: string };
-    console.error('OpenAI API error:', err.response?.data || err.message);
+  } catch {
+    logger.error('OpenAI API error in sendOpenAIMessage');
     throw new Error('Failed to communicate with OpenAI API');
   }
 }
@@ -53,69 +163,37 @@ async function streamOpenAIMessage(
   onChunk?: (token: string) => void
 ) {
   try {
-    const { ollama_host: _ollamaHost, ...payloadOptions } = options;
-    const payload = {
-      model,
-      messages,
-      temperature: payloadOptions.temperature || 0.7,
-      max_tokens: payloadOptions.max_tokens || 2000,
-      top_p: payloadOptions.top_p || 1,
+    const base = buildBaseParams(messages, model, options);
+    const stream = await openai.chat.completions.create({
+      ...base,
       stream: true,
-      ...payloadOptions,
-    };
-
-    const response = await axios.post(OPENAI_API_URL, payload, {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      responseType: 'stream',
     });
 
     let fullContent = '';
-
-    return new Promise<{ content: string; model: string }>((resolve, reject) => {
-      let buffer = '';
-      response.data.on('data', (chunk: Buffer | string) => {
-        buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            const dataStr = trimmed.replace('data: ', '');
-            if (dataStr === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(dataStr);
-              const token = parsed.choices[0]?.delta?.content || '';
-              if (token) {
-                fullContent += token;
-                if (onChunk) onChunk(token);
-              }
-            } catch {
-              // ignore partial line parse errors
-            }
+    for await (const chunk of stream) {
+      if (!chunk.choices || chunk.choices.length === 0) continue;
+      const token = chunk.choices[0]?.delta?.content || '';
+      if (token) {
+        fullContent += token;
+        if (onChunk) {
+          try {
+            onChunk(token);
+          } catch (cbError: unknown) {
+            logger.error(`Помилка в onChunk коллбеку: ${cbError}`);
           }
         }
-      });
+      }
+    }
 
-      response.data.on('end', () => {
-        resolve({ content: fullContent, model });
-      });
-
-      response.data.on('error', (err: Error) => {
-        reject(err);
-      });
-    });
-  } catch (error: unknown) {
-    const err = error as { response?: { data?: unknown }; message?: string };
-    console.error('OpenAI Stream API error:', err.response?.data || err.message);
+    return { content: fullContent, model };
+  } catch {
+    logger.error('OpenAI Stream API error in streamOpenAIMessage');
     throw new Error('Failed to stream from OpenAI API');
   }
 }
 
 export = {
+  executeTool,
   sendOpenAIMessage,
   streamOpenAIMessage,
 };

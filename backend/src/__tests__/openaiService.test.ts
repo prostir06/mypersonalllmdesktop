@@ -1,90 +1,141 @@
-jest.mock('axios');
+const mockCreate = jest.fn();
 
-import axios from 'axios';
-import { EventEmitter } from 'events';
+jest.mock('openai', () => {
+  return jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: mockCreate } },
+  }));
+});
+
+jest.mock('../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+}));
+
 import openaiService = require('../services/openaiService');
 
-const { sendOpenAIMessage, streamOpenAIMessage } = openaiService;
-const mockedAxios = axios as unknown as { post: jest.Mock };
+const { executeTool, sendOpenAIMessage, streamOpenAIMessage } = openaiService;
 
-function mockSseStream(lines: string[]) {
-  mockedAxios.post = jest.fn().mockImplementation(() => {
-    const ee = new EventEmitter();
-    setImmediate(() => {
-      for (const line of lines) {
-        ee.emit('data', Buffer.from(line));
-      }
-      ee.emit('end');
-    });
-    return Promise.resolve({ data: ee });
-  });
-}
-
-describe('openaiService', () => {
-  const originalEnv = process.env;
-
+describe('openaiService (SDK)', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    process.env = { ...originalEnv, OPENAI_API_KEY: 'test-key' };
+    mockCreate.mockReset();
+    process.env.OPENAI_API_KEY = 'test-key';
   });
 
-  afterAll(() => {
-    process.env = originalEnv;
+  describe('executeTool', () => {
+    it('calculates safe expressions', () => {
+      expect(executeTool('calculate', { expression: '2 + 2' })).toBe('4');
+    });
+
+    it('rejects exponentiation **', () => {
+      const result = executeTool('calculate', { expression: '2**1024' });
+      expect(result).toMatch(/Error|Недійсний|invalid/i);
+    });
   });
 
-  it('sendOpenAIMessage returns content/usage/model', async () => {
-    mockedAxios.post = jest.fn().mockResolvedValue({
-      data: {
-        choices: [{ message: { content: 'Hello' } }],
-        usage: { total_tokens: 3 },
+  describe('sendOpenAIMessage', () => {
+    it('omits tools when enableTools is not true', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Hi', role: 'assistant' } }],
+        usage: { total_tokens: 1 },
         model: 'gpt-3.5-turbo',
-      },
+      });
+
+      const result = await sendOpenAIMessage(
+        [{ role: 'user', content: 'x' }],
+        'gpt-3.5-turbo',
+        {
+          temperature: 0.2,
+          ollama_host: 'http://x',
+          tools: [{ type: 'function' }],
+        }
+      );
+
+      expect(result.content).toBe('Hi');
+      const arg = mockCreate.mock.calls[0][0];
+      expect(arg.tools).toBeUndefined();
+      expect(arg.tool_choice).toBeUndefined();
+      expect(arg.temperature).toBe(0.2);
+      expect(arg.ollama_host).toBeUndefined();
     });
 
-    const result = await sendOpenAIMessage(
-      [{ role: 'user', content: 'Hi' }],
-      'gpt-3.5-turbo',
-      { temperature: 0.2, ollama_host: 'http://ignore' }
-    );
+    it('runs tool_calls when enableTools true', async () => {
+      mockCreate
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_1',
+                    type: 'function',
+                    function: {
+                      name: 'calculate',
+                      arguments: '{"expression":"2+2"}',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: {},
+          model: 'gpt-3.5-turbo',
+        })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: '4', role: 'assistant' } }],
+          usage: { total_tokens: 5 },
+          model: 'gpt-3.5-turbo',
+        });
 
-    expect(result).toEqual({
-      content: 'Hello',
-      usage: { total_tokens: 3 },
-      model: 'gpt-3.5-turbo',
+      const result = await sendOpenAIMessage(
+        [{ role: 'user', content: 'calc' }],
+        'gpt-3.5-turbo',
+        { enableTools: true }
+      );
+
+      expect(result.content).toBe('4');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(mockCreate.mock.calls[0][0].tools).toBeDefined();
+      expect(mockCreate.mock.calls[1][0].tools).toBeUndefined();
+      const secondMessages = mockCreate.mock.calls[1][0].messages;
+      expect(
+        secondMessages.some((m: { role: string }) => m.role === 'tool')
+      ).toBe(true);
     });
-    const [url, payload, config] = mockedAxios.post.mock.calls[0];
-    expect(url).toBe('https://api.openai.com/v1/chat/completions');
-    expect(payload.ollama_host).toBeUndefined();
-    expect(payload.temperature).toBe(0.2);
-    expect(config.headers.Authorization).toBe('Bearer test-key');
+
+    it('throws generic error on failure', async () => {
+      mockCreate.mockRejectedValue(new Error('sk-secret-leak'));
+      await expect(
+        sendOpenAIMessage([{ role: 'user', content: 'x' }])
+      ).rejects.toThrow('Failed to communicate with OpenAI API');
+      try {
+        await sendOpenAIMessage([{ role: 'user', content: 'x' }]);
+      } catch (e: unknown) {
+        expect(String(e)).not.toMatch(/sk-secret/);
+      }
+    });
   });
 
-  it('sendOpenAIMessage throws generic error on failure', async () => {
-    mockedAxios.post = jest.fn().mockRejectedValue({
-      response: { data: { error: 'secret' } },
-      message: 'network',
+  describe('streamOpenAIMessage', () => {
+    it('emits tokens from async iterator', async () => {
+      async function* gen() {
+        yield { choices: [{ delta: { content: 'Hel' } }] };
+        yield { choices: [{ delta: { content: 'lo' } }] };
+      }
+      mockCreate.mockResolvedValueOnce(gen());
+      const onChunk = jest.fn();
+      const result = await streamOpenAIMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gpt-3.5-turbo',
+        { enableTools: true },
+        onChunk
+      );
+      expect(result.content).toBe('Hello');
+      expect(onChunk.mock.calls.map((c) => c[0]).join('')).toBe('Hello');
+      expect(mockCreate.mock.calls[0][0].stream).toBe(true);
+      expect(mockCreate.mock.calls[0][0].tools).toBeUndefined();
     });
-    await expect(
-      sendOpenAIMessage([{ role: 'user', content: 'x' }])
-    ).rejects.toThrow('Failed to communicate with OpenAI API');
-  });
-
-  it('streamOpenAIMessage emits tokens and resolves content', async () => {
-    mockSseStream([
-      'data: {"choices":[{"delta":{"content":"Hel"}}]}\n',
-      'data: {"choices":[{"delta":{"content":"lo"}}]}\n',
-      'data: [DONE]\n',
-    ]);
-    const onChunk = jest.fn();
-    const result = await streamOpenAIMessage(
-      [{ role: 'user', content: 'Hi' }],
-      'gpt-3.5-turbo',
-      {},
-      onChunk
-    );
-    expect(onChunk.mock.calls.map((c) => c[0]).join('')).toBe('Hello');
-    expect(result.content).toBe('Hello');
-    expect(mockedAxios.post.mock.calls[0][1].stream).toBe(true);
-    expect(mockedAxios.post.mock.calls[0][2].responseType).toBe('stream');
   });
 });
