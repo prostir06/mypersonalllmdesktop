@@ -1,175 +1,158 @@
 # LLM Personal Assistant Control Panel
 
-Повнофункціональна панель керування персональним помічником з інтеграцією OpenAI API.
+Personal LLM assistant control panel: Express + Prisma backend, React (Vite) frontend, OpenAI / Ollama providers.
 
-## 🎯 Можливості
+## Features
 
-- ✅ Чат з LLM-помічником (OpenAI, Ollama)
-- ✅ Управління різними моделями LLM
-- ✅ Вибір провайдера AI (OpenAI, Ollama)
-- ✅ Збереження історії розмов
-- ✅ Налаштування параметрів (temperature, max_tokens)
-- ✅ Аутентифікація користувачів
-- ✅ Завантаження файлів
-- ✅ Адаптивний дизайн з Bootstrap
+- Chat with LLM assistants (OpenAI, Ollama), including streaming
+- Conversation history, search, and settings (system prompt, model params)
+- Multi-model management
+- JWT authentication
+- Document upload for RAG (PDF, DOCX, TXT, MD)
+- Docker Compose for local stack
 
-## 📋 Структура проекту
+## Project structure
 
 ```
 .
-├── backend/               # Node.js/Express API
+├── backend/                 # Express API (JS entry + TypeScript modules via ts-node)
+│   ├── prisma/              # Prisma schema & migrations
 │   ├── src/
-│   │   ├── routes/       # API маршрути
-│   │   ├── controllers/  # Логіка контролерів
-│   │   ├── models/       # Моделі даних
-│   │   ├── middleware/   # Middleware (auth, etc)
-│   │   ├── services/     # Зовнішні сервіси (OpenAI)
-│   │   └── config/       # Конфігурація
-│   ├── database.sql      # Схема БД
+│   │   ├── routes/
+│   │   ├── controllers/
+│   │   ├── services/
+│   │   ├── middleware/
+│   │   ├── config/          # prisma.ts, database.js (health)
+│   │   └── utils/
+│   ├── database.sql         # Optional/legacy SQL bootstrap for Docker init
 │   └── Dockerfile
-├── frontend/             # React SPA
+├── frontend/                # React + Vite SPA
 │   ├── src/
-│   │   ├── components/   # React компоненти
-│   │   ├── pages/        # Сторінки
-│   │   ├── services/     # API клієнт
-│   │   ├── context/      # React Context
-│   │   └── styles/       # CSS стилі
 │   └── Dockerfile
-└── docker-compose.yml    # Docker Compose конфігурація
+├── docs/superpowers/specs/  # Design specs
+└── docker-compose.yml
 ```
 
-## 🚀 Швидкий старт
+## Quick start
 
-### Без Docker
+### Without Docker
 
-#### 1. Налаштування БД (PostgreSQL)
+#### 1. PostgreSQL
 
 ```bash
-# Створіть БД
 createdb llm_assistant
-
-# Зареєструйте схему
-psql -U postgres -d llm_assistant -f backend/database.sql
 ```
 
-#### 2. Backend
+Use Prisma migrations from `backend/` (preferred), or bootstrap with `backend/database.sql` if you rely on the Docker init script style.
 
 ```bash
 cd backend
 cp .env.example .env
-# Відредагуйте .env та додайте OPENAI_API_KEY
+# Set DATABASE_URL, JWT_SECRET, OPENAI_API_KEY
 npm install
+npx prisma generate --config prisma/prisma.config.ts
+npx prisma migrate deploy --config prisma/prisma.config.ts
 npm run dev
 ```
 
-#### 3. Frontend
+#### 2. Frontend
 
 ```bash
 cd frontend
 cp .env.example .env
+# VITE_API_URL=http://localhost:5000/api
 npm install
 npm start
 ```
 
-### З Docker
+App: http://localhost:5173 (Vite default) or as configured. API: http://localhost:5000.
+
+### With Docker
 
 ```bash
-# Налаштуйте OPENAI_API_KEY
+# Set secrets in a root or shell env (never commit .env)
 export OPENAI_API_KEY=your_api_key_here
+export JWT_SECRET=change_this_secret_in_production
 
-# Запустіть контейнери
 docker-compose up -d
-
-# Ініціалізуйте БД (при першому запуску)
-docker exec llm-assistant-db psql -U postgres -d llm_assistant -f /docker-entrypoint-initdb.d/01-schema.sql
 ```
 
-Додаток буде доступний на http://localhost:3000
+Postgres is initialized from `backend/database.sql` on first volume create. Frontend is served on http://localhost:3000; backend on http://localhost:5000.
 
-## 🔐 Умовчувані облікові дані
+## Auth
 
-Перед першим запуском створіть облік. Немає умовчувань для безпеки.
+No default users. Register via `POST /api/auth/register` or the UI.
 
-## ⚙️ Конфігурація
+## Configuration
 
-### Backend (.env)
+### Backend (`.env` — see `backend/.env.example`)
 
 ```env
 PORT=5000
 NODE_ENV=development
-
-# Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/llm_assistant
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=llm_assistant
 DB_USER=postgres
 DB_PASSWORD=password
-
-# JWT
-JWT_SECRET=your_secret_key_here
+JWT_SECRET=your_jwt_secret_key_change_this_in_production
 JWT_EXPIRE=7d
-
-# OpenAI
 OPENAI_API_KEY=your_openai_api_key_here
-
-# CORS
-CORS_ORIGIN=http://localhost:3000
+OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
+CORS_ORIGIN=http://localhost:5173
 ```
 
-### Frontend (.env)
+### Frontend (`.env` — see `frontend/.env.example`)
 
 ```env
 VITE_API_URL=http://localhost:5000/api
 ```
 
-## 📚 API Endpoints
+## Main API
 
-### Аутентифікація
-- `POST /api/auth/register` - Реєстрація
-- `POST /api/auth/login` - Вхід
+### Auth
+- `POST /api/auth/register`
+- `POST /api/auth/login`
 
-### Чат
-- `POST /api/chat/send` - Надіслати повідомлення
-- `GET /api/chat/history/:conversationId` - Отримати історію
+### Chat
+- `POST /api/chat/send`
+- `POST /api/chat/stream`
+- `GET /api/chat/history/:conversationId`
+- `GET /api/chat/search`
 
-### Розмови
-- `GET /api/conversations` - Всі розмови
-- `POST /api/conversations` - Створити нову
-- `GET /api/conversations/:id` - Отримати розмову
-- `PUT /api/conversations/:id` - Оновити
-- `DELETE /api/conversations/:id` - Видалити
+### Conversations
+- `GET|POST /api/conversations`
+- `GET|PUT|DELETE /api/conversations/:id`
 
-### Моделі LLM
-- `GET /api/models` - Всі доступні моделі
-- `POST /api/models` - Додати власну модель
-- `PUT /api/models/:id` - Оновити модель
-- `DELETE /api/models/:id` - Видалити модель
+### Documents (RAG)
+- `POST /api/documents/upload`
+- `GET /api/documents`
+- `DELETE /api/documents/:id`
 
-### Користувач
-- `GET /api/users/me` - Інформація про поточного користувача
-- `PUT /api/users/me` - Оновити профіль
+### Models / Settings / Users
+- `/api/models`, `/api/settings`, `/api/users/me`
 
-## 🔧 Розробка
+## Development
 
 ### Backend
+
 ```bash
 cd backend
-npm run dev          # Режим розробки з nodemon
-npm test             # Запустити тести
+npm run dev      # nodemon + ts-node
+npm test         # Jest
+npm run build    # tsc --noEmit
 ```
 
 ### Frontend
+
 ```bash
 cd frontend
-npm start            # Режим розробки
-npm run build        # Білд для продакшену
-npm test             # Запустити тести
+npm start        # vite
+npm run build    # production build
+npm run serve    # preview build
 ```
 
-## 📝 Ліцензія
+## License
 
 MIT
-
-## 🤝 Внесок
-
-Вклади приймаються! Відкрийте PR або Issue.

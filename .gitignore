@@ -48,3 +48,6 @@ Thumbs.db
 # Superpowers SDD scratch
 .superpowers/
 
+# Local implementation plans (specs under docs/superpowers/specs are tracked)
+docs/superpowers/plans/
+
