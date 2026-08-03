@@ -1,44 +1,32 @@
 # Copilot Instructions
 
-Це workspace для панелі керування персональним LLM-помічником.
+Workspace for a personal LLM assistant control panel.
 
-## Структура проекту
+## Stack
 
-- **backend/** - Node.js/Express API з інтеграцією OpenAI
-- **frontend/** - React SPA з Bootstrap стилем
-- **docker-compose.yml** - Docker конфігурація для легкого запуску
+- **backend/** — Express API (JS entry + TypeScript modules via `ts-node`), Prisma, PostgreSQL
+- **frontend/** — React 18 + Vite + TypeScript/JSX + Bootstrap 5
+- **docker-compose.yml** — Postgres + backend + frontend
 
-## Сток:
-- React 18 + Bootstrap 5
-- Node.js/Express
-- PostgreSQL
-- OpenAI API
-- JWT для аутентифікації
+Providers: OpenAI API, Ollama. Auth: JWT.
 
-## Настройка OpenAI API
+## Ports
 
-1. Отримайте API ключ з https://platform.openai.com/api-keys
-2. Додайте в `.env`:
-   ```
-   OPENAI_API_KEY=sk_test_...
-   ```
+- Frontend (Vite / Docker): http://localhost:3000
+- Backend API: http://localhost:5000 (`/api`)
 
-## Запуск проекту
+## Important paths
 
-### Docker (рекомендовано)
-```bash
-export OPENAI_API_KEY=your_key
-docker-compose up
-```
+- Backend routes: `backend/src/routes/`
+- Frontend components: `frontend/src/components/`
+- HTTP client: `frontend/src/services/api.ts`
+- Prisma schema: `backend/prisma/schema.prisma`
+- Design specs: `docs/superpowers/specs/`
 
-### Локально
-1. Установіть PostgreSQL
-2. `cd backend && npm install && npm run dev`
+## Local run
+
+1. Copy `backend/.env.example` → `backend/.env` and set `DATABASE_URL`, `JWT_SECRET`, `OPENAI_API_KEY`
+2. `cd backend && npm install && npx prisma migrate deploy --config prisma/prisma.config.ts && npm run dev`
 3. `cd frontend && npm install && npm start`
 
-## Важные файлы
-
-- [Backend Routes](backend/src/routes/) - API endpoints
-- [Frontend Components](frontend/src/components/) - React компоненти
-- [Database Schema](backend/database.sql) - БД структура
-- [API Service](frontend/src/services/api.js) - HTTP клієнт
+Or: `docker compose up -d` with secrets in the environment (never commit `.env`).

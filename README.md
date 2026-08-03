@@ -65,7 +65,7 @@ npm install
 npm start
 ```
 
-App: http://localhost:5173 (Vite default) or as configured. API: http://localhost:5000.
+App: http://localhost:3000. API: http://localhost:5000.
 
 ### With Docker
 
@@ -100,7 +100,7 @@ JWT_SECRET=your_jwt_secret_key_change_this_in_production
 JWT_EXPIRE=7d
 OPENAI_API_KEY=your_openai_api_key_here
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
-CORS_ORIGIN=http://localhost:5173
+CORS_ORIGIN=http://localhost:3000
 ```
 
 ### Frontend (`.env` — see `frontend/.env.example`)
@@ -153,6 +153,11 @@ npm run build    # production build
 npm run serve    # preview build
 ```
 
+## Notes
+
+- Prefer Prisma migrations (`backend/prisma/`) as schema source of truth. `database.sql` is used only for Docker first-boot init.
+- Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
+
 ## License
 
-MIT
+MIT (add a `LICENSE` file if you redistribute publicly).
