@@ -150,8 +150,19 @@ async function sendOpenAIMessage(
       usage: response.usage,
       model: response.model,
     };
-  } catch {
-    logger.error('OpenAI API error in sendOpenAIMessage');
+  } catch (err: unknown) {
+    const status =
+      err && typeof err === 'object' && 'status' in err
+        ? String((err as { status: unknown }).status)
+        : '';
+    const code =
+      err && typeof err === 'object' && 'code' in err
+        ? String((err as { code: unknown }).code)
+        : '';
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(
+      `OpenAI API error in sendOpenAIMessage${status ? ` status=${status}` : ''}${code ? ` code=${code}` : ''}: ${message}`
+    );
     throw new Error('Failed to communicate with OpenAI API');
   }
 }

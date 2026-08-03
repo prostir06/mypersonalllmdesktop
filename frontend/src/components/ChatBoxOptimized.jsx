@@ -477,7 +477,13 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
             await settingsAPI.update({ system_prompt: promptText });
             toast.success('Нову роль AI успішно встановлено! 💡');
           } catch (e) {
-            toast.error('Помилка збереження ролі.');
+            const msg =
+              e?.response?.data?.error ||
+              e?.response?.data?.errors?.[0]?.msg ||
+              e?.message ||
+              'невідома помилка';
+            toast.error(`Помилка збереження ролі: ${msg}`);
+            throw e;
           }
         }}
       />

@@ -1,3 +1,6 @@
+// Routes/controllers are TypeScript — register before any require('./routes/*')
+require('ts-node/register');
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');

@@ -182,6 +182,12 @@ code, pre {
   border: 1px solid var(--card-border) !important;
 }
 
+.form-control::placeholder,
+.form-select::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1 !important;
+}
+
 .form-control:focus, .form-select:focus {
   box-shadow: none !important;
   border-color: var(--accent-solid) !important;

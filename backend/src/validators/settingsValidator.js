@@ -19,8 +19,8 @@ const validateSettingsUpdate = [
     .isLength({ min: 1, max: 255 })
     .withMessage('Model must be between 1 and 255 characters'),
   body('default_ollama_host')
-    .optional()
-    .isURL()
+    .optional({ values: 'falsy' })
+    .isURL({ require_tld: false, allow_underscores: true })
     .withMessage('Invalid Ollama URL'),
   body('temperature')
     .optional()

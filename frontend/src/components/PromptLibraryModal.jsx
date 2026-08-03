@@ -70,9 +70,13 @@ const PromptLibraryModal = ({ show, onHide, onSelectPrompt }) => {
               <Card
                 className="bg-dark text-light border-secondary h-100 p-3 hover-shadow"
                 style={{ cursor: 'pointer', transition: 'all 0.2s ease' }}
-                onClick={() => {
-                  onSelectPrompt(item.prompt);
-                  onHide();
+                onClick={async () => {
+                  try {
+                    await onSelectPrompt(item.prompt);
+                    onHide();
+                  } catch {
+                    // parent shows toast; keep modal open for retry
+                  }
                 }}
               >
                 <div className="d-flex justify-content-between align-items-center mb-2">
