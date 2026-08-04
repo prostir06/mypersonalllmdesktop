@@ -148,9 +148,10 @@ VITE_API_URL=http://localhost:5000/api
 
 ```bash
 cd backend
-npm run dev      # nodemon + ts-node
+npm run dev      # nodemon + ts-node (src)
 npm test         # Jest
-npm run build    # tsc --noEmit
+npm run build    # emit dist/
+npm start        # node dist/server.js
 ```
 
 ### Frontend

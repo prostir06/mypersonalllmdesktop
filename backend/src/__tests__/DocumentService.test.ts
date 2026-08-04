@@ -1,3 +1,13 @@
+const mockGetText = jest.fn();
+const mockDestroy = jest.fn().mockResolvedValue(undefined);
+
+jest.mock('pdf-parse', () => ({
+  PDFParse: jest.fn().mockImplementation(() => ({
+    getText: mockGetText,
+    destroy: mockDestroy,
+  })),
+}));
+
 jest.mock('../config/prisma', () => ({
   __esModule: true,
   default: {
@@ -10,6 +20,7 @@ jest.mock('../config/prisma', () => ({
       create: jest.fn(),
     },
     $executeRawUnsafe: jest.fn(),
+    $transaction: jest.fn(),
   },
 }));
 
@@ -24,6 +35,7 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+import { PDFParse } from 'pdf-parse';
 import prisma from '../config/prisma';
 import DocumentService from '../services/DocumentService';
 import EmbeddingService from '../services/EmbeddingService';
@@ -36,6 +48,7 @@ const mockedPrisma = prisma as unknown as {
   };
   documentChunk: { create: jest.Mock };
   $executeRawUnsafe: jest.Mock;
+  $transaction: jest.Mock;
 };
 
 const mockedEmbed = EmbeddingService as unknown as {
@@ -46,6 +59,15 @@ const mockedEmbed = EmbeddingService as unknown as {
 describe('DocumentService (Prisma)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: $transaction runs callback with prisma-like tx that delegates to same mocks
+    mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        document: mockedPrisma.document,
+        documentChunk: mockedPrisma.documentChunk,
+        $executeRawUnsafe: mockedPrisma.$executeRawUnsafe,
+      };
+      return fn(tx);
+    });
   });
 
   describe('chunkText', () => {
@@ -67,6 +89,21 @@ describe('DocumentService (Prisma)', () => {
         't.txt'
       );
       expect(text).toBe('Тест');
+    });
+
+    it('uses pdf-parse PDFParse.getText for PDFs', async () => {
+      mockGetText.mockResolvedValue({ text: 'PDF body' });
+
+      const text = await DocumentService.extractText(
+        Buffer.from('%PDF'),
+        'application/pdf',
+        'doc.pdf'
+      );
+
+      expect(PDFParse).toHaveBeenCalled();
+      expect(mockGetText).toHaveBeenCalled();
+      expect(mockDestroy).toHaveBeenCalled();
+      expect(text).toBe('PDF body');
     });
   });
 
@@ -102,10 +139,10 @@ describe('DocumentService (Prisma)', () => {
         file_size: 100,
       });
       expect(result.chunksCount).toBe(1);
+      expect(mockedPrisma.$transaction).toHaveBeenCalled();
       expect(mockedPrisma.document.create).toHaveBeenCalled();
       expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
       expect(mockedPrisma.documentChunk.create).not.toHaveBeenCalled();
-      // no DDL
       expect(JSON.stringify(mockedPrisma)).not.toMatch(/CREATE TABLE/i);
     });
 
@@ -131,6 +168,7 @@ describe('DocumentService (Prisma)', () => {
         1
       );
 
+      expect(mockedPrisma.$transaction).toHaveBeenCalled();
       expect(mockedPrisma.documentChunk.create).toHaveBeenCalled();
       expect(mockedPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
     });
@@ -147,6 +185,7 @@ describe('DocumentService (Prisma)', () => {
           1
         )
       ).rejects.toThrow(/витягти текст/i);
+      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     });
   });
 

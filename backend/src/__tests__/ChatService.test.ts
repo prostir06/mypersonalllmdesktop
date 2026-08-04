@@ -13,6 +13,7 @@ jest.mock('../config/prisma', () => ({
     userSettings: {
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -45,6 +46,29 @@ const mockedProvider = ProviderFactory as any;
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
+      const tx = {
+        message: mockedPrisma.message,
+        conversation: mockedPrisma.conversation,
+      };
+      return fn(tx);
+    });
+  });
+
+  describe('ensureConversationId', () => {
+    it('creates conversation when conversationId is undefined', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 11 });
+      const id = await ChatService.ensureConversationId(1, undefined, 'Hello');
+      expect(id).toBe(11);
+      expect(mockedPrisma.conversation.create).toHaveBeenCalled();
+    });
+
+    it('does not treat 0 as missing — returns 404 path via ChatError', async () => {
+      await expect(
+        ChatService.ensureConversationId(1, 0, 'Hello')
+      ).rejects.toMatchObject({ statusCode: 404 });
+      expect(mockedPrisma.conversation.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('buildSystemContext', () => {
@@ -147,6 +171,7 @@ describe('ChatService', () => {
       expect(mockedPrisma.conversation.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ userId: 1 }),
       });
+      expect(mockedPrisma.$transaction).toHaveBeenCalled();
       expect(result).toMatchObject({
         conversationId: 42,
         messageId: 101,

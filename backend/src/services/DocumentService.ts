@@ -1,4 +1,4 @@
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 import prisma from '../config/prisma';
 import logger from '../logger';
@@ -76,8 +76,13 @@ class DocumentService {
     originalname: string
   ): Promise<string> {
     if (mimetype === 'application/pdf' || originalname.endsWith('.pdf')) {
-      const pdfData = await pdfParse(buffer);
-      return pdfData.text;
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const pdfData = await parser.getText();
+        return pdfData?.text || '';
+      } finally {
+        await parser.destroy();
+      }
     }
 
     if (
@@ -100,15 +105,6 @@ class DocumentService {
       throw new Error('Не вдалося витягти текст з надісланого файлу');
     }
 
-    const doc = await prisma.document.create({
-      data: {
-        userId,
-        filename: originalname,
-        fileType: mimetype,
-        fileSize: size,
-      },
-    });
-
     const chunks = this.chunkText(extractedText);
     let embeddings: Array<number[] | null> = [];
 
@@ -116,29 +112,42 @@ class DocumentService {
       embeddings = await EmbeddingService.generateBatchEmbeddings(chunks);
     }
 
-    for (let i = 0; i < chunks.length; i++) {
-      const embedding = embeddings[i] || null;
+    const doc = await prisma.$transaction(async (tx) => {
+      const created = await tx.document.create({
+        data: {
+          userId,
+          filename: originalname,
+          fileType: mimetype,
+          fileSize: size,
+        },
+      });
 
-      if (embedding) {
-        const vectorLiteral = `[${embedding.join(',')}]`;
-        await prisma.$executeRawUnsafe(
-          `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
-           VALUES ($1, $2, $3, $4::vector)`,
-          doc.id,
-          i,
-          chunks[i],
-          vectorLiteral
-        );
-      } else {
-        await prisma.documentChunk.create({
-          data: {
-            documentId: doc.id,
-            chunkIndex: i,
-            content: chunks[i],
-          },
-        });
+      for (let i = 0; i < chunks.length; i++) {
+        const embedding = embeddings[i] || null;
+
+        if (embedding) {
+          const vectorLiteral = `[${embedding.join(',')}]`;
+          await tx.$executeRawUnsafe(
+            `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
+             VALUES ($1, $2, $3, $4::vector)`,
+            created.id,
+            i,
+            chunks[i],
+            vectorLiteral
+          );
+        } else {
+          await tx.documentChunk.create({
+            data: {
+              documentId: created.id,
+              chunkIndex: i,
+              content: chunks[i],
+            },
+          });
+        }
       }
-    }
+
+      return created;
+    });
 
     logger.info(
       `Document uploaded & chunked: ${originalname} (id=${doc.id}, ${chunks.length} chunks, embeddings=${embeddings.filter(Boolean).length})`

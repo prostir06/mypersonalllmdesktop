@@ -60,11 +60,15 @@ class ChatService {
     conversationId: number | undefined,
     message: string
   ): Promise<number> {
-    if (!conversationId) {
+    if (conversationId == null) {
       const created = await prisma.conversation.create({
         data: { userId, title: conversationTitle(message) },
       });
       return created.id;
+    }
+
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      throw new ChatError(404, 'Conversation not found');
     }
 
     const owned = await prisma.conversation.findFirst({
@@ -156,17 +160,19 @@ class ChatService {
     userContent: string,
     assistantContent: string
   ) {
-    await prisma.message.create({
-      data: { conversationId, role: 'user', content: userContent },
+    return prisma.$transaction(async (tx) => {
+      await tx.message.create({
+        data: { conversationId, role: 'user', content: userContent },
+      });
+      const assistant = await tx.message.create({
+        data: { conversationId, role: 'assistant', content: assistantContent },
+      });
+      await tx.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+      return assistant;
     });
-    const assistant = await prisma.message.create({
-      data: { conversationId, role: 'assistant', content: assistantContent },
-    });
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { updatedAt: new Date() },
-    });
-    return assistant;
   }
 
   static async prepareMessages(input: SendInput): Promise<{

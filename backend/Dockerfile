@@ -30,10 +30,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY prisma ./prisma
 COPY src ./src
+COPY tsconfig.json ./
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 USER root
 RUN chmod +x /app/docker-entrypoint.sh \
+  && npm run build \
   && addgroup -S appgroup && adduser -S appuser -G appgroup \
   && chown -R appuser:appgroup /app
 USER appuser
