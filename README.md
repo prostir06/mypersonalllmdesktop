@@ -4,12 +4,12 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 
 ## Features
 
-- Chat with LLM assistants (OpenAI, Ollama), including streaming
-- Conversation history, search, and settings (system prompt, model params)
-- Multi-model management
+- Multi-model chat (OpenAI, Ollama) with streaming and Stop
+- Conversation history, rename, message search, Markdown export
+- Settings (system prompt / roles, model params)
 - JWT authentication
 - Document upload for RAG (PDF, DOCX, TXT, MD)
-- Docker Compose for local stack
+- Docker Compose for local stack (pgvector + Prisma migrate)
 
 ## Project structure
 

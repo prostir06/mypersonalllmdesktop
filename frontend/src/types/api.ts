@@ -64,8 +64,17 @@ export interface ChatSendResponse {
   usage?: unknown;
 }
 
+export interface ChatSearchHit {
+  id: string | number;
+  role: string;
+  content: string;
+  created_at?: string;
+  conversation_id: string | number;
+  conversation_title?: string | null;
+}
+
 export interface ChatSearchResponse {
-  results: unknown[];
+  results: ChatSearchHit[];
   total: number;
 }
 

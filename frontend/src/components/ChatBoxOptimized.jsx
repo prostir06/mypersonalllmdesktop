@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { chatAPI, modelsAPI } from '../services/api';
+import { chatAPI, conversationAPI, modelsAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
@@ -169,29 +169,47 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     toast.success('Скопійовано! 📋', { autoClose: 1500 });
   }, []);
 
-  const exportChatToMarkdown = useCallback(() => {
-    if (messages.length === 0) {
+  const exportChatToMarkdown = useCallback(async () => {
+    if (!conversationId && messages.length === 0) {
       toast.warn('Немає повідомлень для експорту.');
       return;
     }
-    const header = `# Експорт чату — ${new Date().toLocaleDateString('uk-UA')}\n\n`;
-    const body = messages
-      .map(
-        (m) =>
-          `## ${m.role === 'user' ? '👤 Ви' : '🤖 Assistant'}\n\n${m.content}`
-      )
-      .join('\n\n---\n\n');
-    const blob = new Blob([header + body], {
-      type: 'text/markdown;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat-export-${Date.now()}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('Чат експортовано у Markdown! 📄');
-  }, [messages]);
+    try {
+      if (conversationId) {
+        const res = await conversationAPI.export(conversationId, 'md');
+        const { content, filename } = res.data;
+        const blob = new Blob([content], {
+          type: 'text/markdown;charset=utf-8',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `chat-export-${Date.now()}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const header = `# Експорт чату — ${new Date().toLocaleDateString('uk-UA')}\n\n`;
+        const body = messages
+          .map(
+            (m) =>
+              `## ${m.role === 'user' ? '👤 Ви' : '🤖 Assistant'}\n\n${m.content}`
+          )
+          .join('\n\n---\n\n');
+        const blob = new Blob([header + body], {
+          type: 'text/markdown;charset=utf-8',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat-export-${Date.now()}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      toast.success('Чат експортовано у Markdown! 📄');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Помилка експорту');
+    }
+  }, [conversationId, messages]);
 
   const handleImageAttach = useCallback((e) => {
     const file = e.target.files?.[0];

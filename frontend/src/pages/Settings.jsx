@@ -10,12 +10,10 @@ import { toast } from 'react-toastify';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { modelsAPI } from '../services/api';
 
-/** Підтримувані AI провайдери */
+/** Реальні підтримувані провайдери (без фейкових Azure/ChatGPT aliases) */
 const providerOptions = [
   { value: 'openai', label: 'OpenAI API' },
   { value: 'ollama', label: 'Ollama (Local Server)' },
-  { value: 'microsoft', label: 'Microsoft Azure OpenAI / Copilot' },
-  { value: 'chatgpt', label: 'ChatGPT Service' }
 ];
 
 /** Вбудовані моделі для кожного провайдера */
@@ -24,22 +22,14 @@ const modelOptions = {
     { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
     { value: 'gpt-4', label: 'GPT-4' },
     { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
-    { value: 'gpt-4o', label: 'GPT-4o' }
-  ],
-  microsoft: [
-    { value: 'gpt-4', label: 'GPT-4' },
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
-  ],
-  chatgpt: [
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-    { value: 'gpt-4', label: 'GPT-4' }
+    { value: 'gpt-4o', label: 'GPT-4o' },
   ],
   ollama: [
     { value: 'llama2', label: 'Llama 2' },
     { value: 'llama3', label: 'Llama 3' },
     { value: 'mistral', label: 'Mistral' },
-    { value: 'codellama', label: 'CodeLlama' }
-  ]
+    { value: 'codellama', label: 'CodeLlama' },
+  ],
 };
 
 const Settings = () => {
@@ -57,11 +47,14 @@ const Settings = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState(null); // 'ok' | 'error' | null
 
   /** При завантаженні налаштувань з API — заповнюємо форму */
   useEffect(() => {
     if (settingsData) {
-      setProvider(settingsData.default_provider || 'openai');
+      let prov = settingsData.default_provider || 'openai';
+      if (prov !== 'openai' && prov !== 'ollama') prov = 'openai';
+      setProvider(prov);
       setModel(settingsData.default_model || 'gpt-3.5-turbo');
       setTemperature(parseFloat(settingsData.temperature) || 0.7);
       setMaxTokens(parseInt(settingsData.max_tokens, 10) || 2000);
@@ -90,18 +83,28 @@ const Settings = () => {
   const handleFetchRemoteModels = async () => {
     setLoadingRemote(true);
     setError('');
+    setOllamaStatus(null);
     try {
       const response = await modelsAPI.getRemote('ollama', ollamaHost);
-      const fetched = response.data.map(m => ({ value: m.id, label: m.name }));
+      const fetched = response.data.map((m) => ({
+        value: m.id || m.name,
+        label: m.name || m.id,
+      }));
       setRemoteModels(fetched);
       if (fetched.length > 0) {
         setModel(fetched[0].value);
+        setOllamaStatus('ok');
         toast.success(`Знайдено ${fetched.length} моделей Ollama`);
       } else {
+        setOllamaStatus('error');
         setError('Моделей не знайдено. Переконайтеся, що Ollama запущено.');
       }
     } catch (err) {
-      setError('Не вдалося підключитися до Ollama. Перевірте URL та доступність сервера.');
+      setOllamaStatus('error');
+      setError(
+        err.response?.data?.error ||
+          'Не вдалося підключитися до Ollama. Перевірте URL та доступність сервера.'
+      );
     } finally {
       setLoadingRemote(false);
     }
@@ -196,12 +199,15 @@ const Settings = () => {
                   <Form.Label htmlFor="ollama-host" className="small fw-semibold">
                     Ollama Server URL
                   </Form.Label>
-                  <div className="d-flex gap-2">
+                  <div className="d-flex gap-2 align-items-center">
                     <Form.Control
                       id="ollama-host"
                       type="url"
                       value={ollamaHost}
-                      onChange={(e) => setOllamaHost(e.target.value)}
+                      onChange={(e) => {
+                        setOllamaHost(e.target.value);
+                        setOllamaStatus(null);
+                      }}
                       placeholder="http://127.0.0.1:11434/v1/chat/completions"
                       className="bg-dark text-light border-secondary shadow-none"
                     />
@@ -212,8 +218,14 @@ const Settings = () => {
                       disabled={loadingRemote}
                       style={{ whiteSpace: 'nowrap' }}
                     >
-                      {loadingRemote ? <Spinner size="sm" animation="border" /> : '🔍 Завантажити моделі'}
+                      {loadingRemote ? <Spinner size="sm" animation="border" /> : '🔍 Перевірити'}
                     </Button>
+                    {ollamaStatus === 'ok' && (
+                      <span className="badge text-bg-success">online</span>
+                    )}
+                    {ollamaStatus === 'error' && (
+                      <span className="badge text-bg-danger">offline</span>
+                    )}
                   </div>
                 </Form.Group>
               </Col>
