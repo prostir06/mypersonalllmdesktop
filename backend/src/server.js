@@ -66,9 +66,9 @@ app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/documents', require('./routes/documents'));
 
-// Health check endpoint — включає перевірку БД, пам'ять, uptime
+// Health check endpoint — DB ping via Prisma (same DATABASE_URL as app)
 app.get('/api/health', async (req, res) => {
-  const pool = require('./config/database');
+  const prisma = require('./config/prisma').default || require('./config/prisma');
   const startTime = process.hrtime.bigint();
 
   let dbStatus = 'ok';
@@ -76,7 +76,7 @@ app.get('/api/health', async (req, res) => {
 
   try {
     const dbStart = Date.now();
-    await pool.query('SELECT 1');
+    await prisma.$queryRaw`SELECT 1`;
     dbLatencyMs = Date.now() - dbStart;
   } catch (err) {
     dbStatus = 'error';

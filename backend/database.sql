@@ -1,3 +1,7 @@
+-- DEPRECATED: Do not use for Docker init.
+-- Schema source of truth is backend/prisma/migrations (pgvector included).
+-- Kept only as a historical reference dump without vector embeddings.
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,

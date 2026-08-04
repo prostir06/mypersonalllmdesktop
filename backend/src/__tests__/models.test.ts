@@ -181,11 +181,34 @@ describe('Models API (Prisma)', () => {
     expect(res.status).toBe(404);
   });
 
+  it('GET /remote without token returns 401', async () => {
+    const res = await request(app).get(
+      '/api/models/remote?provider=ollama'
+    );
+
+    expect(res.status).toBe(401);
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
   it('GET /remote without provider returns 400', async () => {
-    const res = await request(app).get('/api/models/remote');
+    const res = await request(app)
+      .get('/api/models/remote')
+      .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('provider is required');
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+  });
+
+  it('GET /remote rejects disallowed host', async () => {
+    const res = await request(app)
+      .get(
+        '/api/models/remote?provider=ollama&host=http://169.254.169.254/latest'
+      )
+      .set('Authorization', `Bearer ${tokenFor(9)}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/not allowed/i);
     expect(mockedAxios.get).not.toHaveBeenCalled();
   });
 
@@ -195,9 +218,11 @@ describe('Models API (Prisma)', () => {
       data: { models: [{ name: 'llama3' }] },
     });
 
-    const res = await request(app).get(
-      '/api/models/remote?provider=ollama&host=http://127.0.0.1:11434/v1/chat/completions'
-    );
+    const res = await request(app)
+      .get(
+        '/api/models/remote?provider=ollama&host=http://127.0.0.1:11434/v1/chat/completions'
+      )
+      .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: 'llama3', name: 'llama3' }]);
@@ -208,7 +233,9 @@ describe('Models API (Prisma)', () => {
   it('GET /remote returns 502 when all candidates fail', async () => {
     mockedAxios.get.mockRejectedValue(new Error('down'));
 
-    const res = await request(app).get('/api/models/remote?provider=ollama');
+    const res = await request(app)
+      .get('/api/models/remote?provider=ollama')
+      .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(502);
     expect(res.body.error).toMatch(/Could not fetch models/i);

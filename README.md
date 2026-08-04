@@ -43,7 +43,7 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 createdb llm_assistant
 ```
 
-Use Prisma migrations from `backend/` (preferred), or bootstrap with `backend/database.sql` if you rely on the Docker init script style.
+Use Prisma migrations from `backend/` (preferred). Fresh Docker Compose applies migrations via `docker-entrypoint.sh` (pgvector image). Do not use `database.sql` for new installs.
 
 ```bash
 cd backend
@@ -77,7 +77,16 @@ export JWT_SECRET=change_this_secret_in_production
 docker-compose up -d
 ```
 
-Postgres is initialized from `backend/database.sql` on first volume create. Frontend is served on http://localhost:3000; backend on http://localhost:5000.
+Postgres uses `pgvector/pgvector:pg15`. On first boot the backend runs `prisma migrate deploy` (schema includes vector embeddings for RAG).
+
+**Existing volumes created with the old `database.sql` init:** recreate once so pgvector is available:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+Frontend: http://localhost:3000; backend: http://localhost:5000.
 
 ## Auth
 
@@ -155,8 +164,9 @@ npm run serve    # preview build
 
 ## Notes
 
-- Prefer Prisma migrations (`backend/prisma/`) as schema source of truth. `database.sql` is used only for Docker first-boot init.
+- Prefer Prisma migrations (`backend/prisma/`) as schema source of truth. `database.sql` is deprecated (no pgvector); Docker uses `pgvector/pgvector:pg15` + `prisma migrate deploy`.
 - Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
+- Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
 
 ## License
 

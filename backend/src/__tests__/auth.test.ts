@@ -103,6 +103,42 @@ describe('Auth API (Prisma)', () => {
     expect(typeof res.body.token).toBe('string');
   });
 
+  it('POST /refresh accepts token expired within leeway', async () => {
+    const jwt = require('jsonwebtoken');
+    process.env.JWT_REFRESH_LEEWAY_SEC = '3600';
+    const token = jwt.sign(
+      { userId: 7, exp: Math.floor(Date.now() / 1000) - 60 },
+      process.env.JWT_SECRET
+    );
+    mockedPrisma.user.findUnique.mockResolvedValue({ id: 7 });
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.token).toBe('string');
+    delete process.env.JWT_REFRESH_LEEWAY_SEC;
+  });
+
+  it('POST /refresh rejects token expired beyond leeway', async () => {
+    const jwt = require('jsonwebtoken');
+    process.env.JWT_REFRESH_LEEWAY_SEC = '60';
+    const token = jwt.sign(
+      { userId: 7, exp: Math.floor(Date.now() / 1000) - 3600 },
+      process.env.JWT_SECRET
+    );
+
+    const res = await request(app)
+      .post('/api/auth/refresh')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/Невалідний|прострочен/i);
+    expect(mockedPrisma.user.findUnique).not.toHaveBeenCalled();
+    delete process.env.JWT_REFRESH_LEEWAY_SEC;
+  });
+
   describe('JWT_SECRET required', () => {
     const original = process.env.JWT_SECRET;
 

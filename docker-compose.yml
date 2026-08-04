@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     container_name: llm-assistant-db
     environment:
       POSTGRES_DB: ${DB_NAME:-llm_assistant}
@@ -12,7 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
       interval: 10s
@@ -37,8 +36,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-llm_assistant}
       JWT_SECRET: ${JWT_SECRET:-change_this_secret_in_production}
+      JWT_REFRESH_LEEWAY_SEC: ${JWT_REFRESH_LEEWAY_SEC:-604800}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
+      OLLAMA_URL_ALLOWLIST: ${OLLAMA_URL_ALLOWLIST:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     depends_on:
       postgres:
@@ -46,6 +47,7 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
+    entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
     networks:
       - llm-network
     restart: unless-stopped

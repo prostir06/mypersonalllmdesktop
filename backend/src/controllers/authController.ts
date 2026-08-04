@@ -125,7 +125,20 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     const secret = requireJwtSecret();
     const decoded = jwt.verify(token, secret, {
       ignoreExpiration: true,
-    }) as { userId: number };
+    }) as { userId: number; exp?: number };
+
+    const leewaySec = Math.max(
+      0,
+      parseInt(process.env.JWT_REFRESH_LEEWAY_SEC || '604800', 10) || 604800
+    );
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (
+      typeof decoded.exp === 'number' &&
+      decoded.exp + leewaySec < nowSec
+    ) {
+      res.status(401).json({ error: 'Токен прострочений' });
+      return;
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },

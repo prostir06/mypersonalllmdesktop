@@ -13,13 +13,15 @@ jest.mock('../config/prisma', () => ({
     user: {
       findUnique: jest.fn(),
       create: jest.fn()
-    }
+    },
+    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }])
   },
   prisma: {
     user: {
       findUnique: jest.fn(),
       create: jest.fn()
-    }
+    },
+    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }])
   }
 }));
 

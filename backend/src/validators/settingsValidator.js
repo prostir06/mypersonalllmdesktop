@@ -21,7 +21,12 @@ const validateSettingsUpdate = [
   body('default_ollama_host')
     .optional({ values: 'falsy' })
     .isURL({ require_tld: false, allow_underscores: true })
-    .withMessage('Invalid Ollama URL'),
+    .withMessage('Invalid Ollama URL')
+    .custom((value) => {
+      const { assertAllowedHttpUrl } = require('../utils/urlAllowlist');
+      assertAllowedHttpUrl(value);
+      return true;
+    }),
   body('temperature')
     .optional()
     .isFloat({ min: 0, max: 2 })

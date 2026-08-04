@@ -39,6 +39,16 @@ describe('ollamaService', () => {
     ).rejects.toThrow('Failed to communicate with Ollama API');
   });
 
+  it('sendOllamaMessage rejects disallowed ollama_host', async () => {
+    mockedAxios.post = jest.fn();
+    await expect(
+      sendOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2', {
+        ollama_host: 'http://169.254.169.254/',
+      })
+    ).rejects.toThrow(/not allowed/i);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
   it('streamOllamaMessage emits tokens', async () => {
     mockedAxios.post = jest.fn().mockImplementation(() => {
       const ee = new EventEmitter();

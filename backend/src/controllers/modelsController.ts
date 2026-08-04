@@ -2,6 +2,10 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import prisma from '../config/prisma';
 import logger from '../logger';
+import {
+  assertAllowedHttpUrl,
+  UrlNotAllowedError,
+} from '../utils/urlAllowlist';
 
 type AuthRequest = Request & { userId?: number };
 
@@ -45,14 +49,6 @@ export function toPublicModel(row: LlmModelRow) {
     is_default: row.isDefault,
     created_at: row.createdAt,
   };
-}
-
-function resolveOrigin(hostUrl: string): string {
-  try {
-    return new URL(hostUrl).origin;
-  } catch {
-    return hostUrl.split('/').slice(0, 3).join('/');
-  }
 }
 
 export async function listModels(req: AuthRequest, res: Response): Promise<void> {
@@ -182,7 +178,17 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
       host ||
       process.env.OLLAMA_API_URL ||
       'http://127.0.0.1:11434/v1/chat/completions';
-    const origin = resolveOrigin(hostUrl);
+
+    let origin: string;
+    try {
+      origin = assertAllowedHttpUrl(hostUrl).origin;
+    } catch (err: unknown) {
+      if (err instanceof UrlNotAllowedError) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
 
     const candidates = [
       `${origin}/api/tags`,

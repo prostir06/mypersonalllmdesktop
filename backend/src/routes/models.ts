@@ -11,7 +11,7 @@ import {
 const router = express.Router();
 
 // /remote BEFORE /:modelId
-router.get('/remote', listRemoteModels);
+router.get('/remote', auth, listRemoteModels);
 
 router.get('/', auth, listModels);
 router.post('/', auth, createModel);

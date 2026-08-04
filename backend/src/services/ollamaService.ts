@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { assertAllowedHttpUrl } from '../utils/urlAllowlist';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -11,6 +12,20 @@ type ProviderOptions = {
   top_p?: number;
   [key: string]: unknown;
 };
+
+function resolveOllamaUrl(ollama_host?: string): string {
+  const raw = ollama_host || DEFAULT_OLLAMA_API_URL;
+  return assertAllowedHttpUrl(raw).href;
+}
+
+function isAllowlistError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'statusCode' in error &&
+    (error as { statusCode: unknown }).statusCode === 400
+  );
+}
 
 async function sendOllamaMessage(
   messages: ChatMessage[],
@@ -28,7 +43,7 @@ async function sendOllamaMessage(
       ...payloadOptions,
     };
 
-    const apiUrl = ollama_host || DEFAULT_OLLAMA_API_URL;
+    const apiUrl = resolveOllamaUrl(ollama_host);
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -39,6 +54,7 @@ async function sendOllamaMessage(
       model: response.data.model as string,
     };
   } catch (error: unknown) {
+    if (isAllowlistError(error)) throw error;
     const err = error as { response?: { data?: unknown }; message?: string };
     console.error('Ollama API error:', err.response?.data || err.message);
     throw new Error('Failed to communicate with Ollama API');
@@ -63,7 +79,7 @@ async function streamOllamaMessage(
       ...payloadOptions,
     };
 
-    const apiUrl = ollama_host || DEFAULT_OLLAMA_API_URL;
+    const apiUrl = resolveOllamaUrl(ollama_host);
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'stream',
@@ -106,6 +122,7 @@ async function streamOllamaMessage(
       });
     });
   } catch (error: unknown) {
+    if (isAllowlistError(error)) throw error;
     const err = error as { response?: { data?: unknown }; message?: string };
     console.error('Ollama Stream API error:', err.response?.data || err.message);
     throw new Error('Failed to stream from Ollama API');
