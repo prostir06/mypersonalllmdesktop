@@ -1,19 +1,31 @@
 /**
- * @file components/chat/MessageItem.js
- * Окремий компонент для відображення одного повідомлення чату.
- * Використовує React.memo для запобігання зайвого перерендерингу.
+ * Single chat message row with lazy-loaded syntax highlighter.
  */
-
-import React from 'react';
+import React, { Suspense, lazy, useMemo } from 'react';
 import { Button } from 'react-bootstrap';
 import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { toast } from 'react-toastify';
 
-/** Компонент підсвічування синтаксису коду */
-const CodeBlock = ({ node, inline, className, children, ...props }) => {
+const LazyHighlighter = lazy(() =>
+  Promise.all([
+    import('react-syntax-highlighter'),
+    import('react-syntax-highlighter/dist/esm/styles/prism'),
+  ]).then(([mod, styles]) => {
+    const Prism = mod.Prism || mod.default;
+    return {
+      default: function Highlighted({ language, children, ...props }) {
+        return (
+          <Prism style={styles.oneDark} language={language} PreTag="div" {...props}>
+            {children}
+          </Prism>
+        );
+      },
+    };
+  })
+);
+
+const CodeBlock = ({ inline, className, children, ...props }) => {
   const match = /language-(\w+)/.exec(className || '');
   const codeString = String(children).replace(/\n$/, '');
 
@@ -35,14 +47,20 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
             right: 8,
             zIndex: 1,
             fontSize: '0.7rem',
-            padding: '2px 8px'
+            padding: '2px 8px',
           }}
         >
           📋 Copy
         </Button>
-        <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" {...props}>
-          {codeString}
-        </SyntaxHighlighter>
+        <Suspense
+          fallback={
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{codeString}</pre>
+          }
+        >
+          <LazyHighlighter language={match[1]} {...props}>
+            {codeString}
+          </LazyHighlighter>
+        </Suspense>
       </div>
     );
   }
@@ -55,7 +73,7 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
         padding: '2px 6px',
         borderRadius: '4px',
         fontFamily: '"Fira Code", monospace',
-        fontSize: '0.88em'
+        fontSize: '0.88em',
       }}
       {...props}
     >
@@ -64,11 +82,9 @@ const CodeBlock = ({ node, inline, className, children, ...props }) => {
   );
 };
 
-/**
- * MessageItem — один рядок чату (повідомлення користувача або AI).
- * Мемоізований для уникнення зайвого перерендерингу при стрімінгу.
- */
 const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
+  const components = useMemo(() => ({ code: CodeBlock }), []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15, scale: 0.95 }}
@@ -86,7 +102,11 @@ const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
               size="sm"
               className="p-0 text-muted text-decoration-none"
               onClick={() => onSpeak(msg.content, idx)}
-              title={speakingIdx === idx ? 'Зупинити озвучку' : 'Озвучити голосом (TTS)'}
+              title={
+                speakingIdx === idx
+                  ? 'Зупинити озвучку'
+                  : 'Озвучити голосом (TTS)'
+              }
             >
               {speakingIdx === idx ? '🔊 (грає...)' : '🔊'}
             </Button>
@@ -103,9 +123,7 @@ const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
         </div>
       </div>
       <div className="markdown-content">
-        <ReactMarkdown components={{ code: CodeBlock }}>
-          {msg.content}
-        </ReactMarkdown>
+        <ReactMarkdown components={components}>{msg.content}</ReactMarkdown>
       </div>
     </motion.div>
   );

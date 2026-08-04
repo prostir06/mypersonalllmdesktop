@@ -146,7 +146,8 @@ export const chatAPI = {
     provider: string,
     options: ChatSendOptions | undefined,
     onToken: StreamTokenCallback,
-    onInit: StreamInitCallback
+    onInit: StreamInitCallback,
+    signal?: AbortSignal
   ): Promise<void> => {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/chat/stream`, {
@@ -156,6 +157,7 @@ export const chatAPI = {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ conversationId, message, model, provider, options }),
+      signal,
     });
 
     if (!response.ok) {
@@ -170,30 +172,47 @@ export const chatAPI = {
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        if (signal?.aborted) {
+          await reader.cancel();
+          throw new DOMException('Aborted', 'AbortError');
+        }
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('data: ')) {
-          const dataStr = trimmed.replace('data: ', '');
-          try {
-            const data = JSON.parse(dataStr) as StreamEvent;
-            if (data.type === 'init' && onInit) {
-              onInit(data.conversationId);
-            } else if (data.type === 'token' && onToken) {
-              onToken(data.token);
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.replace('data: ', '');
+            try {
+              const data = JSON.parse(dataStr) as StreamEvent;
+              if (data.type === 'init' && onInit) {
+                onInit(data.conversationId);
+              } else if (data.type === 'token' && onToken) {
+                onToken(data.token);
+              }
+            } catch {
+              // Ignore partial chunks
             }
-          } catch {
-            // Ignore partial chunks
           }
         }
       }
+    } catch (err) {
+      if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore
+        }
+        throw err instanceof DOMException ? err : new DOMException('Aborted', 'AbortError');
+      }
+      throw err;
     }
   },
 

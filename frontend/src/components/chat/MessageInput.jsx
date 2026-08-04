@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Form, Button, Spinner } from 'react-bootstrap';
+import { Form, Button } from 'react-bootstrap';
 
 /**
  * Компонент MessageInput.
@@ -32,6 +32,7 @@ const MessageInput = React.memo(({
   isListening,
   onToggleListening,
   streaming,
+  onStop,
   attachedImage,
   onClearImage,
   onAttachImage,
@@ -46,7 +47,6 @@ const MessageInput = React.memo(({
 
   return (
     <div>
-      {/* Попередній перегляд прикріпленого зображення (Vision) */}
       {attachedImage && (
         <div
           className="mb-2 d-flex align-items-center gap-2 p-2"
@@ -93,7 +93,6 @@ const MessageInput = React.memo(({
           style={{ resize: 'none' }}
         />
 
-        {/* Vision кнопка (лише для моделей що підтримують зображення) */}
         {supportsVision && (
           <Button
             type="button"
@@ -118,13 +117,25 @@ const MessageInput = React.memo(({
           {isListening ? '⏹️' : '🎤'}
         </Button>
 
-        <Button
-          type="submit"
-          className="btn-accent px-4 py-3 d-flex align-items-center gap-2"
-          disabled={streaming || !inputMessage.trim()}
-        >
-          {streaming ? <Spinner size="sm" animation="border" /> : <span>Надіслати 🚀</span>}
-        </Button>
+        {streaming ? (
+          <Button
+            type="button"
+            variant="danger"
+            className="px-4 py-3"
+            onClick={onStop}
+            title="Зупинити генерацію"
+          >
+            Stop
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            className="btn-accent px-4 py-3 d-flex align-items-center gap-2"
+            disabled={!inputMessage.trim()}
+          >
+            <span>Надіслати 🚀</span>
+          </Button>
+        )}
       </Form>
     </div>
   );
