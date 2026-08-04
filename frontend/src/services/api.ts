@@ -19,7 +19,6 @@ import type {
   DocumentUploadResponse,
   ModelRecord,
   SettingsUpdatePayload,
-  StreamEvent,
   StreamInitCallback,
   StreamTokenCallback,
   SuccessResponse,
@@ -27,6 +26,7 @@ import type {
   UserSettings,
   UserUpdatePayload,
 } from '../types/api';
+import { consumeSseChunk, isAbortError } from './sseParse';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -182,35 +182,25 @@ export const chatAPI = {
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            const dataStr = trimmed.replace('data: ', '');
-            try {
-              const data = JSON.parse(dataStr) as StreamEvent;
-              if (data.type === 'init' && onInit) {
-                onInit(data.conversationId);
-              } else if (data.type === 'token' && onToken) {
-                onToken(data.token);
-              }
-            } catch {
-              // Ignore partial chunks
-            }
+        buffer = consumeSseChunk(
+          buffer,
+          decoder.decode(value, { stream: true }),
+          {
+            onInit,
+            onToken,
           }
-        }
+        );
       }
     } catch (err) {
-      if (signal?.aborted || (err instanceof DOMException && err.name === 'AbortError')) {
+      if (signal?.aborted || isAbortError(err)) {
         try {
           await reader.cancel();
         } catch {
           // ignore
         }
-        throw err instanceof DOMException ? err : new DOMException('Aborted', 'AbortError');
+        throw isAbortError(err)
+          ? err
+          : new DOMException('Aborted', 'AbortError');
       }
       throw err;
     }

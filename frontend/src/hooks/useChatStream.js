@@ -3,15 +3,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { chatAPI } from '../services/api';
-
-function isAbortError(err) {
-  return (
-    err?.name === 'AbortError' ||
-    (typeof DOMException !== 'undefined' &&
-      err instanceof DOMException &&
-      err.name === 'AbortError')
-  );
-}
+import { isAbortError } from '../services/sseParse';
 
 export function useChatStream({
   conversationId,

@@ -60,12 +60,13 @@ npm run dev
 ```bash
 cd frontend
 cp .env.example .env
-# VITE_API_URL=http://localhost:5000/api
+# Vite proxies `/api` → backend in dev; leave as `/api` or omit.
+# VITE_API_URL=/api
 npm install
 npm start
 ```
 
-App: http://localhost:3000. API: http://localhost:5000.
+App: http://localhost:3000. API: http://localhost:5000 (proxied via Vite `/api`).
 
 ### With Docker
 
@@ -86,7 +87,7 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-Frontend: http://localhost:3000; backend: http://localhost:5000.
+Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend container.
 
 ## Auth
 
@@ -115,7 +116,8 @@ CORS_ORIGIN=http://localhost:3000
 ### Frontend (`.env` — see `frontend/.env.example`)
 
 ```env
-VITE_API_URL=http://localhost:5000/api
+# Same-origin (Docker nginx / Vite proxy). Optional absolute URL for special setups.
+VITE_API_URL=/api
 ```
 
 ## Main API
