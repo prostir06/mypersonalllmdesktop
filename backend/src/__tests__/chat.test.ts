@@ -167,4 +167,28 @@ describe('chat routes', () => {
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Помилка пошуку');
   });
+
+  it('GET /search maps ChatError 400 for invalid conversationId', async () => {
+    const err: any = new Error('Invalid conversationId');
+    err.statusCode = 400;
+    mockedChat.searchMessages.mockRejectedValue(err);
+    const res = await request(app)
+      .get('/api/chat/search')
+      .query({ q: 'ab', conversationId: 'x' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid conversationId');
+  });
+
+  it('POST /stream 400 when message empty', async () => {
+    const res = await request(app).post('/api/chat/stream').send({ message: '  ' });
+    expect(res.status).toBe(400);
+    expect(mockedChat.streamMessage).not.toHaveBeenCalled();
+  });
+
+  it('GET /history returns 500 on unexpected errors', async () => {
+    mockedChat.getHistory.mockRejectedValue(new Error('db'));
+    const res = await request(app).get('/api/chat/history/1');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to fetch conversation history');
+  });
 });

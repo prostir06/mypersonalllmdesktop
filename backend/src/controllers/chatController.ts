@@ -1,5 +1,6 @@
 /**
  * Thin HTTP/SSE adapters over ChatService. Rate limits stay in server.js.
+ * Controllers catch ChatError → 4xx JSON; unexpected errors → 500 (or SSE error).
  */
 import { Request, Response, NextFunction } from 'express';
 import ChatService = require('../services/ChatService');
@@ -16,6 +17,32 @@ function isChatError(error: unknown): error is Error & { statusCode: number } {
   );
 }
 
+/** Write one SSE frame; ignore client disconnect so the handler can finish cleanly. */
+function writeSse(res: Response, payload: unknown): void {
+  try {
+    if (res.writableEnded) return;
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`SSE write skipped (client closed?): ${message}`);
+  }
+}
+
+function validateChatMessage(
+  message: unknown,
+  res: Response
+): message is string {
+  if (!message || !String(message).trim()) {
+    res.status(400).json({ error: 'Message is required' });
+    return false;
+  }
+  if (String(message).length > 4000) {
+    res.status(400).json({ error: 'Message too long (max 4000 characters)' });
+    return false;
+  }
+  return true;
+}
+
 export async function sendMessage(
   req: AuthRequest,
   res: Response,
@@ -24,14 +51,7 @@ export async function sendMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
 
-    if (!message || !String(message).trim()) {
-      res.status(400).json({ error: 'Message is required' });
-      return;
-    }
-    if (String(message).length > 4000) {
-      res.status(400).json({ error: 'Message too long (max 4000 characters)' });
-      return;
-    }
+    if (!validateChatMessage(message, res)) return;
 
     const result = await ChatService.sendMessage({
       userId: req.userId!,
@@ -61,15 +81,9 @@ export async function streamMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
 
-    if (!message || !String(message).trim()) {
-      res.status(400).json({ error: 'Message is required' });
-      return;
-    }
-    if (String(message).length > 4000) {
-      res.status(400).json({ error: 'Message too long (max 4000 characters)' });
-      return;
-    }
+    if (!validateChatMessage(message, res)) return;
 
+    // Tools disabled on SSE path (interactive tools need a non-stream round-trip)
     const streamOptions = {
       ...(options || {}),
       tools: undefined,
@@ -86,26 +100,22 @@ export async function streamMessage(
         options: streamOptions,
       },
       (token: string) => {
-        res.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`);
+        writeSse(res, { type: 'token', token });
       },
       (convId: number) => {
-        // Headers after ownership/prep so 403 stays JSON
+        // Headers after ownership/prep so 403 stays JSON (not half-open SSE)
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-        res.write(
-          `data: ${JSON.stringify({ type: 'init', conversationId: convId })}\n\n`
-        );
+        writeSse(res, { type: 'init', conversationId: convId });
       }
     );
 
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'done',
-        messageId: result.messageId,
-        content: result.content,
-      })}\n\n`
-    );
+    writeSse(res, {
+      type: 'done',
+      messageId: result.messageId,
+      content: result.content,
+    });
     res.end();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
@@ -119,7 +129,7 @@ export async function streamMessage(
         .status(500)
         .json({ error: 'Failed to stream message', details: message });
     } else {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: message })}\n\n`);
+      writeSse(res, { type: 'error', error: message });
       res.end();
     }
   }
@@ -175,6 +185,10 @@ export async function searchMessages(
     );
     res.json(result);
   } catch (error: unknown) {
+    if (isChatError(error)) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /chat/search error: ${message}`);
     res.status(500).json({ error: 'Помилка пошуку' });

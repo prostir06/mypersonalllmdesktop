@@ -3,7 +3,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { chatAPI } from '../services/api';
-import { isAbortError } from '../services/sseParse';
+import { isAbortError, isSseStreamError } from '../services/sseParse';
 
 export function useChatStream({
   conversationId,
@@ -120,6 +120,12 @@ export function useChatStream({
             ]);
           }
           setStreamedText('');
+          return;
+        }
+
+        // Server already reported a stream failure — skip non-stream fallback
+        if (isSseStreamError(err)) {
+          setError(`Не вдалося отримати відповідь від AI: ${err.message}`);
           return;
         }
 

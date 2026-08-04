@@ -80,7 +80,9 @@ export interface ChatSearchResponse {
 
 export type StreamEvent =
   | { type: 'init'; conversationId: string | number }
-  | { type: 'token'; token: string };
+  | { type: 'token'; token: string }
+  | { type: 'done'; messageId?: string | number; content?: string }
+  | { type: 'error'; error: string };
 
 export type StreamTokenCallback = (token: string) => void;
 export type StreamInitCallback = (conversationId: string | number) => void;

@@ -155,24 +155,36 @@ class ChatService {
     });
   }
 
+  /**
+   * Persist user + assistant in one transaction so a failed write does not
+   * leave a half-saved turn. Callers rethrow after logging.
+   */
   static async persistTurn(
     conversationId: number,
     userContent: string,
     assistantContent: string
   ) {
-    return prisma.$transaction(async (tx) => {
-      await tx.message.create({
-        data: { conversationId, role: 'user', content: userContent },
+    try {
+      return await prisma.$transaction(async (tx) => {
+        await tx.message.create({
+          data: { conversationId, role: 'user', content: userContent },
+        });
+        const assistant = await tx.message.create({
+          data: { conversationId, role: 'assistant', content: assistantContent },
+        });
+        await tx.conversation.update({
+          where: { id: conversationId },
+          data: { updatedAt: new Date() },
+        });
+        return assistant;
       });
-      const assistant = await tx.message.create({
-        data: { conversationId, role: 'assistant', content: assistantContent },
-      });
-      await tx.conversation.update({
-        where: { id: conversationId },
-        data: { updatedAt: new Date() },
-      });
-      return assistant;
-    });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(
+        `persistTurn failed for conversation ${conversationId}: ${message}`
+      );
+      throw err;
+    }
   }
 
   static async prepareMessages(input: SendInput): Promise<{
@@ -320,34 +332,47 @@ class ChatService {
       content: { contains: trimmed, mode: 'insensitive' },
       conversation: { userId },
     };
+
+    // Optional filter: reject NaN/junk before Prisma sees it
     if (conversationId !== undefined && conversationId !== '') {
-      where.conversationId = Number(conversationId);
+      const cid = Number(conversationId);
+      if (!Number.isInteger(cid) || cid <= 0) {
+        throw new ChatError(400, 'Invalid conversationId');
+      }
+      where.conversationId = cid;
     }
 
-    const rows = await prisma.message.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        createdAt: true,
-        conversation: { select: { id: true, title: true } },
-      },
-    });
+    try {
+      const rows = await prisma.message.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          createdAt: true,
+          conversation: { select: { id: true, title: true } },
+        },
+      });
 
-    return {
-      results: rows.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        created_at: m.createdAt,
-        conversation_id: m.conversation.id,
-        conversation_title: m.conversation.title,
-      })),
-      total: rows.length,
-    };
+      return {
+        results: rows.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          created_at: m.createdAt,
+          conversation_id: m.conversation.id,
+          conversation_title: m.conversation.title,
+        })),
+        total: rows.length,
+      };
+    } catch (err: unknown) {
+      if (err instanceof ChatError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`searchMessages failed for user ${userId}: ${message}`);
+      throw err;
+    }
   }
 }
 

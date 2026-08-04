@@ -26,7 +26,7 @@ import type {
   UserSettings,
   UserUpdatePayload,
 } from '../types/api';
-import { consumeSseChunk, isAbortError } from './sseParse';
+import { consumeSseChunk, isAbortError, readFetchErrorMessage } from './sseParse';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -150,18 +150,28 @@ export const chatAPI = {
     signal?: AbortSignal
   ): Promise<void> => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_URL}/chat/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ conversationId, message, model, provider, options }),
-      signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ conversationId, message, model, provider, options }),
+        signal,
+      });
+    } catch (err) {
+      if (signal?.aborted || isAbortError(err)) {
+        throw isAbortError(err)
+          ? err
+          : new DOMException('Aborted', 'AbortError');
+      }
+      throw err;
+    }
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(await readFetchErrorMessage(response));
     }
 
     if (!response.body) {
@@ -196,11 +206,16 @@ export const chatAPI = {
         try {
           await reader.cancel();
         } catch {
-          // ignore
+          // Reader already closed
         }
         throw isAbortError(err)
           ? err
           : new DOMException('Aborted', 'AbortError');
+      }
+      try {
+        await reader.cancel();
+      } catch {
+        // ignore
       }
       throw err;
     }

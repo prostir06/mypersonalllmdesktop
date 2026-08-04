@@ -283,6 +283,57 @@ describe('ChatService', () => {
         })
       );
     });
+
+    it('rejects invalid conversationId before querying', async () => {
+      await expect(
+        ChatService.searchMessages(1, 'ab', 'nope')
+      ).rejects.toMatchObject({ statusCode: 400, message: 'Invalid conversationId' });
+      expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
+    });
+
+    it('logs and rethrows when Prisma search fails', async () => {
+      mockedPrisma.message.findMany.mockRejectedValue(new Error('db search'));
+      await expect(ChatService.searchMessages(1, 'ab')).rejects.toThrow(
+        'db search'
+      );
+    });
+  });
+
+  describe('persistTurn', () => {
+    it('logs and rethrows when the transaction fails', async () => {
+      mockedPrisma.$transaction.mockRejectedValue(new Error('tx fail'));
+      await expect(
+        ChatService.persistTurn(5, 'user', 'assistant')
+      ).rejects.toThrow('tx fail');
+    });
+  });
+
+  describe('prepareMessages', () => {
+    it('builds multimodal user message and strips image from options', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([
+        { role: 'assistant', content: 'prev' },
+      ]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const prepared = await ChatService.prepareMessages({
+        userId: 1,
+        conversationId: 10,
+        message: 'see this',
+        options: { image: 'data:image/png;base64,abc', temperature: 0.2 },
+      });
+
+      expect(prepared.options.image).toBeUndefined();
+      expect(prepared.options.temperature).toBe(0.2);
+      expect(prepared.chatMessages.at(-1)).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'see this' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,abc' } },
+        ],
+      });
+    });
   });
 
   describe('streamMessage', () => {
@@ -329,6 +380,22 @@ describe('ChatService', () => {
         messageId: 200,
         content: 'AB',
       });
+    });
+
+    it('does not persist when provider stream fails', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.streamMessage.mockRejectedValue(new Error('stream down'));
+
+      await expect(
+        ChatService.streamMessage(
+          { userId: 1, conversationId: 10, message: 'Hi', options: {} },
+          () => {}
+        )
+      ).rejects.toThrow('stream down');
+      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     });
   });
 });
