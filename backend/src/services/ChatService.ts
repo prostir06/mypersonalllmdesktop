@@ -6,6 +6,7 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
 import ProviderFactory = require('./providerFactory');
+import { buildMessageFtsQuery } from '../utils/messageFts';
 
 class ChatError extends Error {
   statusCode: number;
@@ -330,42 +331,39 @@ class ChatService {
     conversationId?: number | string
   ) {
     const trimmed = q.trim();
-    const where: Record<string, unknown> = {
-      content: { contains: trimmed, mode: 'insensitive' },
-      conversation: { userId },
-    };
+    let cid: number | null = null;
 
     // Optional filter: reject NaN/junk before Prisma sees it
     if (conversationId !== undefined && conversationId !== '') {
-      const cid = Number(conversationId);
-      if (!Number.isInteger(cid) || cid <= 0) {
+      const parsed = Number(conversationId);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
         throw new ChatError(400, 'Invalid conversationId');
       }
-      where.conversationId = cid;
+      cid = parsed;
     }
 
     try {
-      const rows = await prisma.message.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          createdAt: true,
-          conversation: { select: { id: true, title: true } },
-        },
-      });
+      // Uses gin(to_tsvector('simple', content)) from 0_init migration
+      type FtsRow = {
+        id: number;
+        role: string;
+        content: string;
+        created_at: Date;
+        conversation_id: number;
+        conversation_title: string | null;
+      };
+      const rows = await prisma.$queryRaw<FtsRow[]>(
+        buildMessageFtsQuery(userId, trimmed, cid)
+      );
 
       return {
         results: rows.map((m) => ({
           id: m.id,
           role: m.role,
           content: m.content,
-          created_at: m.createdAt,
-          conversation_id: m.conversation.id,
-          conversation_title: m.conversation.title,
+          created_at: m.created_at,
+          conversation_id: m.conversation_id,
+          conversation_title: m.conversation_title,
         })),
         total: rows.length,
       };

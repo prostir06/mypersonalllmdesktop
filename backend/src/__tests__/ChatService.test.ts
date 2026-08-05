@@ -14,6 +14,7 @@ jest.mock('../config/prisma', () => ({
       findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   },
 }));
 
@@ -267,54 +268,50 @@ describe('ChatService', () => {
   });
 
   describe('searchMessages', () => {
-    it('scopes to user via conversation relation', async () => {
-      mockedPrisma.message.findMany.mockResolvedValue([
+    it('uses FTS via $queryRaw and scopes to user', async () => {
+      const createdAt = new Date('2026-08-01T12:00:00Z');
+      mockedPrisma.$queryRaw.mockResolvedValue([
         {
           id: 1,
           role: 'user',
           content: 'hello',
-          createdAt: new Date(),
-          conversation: { id: 3, title: 'T' },
+          created_at: createdAt,
+          conversation_id: 3,
+          conversation_title: 'T',
         },
       ]);
 
       const result = await ChatService.searchMessages(7, 'he', undefined);
-      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            conversation: expect.objectContaining({ userId: 7 }),
-            content: expect.objectContaining({
-              contains: 'he',
-              mode: 'insensitive',
-            }),
-          }),
-        })
-      );
-      expect(result.results[0]).toMatchObject({
+
+      expect(mockedPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
+      expect(result.results[0]).toEqual({
+        id: 1,
+        role: 'user',
+        content: 'hello',
+        created_at: createdAt,
         conversation_id: 3,
         conversation_title: 'T',
       });
+      expect(result.total).toBe(1);
     });
 
     it('filters by conversationId when provided', async () => {
-      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.$queryRaw.mockResolvedValue([]);
       await ChatService.searchMessages(1, 'ab', '12');
-      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ conversationId: 12 }),
-        })
-      );
+      expect(mockedPrisma.$queryRaw).toHaveBeenCalled();
+      expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
     });
 
     it('rejects invalid conversationId before querying', async () => {
       await expect(
         ChatService.searchMessages(1, 'ab', 'nope')
       ).rejects.toMatchObject({ statusCode: 400, message: 'Invalid conversationId' });
-      expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
+      expect(mockedPrisma.$queryRaw).not.toHaveBeenCalled();
     });
 
     it('logs and rethrows when Prisma search fails', async () => {
-      mockedPrisma.message.findMany.mockRejectedValue(new Error('db search'));
+      mockedPrisma.$queryRaw.mockRejectedValue(new Error('db search'));
       await expect(ChatService.searchMessages(1, 'ab')).rejects.toThrow(
         'db search'
       );
