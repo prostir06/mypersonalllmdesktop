@@ -1,7 +1,7 @@
 # Model Catalog CRUD UI — Design
 
 **Date:** 2026-08-05  
-**Status:** Approved for implementation (pending final file review)  
+**Status:** Implemented  
 **Parent:** Project Evolution v2 — P8 item 1  
 **Scope:** Frontend Settings section + wire default-model picker to `GET /models`
 
