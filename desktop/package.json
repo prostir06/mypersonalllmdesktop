@@ -1,0 +1,47 @@
+{
+  "name": "mypersonalllmdesktop-shell",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron shell for LLM Assistant Studio",
+  "main": "dist/main.js",
+  "scripts": {
+    "build:ts": "tsc -p tsconfig.json",
+    "test": "npm run build:ts && node --test dist/backendUrl.test.js",
+    "dev": "npm run build:ts && cross-env ELECTRON_DEV=1 electron .",
+    "start": "npm run build:ts && electron .",
+    "pack": "npm run build:ts && electron-builder --dir",
+    "dist": "npm run build:ts && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.mypersonalllmdesktop.app",
+    "productName": "LLM Assistant Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "ui",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "cross-env": "^7.0.3",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.6.0"
+  }
+}

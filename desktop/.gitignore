@@ -1,0 +1,5 @@
+# Ignore Electron build outputs
+node_modules/
+dist/
+release/
+*.log

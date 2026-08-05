@@ -28,6 +28,8 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 ├── frontend/                # React + Vite SPA
 │   ├── src/
 │   └── Dockerfile
+├── desktop/                 # Electron shell (Windows-first)
+│   └── src/
 ├── docs/superpowers/specs/  # Design specs
 ├── docker-compose.yml       # Local/dev stack
 ├── docker-compose.prod.yml  # Production overrides (required secrets)
@@ -68,6 +70,17 @@ npm start
 ```
 
 App: http://localhost:3000. API: http://localhost:5000 (proxied via Vite `/api`).
+
+#### 3. Desktop (Electron, optional)
+
+See [`desktop/README.md`](desktop/README.md). Short version:
+
+```bash
+# API + Vite running, then:
+cd desktop && npm install && npm run dev
+```
+
+Packaged Windows build (after `frontend` production build): `cd desktop && npm run dist`.
 
 ### With Docker
 
