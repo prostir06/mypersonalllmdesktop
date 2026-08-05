@@ -58,12 +58,16 @@ jobs:
         run: npm ci
         working-directory: backend
 
+      - name: Lint
+        run: npm run lint
+        working-directory: backend
+
       - name: Generate Prisma client
         run: npx prisma generate --config prisma/prisma.config.ts
         working-directory: backend
 
-      - name: Run backend tests
-        run: npm test
+      - name: Run backend tests with coverage
+        run: npm run test:coverage
         working-directory: backend
 
       - name: Upload coverage report
@@ -91,6 +95,10 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint
         working-directory: frontend
 
       - name: Unit tests

@@ -6,4 +6,17 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.[jt]s', '**/?(*.)+(spec|test).[jt]s'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   clearMocks: true,
+  collectCoverageFrom: [
+    'src/**/*.{ts,js}',
+    '!src/**/*.d.ts',
+    '!src/**/__tests__/**',
+  ],
+  coverageThreshold: {
+    global: {
+      statements: 75,
+      lines: 75,
+      functions: 70,
+      branches: 50,
+    },
+  },
 };

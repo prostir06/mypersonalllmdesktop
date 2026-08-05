@@ -9,6 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint .",
     "prisma:generate": "prisma generate --config prisma/prisma.config.ts",
     "prisma:studio": "prisma studio --config prisma/prisma.config.ts",
     "prisma:migrate:status": "prisma migrate status --config prisma/prisma.config.ts"
@@ -44,16 +46,20 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
+    "eslint": "^10.8.0",
+    "globals": "^17.9.0",
     "jest": "^29.7.0",
     "nodemon": "^3.0.2",
     "prisma": "^7.9.1",
     "supertest": "^6.3.3",
-    "ts-jest": "^29.4.12"
+    "ts-jest": "^29.4.12",
+    "typescript-eslint": "^8.66.0"
   }
 }
