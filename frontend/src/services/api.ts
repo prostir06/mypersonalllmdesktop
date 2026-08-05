@@ -221,8 +221,11 @@ export const chatAPI = {
     }
   },
 
-  getHistory: (conversationId: string | number): Promise<AxiosResponse<ChatHistoryResponse>> =>
-    api.get(`/chat/history/${conversationId}`),
+  getHistory: (
+    conversationId: string | number,
+    config?: import('axios').AxiosRequestConfig
+  ): Promise<AxiosResponse<ChatHistoryResponse>> =>
+    api.get(`/chat/history/${conversationId}`, config),
   search: (
     q: string,
     conversationId?: string | number

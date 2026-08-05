@@ -4,11 +4,12 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import { chatAPI, conversationAPI, modelsAPI } from '../services/api';
+import { conversationAPI, modelsAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
 import { useChatStream } from '../hooks/useChatStream';
+import { useConversationHistory } from '../hooks/useConversationHistory';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
@@ -31,9 +32,7 @@ const MODEL_OPTIONS = {
 };
 
 const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
-  const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [loading, setLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
   const [remoteModels, setRemoteModels] = useState([]);
@@ -77,6 +76,11 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     setAttachedImage,
   });
 
+  const { messages, setMessages, loading } = useConversationHistory(
+    conversationId,
+    setError
+  );
+
   const fetchRemoteModels = useCallback(async (hostUrl) => {
     try {
       const response = await modelsAPI.getRemote('ollama', hostUrl);
@@ -102,26 +106,6 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     }
     if (prov === 'ollama') fetchRemoteModels(host);
   }, [settings, fetchRemoteModels]);
-
-  useEffect(() => {
-    if (conversationId) {
-      (async () => {
-        try {
-          setLoading(true);
-          setError(null);
-          const response = await chatAPI.getHistory(conversationId);
-          const history = response.data.messages || response.data || [];
-          setMessages(history);
-        } catch {
-          setError('Не вдалося завантажити історію повідомлень');
-        } finally {
-          setLoading(false);
-        }
-      })();
-    } else {
-      setMessages([]);
-    }
-  }, [conversationId, setError]);
 
   const scrollToBottom = useCallback(() => {
     if (
