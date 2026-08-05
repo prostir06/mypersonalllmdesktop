@@ -30,7 +30,11 @@ const queryClient = new QueryClient({
 });
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authReady } = useAuth();
+
+  if (!authReady) {
+    return <LoadingFallback />;
+  }
 
   return (
     <>

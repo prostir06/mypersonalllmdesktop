@@ -38,7 +38,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-llm_assistant}
       JWT_SECRET: ${JWT_SECRET:-change_this_secret_in_production}
-      JWT_REFRESH_LEEWAY_SEC: ${JWT_REFRESH_LEEWAY_SEC:-604800}
+      JWT_ACCESS_EXPIRE: ${JWT_ACCESS_EXPIRE:-15m}
+      JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-30d}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
       OLLAMA_URL_ALLOWLIST: ${OLLAMA_URL_ALLOWLIST:-}

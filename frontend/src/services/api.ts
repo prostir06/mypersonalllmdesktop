@@ -32,6 +32,7 @@ import type {
   UserUpdatePayload,
 } from '../types/api';
 import { consumeSseChunk, isAbortError, readFetchErrorMessage } from './sseParse';
+import { getAccessToken, setAccessToken } from './authToken';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -47,6 +48,7 @@ interface QueueItem {
 const api: AxiosInstance = axios.create({
   baseURL: API_URL,
   timeout: 30000,
+  withCredentials: true,
 });
 
 let isRefreshing = false;
@@ -64,7 +66,7 @@ const processQueue = (error: unknown, token: string | null = null): void => {
 };
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token');
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -75,8 +77,18 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryAxiosRequestConfig | undefined;
+    const url = originalRequest?.url || '';
+    const isAuthRefresh = url.includes('/auth/refresh');
+    const isAuthLogin =
+      url.includes('/auth/login') || url.includes('/auth/register');
 
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isAuthRefresh &&
+      !isAuthLogin
+    ) {
       if (isRefreshing) {
         return new Promise<string | null>((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -92,21 +104,20 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const oldToken = localStorage.getItem('token');
         const { data } = await axios.post<AuthRefreshResponse>(
           `${API_URL}/auth/refresh`,
           {},
-          { headers: { Authorization: `Bearer ${oldToken}` } }
+          { withCredentials: true }
         );
 
-        localStorage.setItem('token', data.token);
+        setAccessToken(data.token);
         processQueue(null, data.token);
 
         originalRequest.headers.Authorization = `Bearer ${data.token}`;
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('token');
+        setAccessToken(null);
 
         const onAuthPage = ['/login', '/register'].includes(window.location.pathname);
         if (!onAuthPage) {
@@ -131,7 +142,9 @@ export const authAPI = {
     api.post('/auth/login', { email, password }),
   register: (email: string, password: string, name: string): Promise<AxiosResponse<AuthTokenResponse>> =>
     api.post('/auth/register', { email, password, name }),
-  refresh: (): Promise<AxiosResponse<AuthRefreshResponse>> => api.post('/auth/refresh'),
+  refresh: (): Promise<AxiosResponse<AuthRefreshResponse>> =>
+    api.post('/auth/refresh'),
+  logout: (): Promise<AxiosResponse<SuccessResponse>> => api.post('/auth/logout'),
 };
 
 export const chatAPI = {
@@ -154,7 +167,7 @@ export const chatAPI = {
     onInit: StreamInitCallback,
     signal?: AbortSignal
   ): Promise<void> => {
-    const token = localStorage.getItem('token');
+    const token = getAccessToken();
     let response: Response;
     try {
       response = await fetch(`${API_URL}/chat/stream`, {
@@ -165,6 +178,7 @@ export const chatAPI = {
         },
         body: JSON.stringify({ conversationId, message, model, provider, options }),
         signal,
+        credentials: 'include',
       });
     } catch (err) {
       if (signal?.aborted || isAbortError(err)) {

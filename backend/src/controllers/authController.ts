@@ -4,6 +4,14 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
 import prisma from '../config/prisma';
 import logger from '../logger';
+import {
+  REFRESH_COOKIE,
+  clearRefreshCookie,
+  issueRefreshToken,
+  revokeRefreshToken,
+  rotateRefreshToken,
+  setRefreshCookie,
+} from '../utils/refreshTokens';
 
 class JwtSecretMissingError extends Error {
   constructor() {
@@ -20,10 +28,19 @@ function requireJwtSecret(): string {
   return secret;
 }
 
-function signUserToken(userId: number): string {
+function signAccessToken(userId: number): string {
   const secret = requireJwtSecret();
-  const expiresIn = (process.env.JWT_EXPIRE || '7d') as SignOptions['expiresIn'];
+  const expiresIn = (process.env.JWT_ACCESS_EXPIRE ||
+    process.env.JWT_EXPIRE ||
+    '15m') as SignOptions['expiresIn'];
   return jwt.sign({ userId }, secret, { expiresIn });
+}
+
+async function attachSession(res: Response, userId: number): Promise<string> {
+  const access = signAccessToken(userId);
+  const refreshRaw = await issueRefreshToken(userId);
+  setRefreshCookie(res, refreshRaw);
+  return access;
 }
 
 let dummyHashPromise = bcrypt.hash('dummy-password-for-timing', 12);
@@ -67,7 +84,7 @@ export async function register(req: Request, res: Response): Promise<void> {
       select: { id: true },
     });
 
-    const token = signUserToken(user.id);
+    const token = await attachSession(res, user.id);
     logger.info(`New user registered: ${email} (id=${user.id})`);
     res.status(201).json({ token, userId: user.id });
   } catch (error: unknown) {
@@ -100,7 +117,7 @@ export async function login(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const token = signUserToken(user.id);
+    const token = await attachSession(res, user.id);
     logger.info(`User logged in: ${email} (id=${user.id})`);
     res.json({ token, userId: user.id });
   } catch (error: unknown) {
@@ -116,41 +133,35 @@ export async function login(req: Request, res: Response): Promise<void> {
 
 export async function refresh(req: Request, res: Response): Promise<void> {
   try {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
+    const raw = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    if (!raw) {
       res.status(401).json({ error: 'Токен відсутній' });
       return;
     }
 
-    const secret = requireJwtSecret();
-    const decoded = jwt.verify(token, secret, {
-      ignoreExpiration: true,
-    }) as { userId: number; exp?: number };
+    // Ensure JWT_SECRET is configured before rotating
+    requireJwtSecret();
 
-    const leewaySec = Math.max(
-      0,
-      parseInt(process.env.JWT_REFRESH_LEEWAY_SEC || '604800', 10) || 604800
-    );
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (
-      typeof decoded.exp === 'number' &&
-      decoded.exp + leewaySec < nowSec
-    ) {
-      res.status(401).json({ error: 'Токен прострочений' });
+    const rotated = await rotateRefreshToken(raw);
+    if (!rotated) {
+      clearRefreshCookie(res);
+      res.status(401).json({ error: 'Невалідний токен' });
       return;
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: rotated.userId },
       select: { id: true },
     });
     if (!user) {
+      clearRefreshCookie(res);
       res.status(401).json({ error: 'Користувача не знайдено' });
       return;
     }
 
-    const newToken = signUserToken(user.id);
-    res.json({ token: newToken });
+    setRefreshCookie(res, rotated.raw);
+    const token = signAccessToken(user.id);
+    res.json({ token });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/refresh error: ${message}`);
@@ -159,5 +170,21 @@ export async function refresh(req: Request, res: Response): Promise<void> {
       return;
     }
     res.status(401).json({ error: 'Невалідний токен' });
+  }
+}
+
+export async function logout(req: Request, res: Response): Promise<void> {
+  try {
+    const raw = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    if (raw) {
+      await revokeRefreshToken(raw);
+    }
+    clearRefreshCookie(res);
+    res.json({ success: true });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`POST /auth/logout error: ${message}`);
+    clearRefreshCookie(res);
+    res.json({ success: true });
   }
 }

@@ -40,7 +40,8 @@ jobs:
       DB_PASSWORD: testpassword
       DATABASE_URL: postgresql://postgres:testpassword@localhost:5432/llm_assistant_test
       JWT_SECRET: test_jwt_secret_for_ci
-      JWT_EXPIRE: 1d
+      JWT_ACCESS_EXPIRE: 15m
+      JWT_REFRESH_EXPIRE: 30d
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     steps:

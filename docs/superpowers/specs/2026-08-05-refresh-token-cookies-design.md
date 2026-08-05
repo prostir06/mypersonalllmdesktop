@@ -1,7 +1,7 @@
 # Refresh-Token Cookies + Short Access JWT — Design
 
 **Date:** 2026-08-05  
-**Status:** Approved for implementation (pending file review)  
+**Status:** Implemented  
 **Parent:** Project Evolution v2 — P8 item 2  
 **Scope:** Replace long-lived `localStorage` JWT with short access JWT in memory + httpOnly refresh cookie (same-origin)
 

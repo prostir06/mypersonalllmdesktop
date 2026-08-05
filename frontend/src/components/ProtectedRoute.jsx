@@ -13,7 +13,15 @@ import { useAuth } from '../context/AuthContext';
  * @param {React.ComponentType} component - Компонент для рендерингу якщо авторизований
  */
 const ProtectedRoute = ({ component: Component }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authReady } = useAuth();
+
+  if (!authReady) {
+    return (
+      <div className="text-center py-5 text-muted">
+        Перевірка сесії...
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

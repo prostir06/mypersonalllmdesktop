@@ -1,6 +1,7 @@
 import express from 'express';
-
+const cookieParser = require('cookie-parser');
 const request = require('supertest');
+const crypto = require('crypto');
 
 jest.mock('../config/prisma', () => ({
   __esModule: true,
@@ -9,11 +10,11 @@ jest.mock('../config/prisma', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
     },
-  },
-  prisma: {
-    user: {
-      findUnique: jest.fn(),
+    refreshToken: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
     },
   },
 }));
@@ -25,13 +26,15 @@ jest.mock('../logger', () => ({
 }));
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
-process.env.JWT_EXPIRE = '1h';
+process.env.JWT_ACCESS_EXPIRE = '15m';
+process.env.JWT_REFRESH_EXPIRE = '30d';
 
 import prisma from '../config/prisma';
 import authRouter from '../routes/auth';
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 app.use('/api/auth', authRouter);
 
 const mockedPrisma = prisma as unknown as {
@@ -39,14 +42,25 @@ const mockedPrisma = prisma as unknown as {
     findUnique: jest.Mock;
     create: jest.Mock;
   };
+  refreshToken: {
+    create: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
+    updateMany: jest.Mock;
+  };
 };
+
+function hashToken(raw: string) {
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
 
 describe('Auth API (Prisma)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedPrisma.refreshToken.create.mockResolvedValue({ id: 1 });
   });
 
-  it('POST /register creates user and returns token', async () => {
+  it('POST /register creates user, returns access token, sets refresh cookie', async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
     mockedPrisma.user.create.mockResolvedValue({ id: 42 });
 
@@ -57,7 +71,8 @@ describe('Auth API (Prisma)', () => {
     expect(res.status).toBe(201);
     expect(res.body.userId).toBe(42);
     expect(typeof res.body.token).toBe('string');
-    expect(mockedPrisma.user.create).toHaveBeenCalled();
+    expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
+    expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
   });
 
   it('POST /login returns 400 for unknown user without leaking existence', async () => {
@@ -71,7 +86,7 @@ describe('Auth API (Prisma)', () => {
     expect(res.body.error).toBe('Невірний email або пароль');
   });
 
-  it('POST /login returns token for valid credentials', async () => {
+  it('POST /login returns token and refresh cookie for valid credentials', async () => {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash('Password1', 4);
     mockedPrisma.user.findUnique.mockResolvedValue({
@@ -88,55 +103,67 @@ describe('Auth API (Prisma)', () => {
     expect(res.status).toBe(200);
     expect(res.body.userId).toBe(7);
     expect(typeof res.body.token).toBe('string');
+    expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
   });
 
-  it('POST /refresh returns new token for existing user', async () => {
-    const jwt = require('jsonwebtoken');
-    const token = jwt.sign({ userId: 7 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  it('POST /refresh rotates cookie and returns new access token', async () => {
+    const raw = 'test-refresh-raw-token-value';
+    mockedPrisma.refreshToken.findUnique.mockResolvedValue({
+      id: 9,
+      userId: 7,
+      tokenHash: hashToken(raw),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+    mockedPrisma.refreshToken.update.mockResolvedValue({});
     mockedPrisma.user.findUnique.mockResolvedValue({ id: 7 });
 
     const res = await request(app)
       .post('/api/auth/refresh')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', [`refresh_token=${raw}`]);
 
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
+    expect(mockedPrisma.refreshToken.update).toHaveBeenCalled();
+    expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
+    expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
   });
 
-  it('POST /refresh accepts token expired within leeway', async () => {
-    const jwt = require('jsonwebtoken');
-    process.env.JWT_REFRESH_LEEWAY_SEC = '3600';
-    const token = jwt.sign(
-      { userId: 7, exp: Math.floor(Date.now() / 1000) - 60 },
-      process.env.JWT_SECRET
-    );
-    mockedPrisma.user.findUnique.mockResolvedValue({ id: 7 });
+  it('POST /refresh returns 401 without cookie', async () => {
+    const res = await request(app).post('/api/auth/refresh');
+    expect(res.status).toBe(401);
+    expect(mockedPrisma.refreshToken.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('POST /refresh returns 401 for revoked token', async () => {
+    const raw = 'revoked-token';
+    mockedPrisma.refreshToken.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 7,
+      tokenHash: hashToken(raw),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(),
+    });
 
     const res = await request(app)
       .post('/api/auth/refresh')
-      .set('Authorization', `Bearer ${token}`);
-
-    expect(res.status).toBe(200);
-    expect(typeof res.body.token).toBe('string');
-    delete process.env.JWT_REFRESH_LEEWAY_SEC;
-  });
-
-  it('POST /refresh rejects token expired beyond leeway', async () => {
-    const jwt = require('jsonwebtoken');
-    process.env.JWT_REFRESH_LEEWAY_SEC = '60';
-    const token = jwt.sign(
-      { userId: 7, exp: Math.floor(Date.now() / 1000) - 3600 },
-      process.env.JWT_SECRET
-    );
-
-    const res = await request(app)
-      .post('/api/auth/refresh')
-      .set('Authorization', `Bearer ${token}`);
+      .set('Cookie', [`refresh_token=${raw}`]);
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toMatch(/Невалідний|прострочен/i);
-    expect(mockedPrisma.user.findUnique).not.toHaveBeenCalled();
-    delete process.env.JWT_REFRESH_LEEWAY_SEC;
+  });
+
+  it('POST /logout revokes and clears cookie', async () => {
+    const raw = 'logout-token';
+    mockedPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+
+    const res = await request(app)
+      .post('/api/auth/logout')
+      .set('Cookie', [`refresh_token=${raw}`]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockedPrisma.refreshToken.updateMany).toHaveBeenCalled();
+    expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=;/);
   });
 
   describe('JWT_SECRET required', () => {
@@ -179,13 +206,19 @@ describe('Auth API (Prisma)', () => {
     });
 
     it('refresh returns 500 when JWT_SECRET missing', async () => {
-      const jwt = require('jsonwebtoken');
-      const token = jwt.sign({ userId: 7 }, original, { expiresIn: '1h' });
       delete process.env.JWT_SECRET;
+      const raw = 'any';
+      mockedPrisma.refreshToken.findUnique.mockResolvedValue({
+        id: 1,
+        userId: 7,
+        tokenHash: hashToken(raw),
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: null,
+      });
 
       const res = await request(app)
         .post('/api/auth/refresh')
-        .set('Authorization', `Bearer ${token}`);
+        .set('Cookie', [`refresh_token=${raw}`]);
 
       expect(res.status).toBe(500);
       expect(res.body.error).toBe('Помилка конфігурації сервера');
