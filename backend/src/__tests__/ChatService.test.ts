@@ -71,6 +71,28 @@ describe('ChatService', () => {
     });
   });
 
+  describe('loadRecentMessages', () => {
+    it('loads the newest 50 messages in chronological order', async () => {
+      const newestFiftyDesc = Array.from({ length: 50 }, (_, i) => ({
+        role: 'user' as const,
+        content: `m${59 - i}`,
+      }));
+      mockedPrisma.message.findMany.mockResolvedValue(newestFiftyDesc);
+
+      const msgs = await ChatService.loadRecentMessages(1);
+
+      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith({
+        where: { conversationId: 1 },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: { role: true, content: true },
+      });
+      expect(msgs).toHaveLength(50);
+      expect(msgs[0].content).toBe('m10');
+      expect(msgs[49].content).toBe('m59');
+    });
+  });
+
   describe('buildSystemContext', () => {
     it('calls EmbeddingService without pool', async () => {
       mockedPrisma.userSettings.findUnique.mockResolvedValue({

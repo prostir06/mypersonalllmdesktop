@@ -1,7 +1,7 @@
 # Project Evolution Roadmap — Design
 
 **Date:** 2026-08-04  
-**Status:** Review / planning (no implementation in this doc)  
+**Status:** Superseded by `2026-08-05-project-evolution-v2-design.md` (P0–P4 implemented; use v2 for next work)  
 **Scope:** Full-stack personal LLM control panel (`mypersonalllmdesktop`)
 
 ## 1. Current state (audit summary)

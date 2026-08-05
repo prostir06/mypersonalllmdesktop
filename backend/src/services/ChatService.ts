@@ -146,13 +146,15 @@ class ChatService {
     return systemMessages;
   }
 
+  /** Newest 50 turns, returned oldest→newest for the provider prompt. */
   static async loadRecentMessages(conversationId: number) {
-    return prisma.message.findMany({
+    const newestFirst = await prisma.message.findMany({
       where: { conversationId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: 50,
       select: { role: true, content: true },
     });
+    return newestFirst.reverse();
   }
 
   /**
