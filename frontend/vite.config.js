@@ -16,7 +16,8 @@ export default defineConfig({
     outDir: 'build',
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
   },
 });
