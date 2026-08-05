@@ -135,6 +135,17 @@ describe('Models API (Prisma)', () => {
     });
   });
 
+  it('POST / returns 400 when name or modelId missing', async () => {
+    const res = await request(app)
+      .post('/api/models')
+      .set('Authorization', `Bearer ${tokenFor(9)}`)
+      .send({ name: 'Only name' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/name and modelId/i);
+    expect(mockedPrisma.llmModel.create).not.toHaveBeenCalled();
+  });
+
   it('PUT /:id returns 404 when not owned', async () => {
     mockedPrisma.llmModel.findFirst.mockResolvedValue(null);
 

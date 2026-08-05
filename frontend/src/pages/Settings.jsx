@@ -1,45 +1,26 @@
 /**
- * @file pages/Settings.js
- * Сторінка налаштувань AI — провайдер, модель, температура, system prompt.
- * Використовує useSettings / useUpdateSettings hooks (@tanstack/react-query).
+ * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
+import { useModels } from '../hooks/useModels';
 import { modelsAPI } from '../services/api';
+import ModelCatalog from '../components/settings/ModelCatalog';
 
-/** Реальні підтримувані провайдери (без фейкових Azure/ChatGPT aliases) */
 const providerOptions = [
   { value: 'openai', label: 'OpenAI API' },
   { value: 'ollama', label: 'Ollama (Local Server)' },
 ];
 
-/** Вбудовані моделі для кожного провайдера */
-const modelOptions = {
-  openai: [
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-    { value: 'gpt-4', label: 'GPT-4' },
-    { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-  ],
-  ollama: [
-    { value: 'llama2', label: 'Llama 2' },
-    { value: 'llama3', label: 'Llama 3' },
-    { value: 'mistral', label: 'Mistral' },
-    { value: 'codellama', label: 'CodeLlama' },
-  ],
-};
-
 const Settings = () => {
-  // React Query hooks для завантаження та збереження налаштувань
   const { data: settingsData, isLoading: isLoadingSettings } = useSettings();
   const updateSettingsMutation = useUpdateSettings();
+  const { data: catalogModels = [] } = useModels();
 
-  // Локальний стан форми
   const [provider, setProvider] = useState('openai');
-  const [model, setModel] = useState('gpt-3.5-turbo');
+  const [model, setModel] = useState('');
   const [remoteModels, setRemoteModels] = useState([]);
   const [ollamaHost, setOllamaHost] = useState('http://127.0.0.1:11434/v1/chat/completions');
   const [temperature, setTemperature] = useState(0.7);
@@ -47,48 +28,69 @@ const Settings = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState(null); // 'ok' | 'error' | null
+  const [ollamaStatus, setOllamaStatus] = useState(null);
 
-  /** При завантаженні налаштувань з API — заповнюємо форму */
   useEffect(() => {
     if (settingsData) {
       let prov = settingsData.default_provider || 'openai';
       if (prov !== 'openai' && prov !== 'ollama') prov = 'openai';
       setProvider(prov);
-      setModel(settingsData.default_model || 'gpt-3.5-turbo');
+      setModel(settingsData.default_model || '');
       setTemperature(parseFloat(settingsData.temperature) || 0.7);
       setMaxTokens(parseInt(settingsData.max_tokens, 10) || 2000);
-      setOllamaHost(settingsData.default_ollama_host || 'http://127.0.0.1:11434/v1/chat/completions');
+      setOllamaHost(
+        settingsData.default_ollama_host ||
+          'http://127.0.0.1:11434/v1/chat/completions'
+      );
       setSystemPrompt(settingsData.system_prompt || '');
     }
   }, [settingsData]);
 
-  /** Список моделей: якщо Ollama і є remote — показуємо їх, інакше static */
-  const currentModels = provider === 'ollama' && remoteModels.length > 0
-    ? remoteModels
-    : (modelOptions[provider] || modelOptions.openai);
+  const catalogOptions = useMemo(
+    () =>
+      catalogModels
+        .filter((m) => m.provider === provider)
+        .map((m) => ({
+          value: m.model_id,
+          label: m.name || m.model_id,
+        })),
+    [catalogModels, provider]
+  );
 
-  /** При зміні провайдера — скидаємо модель до першої доступної */
+  const currentModels =
+    provider === 'ollama' && remoteModels.length > 0
+      ? remoteModels
+      : catalogOptions;
+
+  useEffect(() => {
+    if (currentModels.length === 0) return;
+    if (!currentModels.some((opt) => opt.value === model)) {
+      setModel(currentModels[0].value);
+    }
+  }, [currentModels, model]);
+
   const handleProviderChange = (e) => {
     const val = e.target.value;
     setProvider(val);
-    const models = val === 'ollama' && remoteModels.length > 0
-      ? remoteModels
-      : (modelOptions[val] || modelOptions.openai);
-    setModel(models[0]?.value || '');
     setRemoteModels([]);
+    const options = catalogModels
+      .filter((m) => m.provider === val)
+      .map((m) => ({ value: m.model_id, label: m.name || m.model_id }));
+    setModel(options[0]?.value || '');
   };
 
-  /** Завантажуємо список моделей з Ollama сервера */
   const handleFetchRemoteModels = async () => {
     setLoadingRemote(true);
     setError('');
     setOllamaStatus(null);
     try {
       const response = await modelsAPI.getRemote('ollama', ollamaHost);
-      const fetched = response.data.map((m) => ({
-        value: m.id || m.name,
-        label: m.name || m.id,
+      const raw = Array.isArray(response.data)
+        ? response.data
+        : response.data?.models || [];
+      const fetched = raw.map((m) => ({
+        value: m.id || m.name || m.value,
+        label: m.name || m.id || m.label,
       }));
       setRemoteModels(fetched);
       if (fetched.length > 0) {
@@ -110,7 +112,6 @@ const Settings = () => {
     }
   };
 
-  /** Зберігаємо налаштування через mutation hook */
   const handleSave = async (e) => {
     e.preventDefault();
     setError('');
@@ -122,7 +123,7 @@ const Settings = () => {
         temperature: parseFloat(temperature),
         max_tokens: parseInt(maxTokens, 10),
         default_ollama_host: ollamaHost,
-        system_prompt: systemPrompt
+        system_prompt: systemPrompt,
       });
       toast.success('Налаштування збережено! ✅');
     } catch (err) {
@@ -153,7 +154,10 @@ const Settings = () => {
 
       <Form onSubmit={handleSave}>
         <div className="glass-panel p-4 mb-3">
-          <h6 className="fw-semibold mb-3 text-muted text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+          <h6
+            className="fw-semibold mb-3 text-muted text-uppercase"
+            style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+          >
             🔌 Провайдер та модель
           </h6>
           <Row className="g-3">
@@ -168,8 +172,10 @@ const Settings = () => {
                   onChange={handleProviderChange}
                   className="bg-dark text-light border-secondary shadow-none"
                 >
-                  {providerOptions.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {providerOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
                   ))}
                 </Form.Select>
               </Form.Group>
@@ -185,11 +191,23 @@ const Settings = () => {
                   value={model}
                   onChange={(e) => setModel(e.target.value)}
                   className="bg-dark text-light border-secondary shadow-none"
+                  disabled={currentModels.length === 0}
                 >
-                  {currentModels.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
+                  {currentModels.length === 0 ? (
+                    <option value="">Немає моделей</option>
+                  ) : (
+                    currentModels.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))
+                  )}
                 </Form.Select>
+                {currentModels.length === 0 && (
+                  <Form.Text className="text-muted">
+                    Додайте модель у каталозі нижче
+                  </Form.Text>
+                )}
               </Form.Group>
             </Col>
 
@@ -218,7 +236,11 @@ const Settings = () => {
                       disabled={loadingRemote}
                       style={{ whiteSpace: 'nowrap' }}
                     >
-                      {loadingRemote ? <Spinner size="sm" animation="border" /> : '🔍 Перевірити'}
+                      {loadingRemote ? (
+                        <Spinner size="sm" animation="border" />
+                      ) : (
+                        '🔍 Перевірити'
+                      )}
                     </Button>
                     {ollamaStatus === 'ok' && (
                       <span className="badge text-bg-success">online</span>
@@ -234,7 +256,10 @@ const Settings = () => {
         </div>
 
         <div className="glass-panel p-4 mb-3">
-          <h6 className="fw-semibold mb-3 text-muted text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+          <h6
+            className="fw-semibold mb-3 text-muted text-uppercase"
+            style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+          >
             🎛️ Параметри генерації
           </h6>
           <Row className="g-3">
@@ -280,7 +305,10 @@ const Settings = () => {
         </div>
 
         <div className="glass-panel p-4 mb-4">
-          <h6 className="fw-semibold mb-3 text-muted text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+          <h6
+            className="fw-semibold mb-3 text-muted text-uppercase"
+            style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+          >
             💬 Системний промпт
           </h6>
           <Form.Group>
@@ -305,15 +333,28 @@ const Settings = () => {
 
         <Button
           type="submit"
-          className="btn-accent px-4 py-2 d-flex align-items-center gap-2"
+          className="btn-accent px-4 py-2 d-flex align-items-center gap-2 mb-4"
           disabled={updateSettingsMutation.isPending}
         >
-          {updateSettingsMutation.isPending
-            ? <><Spinner size="sm" animation="border" /> Збереження...</>
-            : '💾 Зберегти налаштування'
-          }
+          {updateSettingsMutation.isPending ? (
+            <>
+              <Spinner size="sm" animation="border" /> Збереження...
+            </>
+          ) : (
+            '💾 Зберегти налаштування'
+          )}
         </Button>
       </Form>
+
+      <div className="glass-panel p-4 mb-3">
+        <h6
+          className="fw-semibold mb-3 text-muted text-uppercase"
+          style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+        >
+          Каталог моделей
+        </h6>
+        <ModelCatalog />
+      </div>
     </Container>
   );
 };

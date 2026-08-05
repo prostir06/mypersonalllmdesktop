@@ -75,12 +75,22 @@ export async function createModel(req: AuthRequest, res: Response): Promise<void
     provider?: string;
   };
 
+  if (
+    typeof body.name !== 'string' ||
+    !body.name.trim() ||
+    typeof body.modelId !== 'string' ||
+    !body.modelId.trim()
+  ) {
+    res.status(400).json({ error: 'name and modelId are required' });
+    return;
+  }
+
   try {
     const row = await prisma.llmModel.create({
       data: {
         userId: req.userId!,
-        name: body.name!,
-        modelId: body.modelId!,
+        name: body.name.trim(),
+        modelId: body.modelId.trim(),
         description: body.description,
         temperature: body.temperature ?? 0.7,
         maxTokens: body.maxTokens ?? 2000,
