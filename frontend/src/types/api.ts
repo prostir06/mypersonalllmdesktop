@@ -35,6 +35,18 @@ export interface Conversation {
   [key: string]: unknown;
 }
 
+export interface PaginatedList<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ListQueryParams {
+  limit?: number;
+  offset?: number;
+}
+
 export interface Message {
   id?: string | number;
   role: string;

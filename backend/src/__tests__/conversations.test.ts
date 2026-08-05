@@ -12,6 +12,7 @@ jest.mock('../config/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     message: {
       findMany: jest.fn(),
@@ -24,6 +25,7 @@ jest.mock('../config/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     message: {
       findMany: jest.fn(),
@@ -53,6 +55,7 @@ const mockedPrisma = prisma as unknown as {
     create: jest.Mock;
     update: jest.Mock;
     deleteMany: jest.Mock;
+    count: jest.Mock;
   };
   message: {
     findMany: jest.Mock;
@@ -76,27 +79,38 @@ describe('Conversations API (Prisma)', () => {
     jest.clearAllMocks();
   });
 
-  it('GET / returns list snake_case ordered via Prisma findMany', async () => {
+  it('GET / returns paginated list snake_case ordered via Prisma findMany', async () => {
     mockedPrisma.conversation.findMany.mockResolvedValue([sampleRow]);
+    mockedPrisma.conversation.count.mockResolvedValue(1);
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/conversations?limit=10&offset=0')
       .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([
-      {
-        id: 5,
-        title: 'Hello',
-        created_at: sampleRow.createdAt.toISOString(),
-        updated_at: sampleRow.updatedAt.toISOString(),
-      },
-    ]);
-    expect(res.body[0]).not.toHaveProperty('userId');
+    expect(res.body).toEqual({
+      items: [
+        {
+          id: 5,
+          title: 'Hello',
+          created_at: sampleRow.createdAt.toISOString(),
+          updated_at: sampleRow.updatedAt.toISOString(),
+        },
+      ],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    });
+    expect(res.body.items[0]).not.toHaveProperty('userId');
     expect(mockedPrisma.conversation.findMany).toHaveBeenCalledWith({
       where: { userId: 9 },
       orderBy: { updatedAt: 'desc' },
+      take: 10,
+      skip: 0,
       select: { id: true, title: true, createdAt: true, updatedAt: true },
+    });
+    expect(mockedPrisma.conversation.count).toHaveBeenCalledWith({
+      where: { userId: 9 },
     });
   });
 

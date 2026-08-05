@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../logger';
+import { parseListPagination } from '../utils/listPagination';
 
 type AuthRequest = Request & { userId?: number };
 
@@ -63,12 +64,24 @@ export async function listConversations(
   res: Response
 ): Promise<void> {
   try {
-    const rows = await prisma.conversation.findMany({
-      where: { userId: req.userId! },
-      orderBy: { updatedAt: 'desc' },
-      select: { id: true, title: true, createdAt: true, updatedAt: true },
+    const { limit, offset } = parseListPagination(req.query);
+    const where = { userId: req.userId! };
+    const [rows, total] = await Promise.all([
+      prisma.conversation.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: { id: true, title: true, createdAt: true, updatedAt: true },
+      }),
+      prisma.conversation.count({ where }),
+    ]);
+    res.json({
+      items: rows.map(toListItem),
+      total,
+      limit,
+      offset,
     });
-    res.json(rows.map(toListItem));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /conversations error: ${message}`);

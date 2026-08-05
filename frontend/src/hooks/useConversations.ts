@@ -4,17 +4,24 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { conversationAPI } from '../services/api';
-import type { Conversation } from '../types/api';
+import type { Conversation, PaginatedList } from '../types/api';
 import { queryKeys } from './queryKeys';
+
+type ConversationsPage = PaginatedList<Conversation>;
+
+function emptyPage(): ConversationsPage {
+  return { items: [], total: 0, limit: 50, offset: 0 };
+}
 
 export function useConversations() {
   return useQuery({
     queryKey: queryKeys.conversations,
     queryFn: async () => {
       const response = await conversationAPI.getAll();
-      return (response.data || []) as Conversation[];
+      return response.data;
     },
     staleTime: 1000 * 30,
+    select: (page) => page.items,
   });
 }
 
@@ -26,9 +33,16 @@ export function useCreateConversation() {
       return response.data as Conversation;
     },
     onSuccess: (created) => {
-      queryClient.setQueryData<Conversation[]>(
+      queryClient.setQueryData<ConversationsPage>(
         queryKeys.conversations,
-        (prev) => [created, ...(prev || [])]
+        (prev) => {
+          const base = prev || emptyPage();
+          return {
+            ...base,
+            items: [created, ...base.items],
+            total: base.total + 1,
+          };
+        }
       );
     },
   });
@@ -42,9 +56,16 @@ export function useDeleteConversation() {
       return id;
     },
     onSuccess: (id) => {
-      queryClient.setQueryData<Conversation[]>(
+      queryClient.setQueryData<ConversationsPage>(
         queryKeys.conversations,
-        (prev) => (prev || []).filter((c) => c.id !== id)
+        (prev) => {
+          const base = prev || emptyPage();
+          return {
+            ...base,
+            items: base.items.filter((c) => c.id !== id),
+            total: Math.max(0, base.total - 1),
+          };
+        }
       );
       queryClient.removeQueries({ queryKey: queryKeys.history(id) });
     },
@@ -65,10 +86,17 @@ export function useRenameConversation() {
       return { id, title };
     },
     onSuccess: ({ id, title }) => {
-      queryClient.setQueryData<Conversation[]>(
+      queryClient.setQueryData<ConversationsPage>(
         queryKeys.conversations,
-        (prev) =>
-          (prev || []).map((c) => (c.id === id ? { ...c, title } : c))
+        (prev) => {
+          const base = prev || emptyPage();
+          return {
+            ...base,
+            items: base.items.map((c) =>
+              c.id === id ? { ...c, title } : c
+            ),
+          };
+        }
       );
     },
   });

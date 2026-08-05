@@ -179,14 +179,25 @@ class DocumentService {
     };
   }
 
-  static async getByUser(userId: number) {
-    const rows = await prisma.document.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { chunks: true } } },
-    });
+  static async getByUser(userId: number, limit = 50, offset = 0) {
+    const where = { userId };
+    const [rows, total] = await Promise.all([
+      prisma.document.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: { _count: { select: { chunks: true } } },
+      }),
+      prisma.document.count({ where }),
+    ]);
 
-    return rows.map((row) => toPublicDocument(row, row._count.chunks));
+    return {
+      items: rows.map((row) => toPublicDocument(row, row._count.chunks)),
+      total,
+      limit,
+      offset,
+    };
   }
 
   static async delete(docId: number, userId: number): Promise<boolean> {

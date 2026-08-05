@@ -17,7 +17,9 @@ import type {
   DocumentDeleteResponse,
   DocumentRecord,
   DocumentUploadResponse,
+  ListQueryParams,
   ModelRecord,
+  PaginatedList,
   SettingsUpdatePayload,
   StreamInitCallback,
   StreamTokenCallback,
@@ -234,7 +236,10 @@ export const chatAPI = {
 };
 
 export const conversationAPI = {
-  getAll: (): Promise<AxiosResponse<Conversation[]>> => api.get('/conversations'),
+  getAll: (
+    params?: ListQueryParams
+  ): Promise<AxiosResponse<PaginatedList<Conversation>>> =>
+    api.get('/conversations', { params }),
   getById: (id: string | number): Promise<AxiosResponse<Conversation>> =>
     api.get(`/conversations/${id}`),
   create: (title: string): Promise<AxiosResponse<Conversation>> =>
@@ -266,7 +271,10 @@ export const modelsAPI = {
 };
 
 export const documentsAPI = {
-  getAll: (): Promise<AxiosResponse<DocumentRecord[]>> => api.get('/documents'),
+  getAll: (
+    params?: ListQueryParams
+  ): Promise<AxiosResponse<PaginatedList<DocumentRecord>>> =>
+    api.get('/documents', { params }),
   upload: (formData: FormData): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

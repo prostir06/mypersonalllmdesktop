@@ -15,6 +15,7 @@ jest.mock('../config/prisma', () => ({
       create: jest.fn(),
       findMany: jest.fn(),
       deleteMany: jest.fn(),
+      count: jest.fn(),
     },
     documentChunk: {
       create: jest.fn(),
@@ -46,6 +47,7 @@ const mockedPrisma = prisma as unknown as {
     create: jest.Mock;
     findMany: jest.Mock;
     deleteMany: jest.Mock;
+    count: jest.Mock;
   };
   documentChunk: { create: jest.Mock; createMany: jest.Mock };
   $executeRawUnsafe: jest.Mock;
@@ -218,7 +220,7 @@ describe('DocumentService (Prisma)', () => {
   });
 
   describe('getByUser', () => {
-    it('returns snake_case rows with chunks_count', async () => {
+    it('returns paginated snake_case rows with chunks_count', async () => {
       mockedPrisma.document.findMany.mockResolvedValue([
         {
           id: 1,
@@ -230,9 +232,10 @@ describe('DocumentService (Prisma)', () => {
           _count: { chunks: 5 },
         },
       ]);
+      mockedPrisma.document.count.mockResolvedValue(1);
 
-      const rows = await DocumentService.getByUser(1);
-      expect(rows[0]).toMatchObject({
+      const page = await DocumentService.getByUser(1, 10, 0);
+      expect(page.items[0]).toMatchObject({
         id: 1,
         user_id: 1,
         filename: 'a.pdf',
@@ -240,9 +243,12 @@ describe('DocumentService (Prisma)', () => {
         file_size: 10,
         chunks_count: 5,
       });
+      expect(page).toMatchObject({ total: 1, limit: 10, offset: 0 });
       expect(mockedPrisma.document.findMany).toHaveBeenCalledWith({
         where: { userId: 1 },
         orderBy: { createdAt: 'desc' },
+        take: 10,
+        skip: 0,
         include: { _count: { select: { chunks: true } } },
       });
     });

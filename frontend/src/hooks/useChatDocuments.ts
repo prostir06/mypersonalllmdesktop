@@ -11,7 +11,6 @@ import type { AxiosError } from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
-import type { DocumentRecord } from '../types/api';
 import { queryKeys } from './queryKeys';
 
 export function useChatDocuments() {
@@ -26,9 +25,10 @@ export function useChatDocuments() {
     queryKey: queryKeys.documents,
     queryFn: async () => {
       const res = await documentsAPI.getAll();
-      return (res.data || []) as DocumentRecord[];
+      return res.data;
     },
     staleTime: 1000 * 60,
+    select: (page) => page.items,
   });
 
   const uploadMutation = useMutation({

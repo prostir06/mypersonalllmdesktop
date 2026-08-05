@@ -40,23 +40,29 @@ describe('Documents API (Prisma routes)', () => {
     jest.clearAllMocks();
   });
 
-  it('GET / returns documents from service', async () => {
-    mockedService.getByUser.mockResolvedValue([
-      {
-        id: 1,
-        user_id: 1,
-        filename: 'test.pdf',
-        file_type: 'application/pdf',
-        file_size: 1024,
-        chunks_count: 3,
-        created_at: '2026-01-01T00:00:00.000Z',
-      },
-    ]);
+  it('GET / returns paginated documents from service', async () => {
+    mockedService.getByUser.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          user_id: 1,
+          filename: 'test.pdf',
+          file_type: 'application/pdf',
+          file_size: 1024,
+          chunks_count: 3,
+          created_at: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
 
     const res = await request(app).get('/api/documents');
     expect(res.status).toBe(200);
-    expect(res.body[0].chunks_count).toBe(3);
-    expect(mockedService.getByUser).toHaveBeenCalledWith(1);
+    expect(res.body.items[0].chunks_count).toBe(3);
+    expect(res.body.total).toBe(1);
+    expect(mockedService.getByUser).toHaveBeenCalledWith(1, 50, 0);
   });
 
   it('DELETE /:id success', async () => {

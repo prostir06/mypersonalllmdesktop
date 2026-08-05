@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import DocumentService from '../services/DocumentService';
 import logger from '../logger';
 import { decodeMulterFilename } from '../utils/multerFilename';
+import { parseListPagination } from '../utils/listPagination';
 
 type UploadedFile = {
   originalname: string;
@@ -53,8 +54,9 @@ export async function listDocuments(
   res: Response
 ): Promise<void> {
   try {
-    const documents = await DocumentService.getByUser(req.userId!);
-    res.json(documents);
+    const { limit, offset } = parseListPagination(req.query);
+    const result = await DocumentService.getByUser(req.userId!, limit, offset);
+    res.json(result);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /documents error: ${message}`);
