@@ -95,6 +95,26 @@ describe('EmbeddingService (Prisma)', () => {
         EmbeddingService.generateBatchEmbeddings(['a', 'b'])
       ).resolves.toEqual([null, null]);
     });
+
+    it('splits large inputs into multiple OpenAI requests', async () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      const texts = Array.from({ length: 101 }, (_, i) => `t${i}`);
+      mockedAxios.post = jest.fn().mockImplementation((_url, body) => {
+        const data = body.input.map((_t: string, index: number) => ({
+          index,
+          embedding: [body.input.length === 100 ? 1 : 2],
+        }));
+        return Promise.resolve({ data: { data } });
+      });
+
+      const result = await EmbeddingService.generateBatchEmbeddings(texts);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+      expect(mockedAxios.post.mock.calls[0][1].input).toHaveLength(100);
+      expect(mockedAxios.post.mock.calls[1][1].input).toHaveLength(1);
+      expect(result).toHaveLength(101);
+      expect(result[0]).toEqual([1]);
+      expect(result[100]).toEqual([2]);
+    });
   });
 
   describe('findRelevantChunks', () => {

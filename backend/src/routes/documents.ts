@@ -6,11 +6,12 @@ import {
   listDocuments,
   deleteDocument,
 } from '../controllers/documentsController';
+import { getMaxUploadBytes } from '../utils/fileMagic';
 
 const router = express.Router();
 
 const upload = multer({
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: getMaxUploadBytes() },
   fileFilter: (
     _req: unknown,
     file: { mimetype: string; originalname: string },

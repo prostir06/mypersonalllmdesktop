@@ -9,6 +9,8 @@ import logger from '../logger';
 const OPENAI_EMBEDDING_URL = 'https://api.openai.com/v1/embeddings';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
+/** OpenAI allows up to 2048 inputs; keep batches smaller for token/latency safety. */
+const EMBEDDING_BATCH_SIZE = 100;
 
 type RelevantChunk = {
   content: string;
@@ -78,34 +80,40 @@ class EmbeddingService {
       return texts.map(() => null);
     }
 
+    if (texts.length === 0) return [];
+
+    const cleanTexts = texts.map((t) => {
+      const clean = t.replace(/\n/g, ' ').trim();
+      return clean.length > 6000 ? clean.substring(0, 6000) : clean;
+    });
+
+    const embeddings: (number[] | null)[] = new Array(texts.length).fill(null);
+
     try {
-      const cleanTexts = texts.map((t) => {
-        const clean = t.replace(/\n/g, ' ').trim();
-        return clean.length > 6000 ? clean.substring(0, 6000) : clean;
-      });
-
-      const response = await axios.post(
-        OPENAI_EMBEDDING_URL,
-        {
-          model: EMBEDDING_MODEL,
-          input: cleanTexts,
-          dimensions: EMBEDDING_DIMENSIONS,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
+      for (let offset = 0; offset < cleanTexts.length; offset += EMBEDDING_BATCH_SIZE) {
+        const batch = cleanTexts.slice(offset, offset + EMBEDDING_BATCH_SIZE);
+        const response = await axios.post(
+          OPENAI_EMBEDDING_URL,
+          {
+            model: EMBEDDING_MODEL,
+            input: batch,
+            dimensions: EMBEDDING_DIMENSIONS,
           },
-          timeout: 60000,
-        }
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 60000,
+          }
+        );
 
-      const embeddings: (number[] | null)[] = new Array(texts.length).fill(null);
-      for (const item of response.data.data as Array<{
-        index: number;
-        embedding: number[];
-      }>) {
-        embeddings[item.index] = item.embedding;
+        for (const item of response.data.data as Array<{
+          index: number;
+          embedding: number[];
+        }>) {
+          embeddings[offset + item.index] = item.embedding;
+        }
       }
 
       logger.info(

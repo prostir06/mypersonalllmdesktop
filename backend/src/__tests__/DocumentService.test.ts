@@ -18,6 +18,7 @@ jest.mock('../config/prisma', () => ({
     },
     documentChunk: {
       create: jest.fn(),
+      createMany: jest.fn(),
     },
     $executeRawUnsafe: jest.fn(),
     $transaction: jest.fn(),
@@ -46,7 +47,7 @@ const mockedPrisma = prisma as unknown as {
     findMany: jest.Mock;
     deleteMany: jest.Mock;
   };
-  documentChunk: { create: jest.Mock };
+  documentChunk: { create: jest.Mock; createMany: jest.Mock };
   $executeRawUnsafe: jest.Mock;
   $transaction: jest.Mock;
 };
@@ -146,7 +147,7 @@ describe('DocumentService (Prisma)', () => {
       expect(JSON.stringify(mockedPrisma)).not.toMatch(/CREATE TABLE/i);
     });
 
-    it('uses documentChunk.create when embeddings unavailable', async () => {
+    it('uses documentChunk.createMany when embeddings unavailable', async () => {
       mockedPrisma.document.create.mockResolvedValue({
         id: 7,
         userId: 1,
@@ -156,7 +157,7 @@ describe('DocumentService (Prisma)', () => {
         createdAt: new Date(),
       });
       mockedEmbed.isAvailable.mockReturnValue(false);
-      mockedPrisma.documentChunk.create.mockResolvedValue({ id: 1 });
+      mockedPrisma.documentChunk.createMany.mockResolvedValue({ count: 1 });
 
       await DocumentService.uploadAndProcess(
         {
@@ -169,8 +170,35 @@ describe('DocumentService (Prisma)', () => {
       );
 
       expect(mockedPrisma.$transaction).toHaveBeenCalled();
-      expect(mockedPrisma.documentChunk.create).toHaveBeenCalled();
+      expect(mockedPrisma.documentChunk.createMany).toHaveBeenCalledWith({
+        data: [
+          { documentId: 7, chunkIndex: 0, content: 'abc' },
+        ],
+      });
+      expect(mockedPrisma.documentChunk.create).not.toHaveBeenCalled();
       expect(mockedPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    });
+
+    it('rejects files over MAX_FILE_SIZE', async () => {
+      const prev = process.env.MAX_FILE_SIZE;
+      process.env.MAX_FILE_SIZE = '5';
+      try {
+        await expect(
+          DocumentService.uploadAndProcess(
+            {
+              originalname: 'big.txt',
+              mimetype: 'text/plain',
+              size: 10,
+              buffer: Buffer.from('0123456789', 'utf-8'),
+            },
+            1
+          )
+        ).rejects.toThrow(/ліміт/i);
+        expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+      } finally {
+        if (prev === undefined) delete process.env.MAX_FILE_SIZE;
+        else process.env.MAX_FILE_SIZE = prev;
+      }
     });
 
     it('throws when extracted text empty', async () => {

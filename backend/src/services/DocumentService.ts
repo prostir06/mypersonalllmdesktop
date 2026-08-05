@@ -3,6 +3,10 @@ const mammoth = require('mammoth');
 import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
+import {
+  getMaxUploadBytes,
+  resolveDocumentKind,
+} from '../utils/fileMagic';
 
 type FileInfo = {
   originalname: string;
@@ -75,7 +79,9 @@ class DocumentService {
     mimetype: string,
     originalname: string
   ): Promise<string> {
-    if (mimetype === 'application/pdf' || originalname.endsWith('.pdf')) {
+    const kind = resolveDocumentKind(buffer, mimetype, originalname);
+
+    if (kind === 'pdf') {
       const parser = new PDFParse({ data: buffer });
       try {
         const pdfData = await parser.getText();
@@ -85,11 +91,7 @@ class DocumentService {
       }
     }
 
-    if (
-      mimetype ===
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      originalname.endsWith('.docx')
-    ) {
+    if (kind === 'docx') {
       const docxResult = await mammoth.extractRawText({ buffer });
       return docxResult.value;
     }
@@ -99,6 +101,11 @@ class DocumentService {
 
   static async uploadAndProcess(fileInfo: FileInfo, userId: number) {
     const { originalname, mimetype, size, buffer } = fileInfo;
+    const maxBytes = getMaxUploadBytes();
+    if (size > maxBytes || buffer.length > maxBytes) {
+      throw new Error(`Файл перевищує ліміт розміру (${maxBytes} байт)`);
+    }
+
     const extractedText = await this.extractText(buffer, mimetype, originalname);
 
     if (!extractedText || extractedText.trim().length === 0) {
@@ -112,6 +119,8 @@ class DocumentService {
       embeddings = await EmbeddingService.generateBatchEmbeddings(chunks);
     }
 
+    const hasAnyEmbedding = embeddings.some(Boolean);
+
     const doc = await prisma.$transaction(async (tx) => {
       const created = await tx.document.create({
         data: {
@@ -122,28 +131,33 @@ class DocumentService {
         },
       });
 
-      for (let i = 0; i < chunks.length; i++) {
-        const embedding = embeddings[i] || null;
-
-        if (embedding) {
-          const vectorLiteral = `[${embedding.join(',')}]`;
-          await tx.$executeRawUnsafe(
-            `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
-             VALUES ($1, $2, $3, $4::vector)`,
-            created.id,
-            i,
-            chunks[i],
-            vectorLiteral
-          );
-        } else {
-          await tx.documentChunk.create({
-            data: {
-              documentId: created.id,
-              chunkIndex: i,
-              content: chunks[i],
-            },
-          });
+      if (!hasAnyEmbedding) {
+        await tx.documentChunk.createMany({
+          data: chunks.map((content, chunkIndex) => ({
+            documentId: created.id,
+            chunkIndex,
+            content,
+          })),
+        });
+      } else {
+        const values: string[] = [];
+        const params: unknown[] = [];
+        let p = 1;
+        for (let i = 0; i < chunks.length; i++) {
+          const embedding = embeddings[i] || null;
+          if (embedding) {
+            values.push(`($${p++}, $${p++}, $${p++}, $${p++}::vector)`);
+            params.push(created.id, i, chunks[i], `[${embedding.join(',')}]`);
+          } else {
+            values.push(`($${p++}, $${p++}, $${p++}, NULL)`);
+            params.push(created.id, i, chunks[i]);
+          }
         }
+        await tx.$executeRawUnsafe(
+          `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
+           VALUES ${values.join(', ')}`,
+          ...params
+        );
       }
 
       return created;
