@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useConversationHistory } from './useConversationHistory';
 
 vi.mock('../services/api', () => ({
@@ -9,6 +11,15 @@ vi.mock('../services/api', () => ({
 }));
 
 import { chatAPI } from '../services/api';
+
+function wrapper({ children }) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 describe('useConversationHistory', () => {
   beforeEach(() => {
@@ -26,17 +37,16 @@ describe('useConversationHistory', () => {
       });
     });
 
-    chatAPI.getHistory.mockImplementationOnce((_id, config) => {
-      expect(firstSignalRef.current?.aborted).toBe(true);
-      return Promise.resolve({
+    chatAPI.getHistory.mockImplementationOnce(() =>
+      Promise.resolve({
         data: { messages: [{ role: 'user', content: 'second' }] },
-      });
-    });
+      })
+    );
 
     const setError = vi.fn();
     const { rerender, result } = renderHook(
       ({ conversationId }) => useConversationHistory(conversationId, setError),
-      { initialProps: { conversationId: 1 } }
+      { initialProps: { conversationId: 1 }, wrapper }
     );
 
     await waitFor(() => expect(chatAPI.getHistory).toHaveBeenCalledTimes(1));
@@ -50,7 +60,8 @@ describe('useConversationHistory', () => {
       ]);
     });
 
-    // Late resolve of first request must not overwrite second conversation
+    expect(firstSignalRef.current?.aborted).toBe(true);
+
     resolveFirst({
       data: { messages: [{ role: 'user', content: 'stale' }] },
     });

@@ -9,9 +9,11 @@ import {
   type SetStateAction,
 } from 'react';
 import type { AxiosError } from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
 import type { Message } from '../types/api';
+import { queryKeys } from './queryKeys';
 
 export type AttachedImage = {
   url: string;
@@ -39,6 +41,7 @@ export function useChatStream({
   attachedImage,
   setAttachedImage,
 }: UseChatStreamArgs) {
+  const queryClient = useQueryClient();
   const [streaming, setStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +132,9 @@ export function useChatStream({
         ]);
         if (onNewMessage) onNewMessage();
         sentOk = true;
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.conversations,
+        });
       } catch (err: unknown) {
         if (isAbortError(err)) {
           if (rafRef.current != null) {
@@ -179,6 +185,14 @@ export function useChatStream({
           ]);
           if (onNewMessage) onNewMessage(data.conversationId);
           sentOk = true;
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.conversations,
+          });
+          if (data.conversationId) {
+            void queryClient.invalidateQueries({
+              queryKey: queryKeys.history(data.conversationId),
+            });
+          }
         } catch (fallbackErr: unknown) {
           const ax = fallbackErr as AxiosError<{ error?: string }>;
           const msg =
@@ -210,6 +224,7 @@ export function useChatStream({
       selectedProvider,
       setAttachedImage,
       temperature,
+      queryClient,
     ]
   );
 

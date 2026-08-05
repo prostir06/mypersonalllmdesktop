@@ -1,58 +1,72 @@
 /**
- * Load conversation history; abort in-flight fetch when conversationId changes.
+ * Conversation message history via React Query (abort on key change).
  */
 import {
-  useEffect,
-  useState,
+  useCallback,
   type Dispatch,
   type SetStateAction,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatAPI } from '../services/api';
-import { isAbortError } from '../services/sseParse';
 import type { Message } from '../types/api';
+import { queryKeys } from './queryKeys';
 
 export function useConversationHistory(
   conversationId: string | number | null | undefined,
   setError?: Dispatch<SetStateAction<string | null>>
 ) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (!conversationId) {
-      setMessages([]);
-      setLoading(false);
-      return undefined;
-    }
-
-    const controller = new AbortController();
-
-    (async () => {
+  const query = useQuery({
+    queryKey: conversationId
+      ? queryKeys.history(conversationId)
+      : ['history', 'none'],
+    enabled: Boolean(conversationId),
+    queryFn: async ({ signal }) => {
       try {
-        setLoading(true);
         if (setError) setError(null);
-        const response = await chatAPI.getHistory(conversationId, {
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
+        const response = await chatAPI.getHistory(
+          conversationId as string | number,
+          { signal }
+        );
         const history = response.data.messages || [];
-        setMessages(Array.isArray(history) ? history : []);
+        return (Array.isArray(history) ? history : []) as Message[];
       } catch (err: unknown) {
-        if (isAbortError(err) || controller.signal.aborted) return;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'name' in err &&
+          (err as { name: string }).name === 'CanceledError'
+        ) {
+          throw err;
+        }
         if (setError) {
           setError('Не вдалося завантажити історію повідомлень');
         }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
+        throw err;
       }
-    })();
+    },
+  });
 
-    return () => {
-      controller.abort();
-    };
-  }, [conversationId, setError]);
+  const messages = conversationId ? query.data || [] : [];
 
-  return { messages, setMessages, loading };
+  const setMessages = useCallback(
+    (updater: SetStateAction<Message[]>) => {
+      if (!conversationId) return;
+      queryClient.setQueryData<Message[]>(
+        queryKeys.history(conversationId),
+        (prev) => {
+          const current = prev || [];
+          return typeof updater === 'function' ? updater(current) : updater;
+        }
+      );
+    },
+    [conversationId, queryClient]
+  );
+
+  return {
+    messages,
+    setMessages,
+    loading: Boolean(conversationId) && query.isLoading,
+  };
 }

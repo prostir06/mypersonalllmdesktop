@@ -1,50 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Row, Col, Button, Modal, Form, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import ChatBoxOptimized from '../components/ChatBoxOptimized';
 import MessageSearch from '../components/MessageSearch';
-import { conversationAPI } from '../services/api';
+import {
+  useAutoSelectConversation,
+  useConversations,
+  useCreateConversation,
+  useDeleteConversation,
+  useInvalidateConversations,
+  useRenameConversation,
+} from '../hooks/useConversations';
 
 const Dashboard = () => {
-  const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
   const [showNewConvModal, setShowNewConvModal] = useState(false);
   const [newConvTitle, setNewConvTitle] = useState('');
-  const [loading, setLoading] = useState(false);
   const [renamingId, setRenamingId] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
 
-  useEffect(() => {
-    loadConversations();
-  }, []);
+  const { data: conversations = [], isLoading } = useConversations();
+  const createConversation = useCreateConversation();
+  const deleteConversation = useDeleteConversation();
+  const renameConversation = useRenameConversation();
+  const invalidateConversations = useInvalidateConversations();
 
-  const loadConversations = async (autoSelectId) => {
-    try {
-      setLoading(true);
-      const response = await conversationAPI.getAll();
-      const list = response.data || [];
-      setConversations(list);
-
-      if (autoSelectId) {
-        setActiveConversation(autoSelectId);
-      } else if (list.length > 0 && !activeConversation) {
-        setActiveConversation(list[0].id);
-      }
-    } catch (error) {
-      console.error('Failed to load conversations:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useAutoSelectConversation(
+    conversations,
+    activeConversation,
+    setActiveConversation
+  );
 
   const handleNewConversation = async () => {
     try {
-      const response = await conversationAPI.create(
+      const created = await createConversation.mutateAsync(
         newConvTitle || 'Нова розмова'
       );
-      const newConv = response.data;
-      setConversations([newConv, ...conversations]);
-      setActiveConversation(newConv.id);
+      setActiveConversation(created.id);
       setNewConvTitle('');
       setShowNewConvModal(false);
     } catch (error) {
@@ -56,11 +48,10 @@ const Dashboard = () => {
     if (e) e.stopPropagation();
     if (!window.confirm('Ви впевнені, що хочете видалити цю розмову?')) return;
     try {
-      await conversationAPI.delete(convId);
-      const updated = conversations.filter((c) => c.id !== convId);
-      setConversations(updated);
+      await deleteConversation.mutateAsync(convId);
       if (activeConversation === convId) {
-        setActiveConversation(updated.length > 0 ? updated[0].id : null);
+        const remaining = conversations.filter((c) => c.id !== convId);
+        setActiveConversation(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
@@ -77,16 +68,21 @@ const Dashboard = () => {
     e?.stopPropagation();
     const title = renameTitle.trim() || 'Новий чат';
     try {
-      await conversationAPI.update(convId, title);
-      setConversations((prev) =>
-        prev.map((c) => (c.id === convId ? { ...c, title } : c))
-      );
+      await renameConversation.mutateAsync({ id: convId, title });
       setRenamingId(null);
       toast.success('Назву оновлено');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Не вдалося перейменувати');
     }
   };
+
+  const onNewMessage = useCallback(
+    (newId) => {
+      invalidateConversations();
+      if (newId) setActiveConversation(newId);
+    },
+    [invalidateConversations]
+  );
 
   return (
     <Row className="g-3" style={{ minHeight: 'calc(100vh - 100px)' }}>
@@ -102,12 +98,12 @@ const Dashboard = () => {
           <MessageSearch
             onSelectConversation={(id) => {
               setActiveConversation(id);
-              loadConversations(id);
+              invalidateConversations();
             }}
           />
 
           <div className="flex-grow-1 overflow-auto pr-1">
-            {loading && conversations.length === 0 ? (
+            {isLoading && conversations.length === 0 ? (
               <div className="text-center p-4">
                 <Spinner animation="border" size="sm" variant="primary" />
               </div>
@@ -181,7 +177,7 @@ const Dashboard = () => {
       <Col md={8} lg={9}>
         <ChatBoxOptimized
           conversationId={activeConversation}
-          onNewMessage={(newId) => loadConversations(newId)}
+          onNewMessage={onNewMessage}
         />
       </Col>
 

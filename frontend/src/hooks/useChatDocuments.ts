@@ -1,66 +1,80 @@
 /**
- * RAG documents list / upload / selection for chat.
+ * RAG documents list / upload / selection — list cached in React Query.
  */
 import {
   useCallback,
-  useEffect,
   useRef,
   useState,
   type ChangeEvent,
 } from 'react';
 import type { AxiosError } from 'axios';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
 import type { DocumentRecord } from '../types/api';
+import { queryKeys } from './queryKeys';
 
 export function useChatDocuments() {
-  const [userDocuments, setUserDocuments] = useState<DocumentRecord[]>([]);
+  const queryClient = useQueryClient();
   const [selectedDocIds, setSelectedDocIds] = useState<Array<string | number>>(
     []
   );
   const [showDocModal, setShowDocModal] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const loadDocuments = useCallback(async () => {
-    try {
+  const documentsQuery = useQuery({
+    queryKey: queryKeys.documents,
+    queryFn: async () => {
       const res = await documentsAPI.getAll();
-      setUserDocuments(res.data || []);
-    } catch {
-      // keep previous list
-    }
-  }, []);
+      return (res.data || []) as DocumentRecord[];
+    },
+    staleTime: 1000 * 60,
+  });
 
-  useEffect(() => {
-    loadDocuments();
-  }, [loadDocuments]);
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await documentsAPI.upload(formData);
+      return { fileName: file.name, ...res.data };
+    },
+    onSuccess: (data) => {
+      toast.success(
+        `📄 Файл "${data.fileName}" опрацьовано! Створено ${data.chunksCount} чанків.`
+      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      if (data.document?.id) {
+        setSelectedDocIds((prev) => [...prev, data.document.id]);
+      }
+    },
+    onError: (err: unknown) => {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Помилка завантаження файлу');
+    },
+    onSettled: () => {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (docId: string | number) => {
+      await documentsAPI.delete(docId);
+      return docId;
+    },
+    onSuccess: (docId) => {
+      setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      toast.info('Файл видалено.');
+    },
+  });
 
   const handleFileUpload = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const formData = new FormData();
-      formData.append('file', file);
-      setUploadingDoc(true);
-      try {
-        const res = await documentsAPI.upload(formData);
-        toast.success(
-          `📄 Файл "${file.name}" опрацьовано! Створено ${res.data.chunksCount} чанків.`
-        );
-        await loadDocuments();
-        if (res.data.document?.id) {
-          setSelectedDocIds((prev) => [...prev, res.data.document.id]);
-        }
-      } catch (err: unknown) {
-        const ax = err as AxiosError<{ error?: string }>;
-        const msg = ax.response?.data?.error || 'Помилка завантаження файлу';
-        toast.error(msg);
-      } finally {
-        setUploadingDoc(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
+      await uploadMutation.mutateAsync(file);
     },
-    [loadDocuments]
+    [uploadMutation]
   );
 
   const handleToggleDoc = useCallback(
@@ -74,20 +88,17 @@ export function useChatDocuments() {
 
   const handleDeleteDoc = useCallback(
     async (docId: string | number) => {
-      await documentsAPI.delete(docId);
-      setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
-      await loadDocuments();
-      toast.info('Файл видалено.');
+      await deleteMutation.mutateAsync(docId);
     },
-    [loadDocuments]
+    [deleteMutation]
   );
 
   return {
-    userDocuments,
+    userDocuments: documentsQuery.data || [],
     selectedDocIds,
     showDocModal,
     setShowDocModal,
-    uploadingDoc,
+    uploadingDoc: uploadMutation.isPending,
     fileInputRef,
     handleFileUpload,
     handleToggleDoc,

@@ -3,10 +3,11 @@
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
+import { queryKeys } from './queryKeys';
 
 export const useSettings = () => {
   return useQuery({
-    queryKey: ['settings'],
+    queryKey: queryKeys.settings,
     queryFn: async () => {
       const response = await api.get('/settings');
       return response.data;
@@ -21,7 +22,7 @@ export const useUpdateSettings = () => {
   return useMutation({
     mutationFn: (data) => api.put('/settings', data),
     onSuccess: (data) => {
-      queryClient.setQueryData(['settings'], data.data);
+      queryClient.setQueryData(queryKeys.settings, data.data);
     },
   });
 };

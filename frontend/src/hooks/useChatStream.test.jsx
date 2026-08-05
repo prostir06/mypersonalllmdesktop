@@ -12,6 +12,14 @@ vi.mock('../services/api', () => ({
 }));
 
 import { chatAPI } from '../services/api';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+function wrapper({ children }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
 
 function baseArgs(overrides = {}) {
   return {
@@ -63,7 +71,7 @@ describe('useChatStream', () => {
       }
     );
 
-    const { result } = renderHook(() => useChatStream(baseArgs()));
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
     let messages = [];
     const setMessages = (updater) => {
       messages = typeof updater === 'function' ? updater(messages) : updater;
@@ -88,7 +96,7 @@ describe('useChatStream', () => {
   it('does not call sendMessage fallback on SseStreamError', async () => {
     chatAPI.streamMessage.mockRejectedValue(new SseStreamError('provider boom'));
 
-    const { result } = renderHook(() => useChatStream(baseArgs()));
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
     let messages = [];
     const setMessages = (updater) => {
       messages = typeof updater === 'function' ? updater(messages) : updater;
