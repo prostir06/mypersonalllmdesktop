@@ -1,20 +1,29 @@
 /**
  * Speech-to-text / text-to-speech helpers for chat.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { toast } from 'react-toastify';
 
-export function useSpeech(setInputMessage) {
+export function useSpeech(
+  setInputMessage: Dispatch<SetStateAction<string>>
+) {
   const [isListening, setIsListening] = useState(false);
-  const [speakingIdx, setSpeakingIdx] = useState(null);
-  const recognitionRef = useRef(null);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    const SpeechRecognition =
+    const SpeechRecognitionCtor =
       window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return undefined;
+    if (!SpeechRecognitionCtor) return undefined;
 
-    const recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognitionCtor();
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'uk-UA';
@@ -52,7 +61,7 @@ export function useSpeech(setInputMessage) {
   }, [isListening]);
 
   const speakText = useCallback(
-    (text, idx) => {
+    (text: string, idx: number) => {
       if (!('speechSynthesis' in window)) {
         toast.warn('Синтез мовлення не підтримується');
         return;
@@ -63,7 +72,9 @@ export function useSpeech(setInputMessage) {
         return;
       }
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text.replace(/[#*`_~]/g, ''));
+      const utterance = new SpeechSynthesisUtterance(
+        text.replace(/[#*`_~]/g, '')
+      );
       utterance.lang = 'uk-UA';
       utterance.onend = () => setSpeakingIdx(null);
       utterance.onerror = () => setSpeakingIdx(null);

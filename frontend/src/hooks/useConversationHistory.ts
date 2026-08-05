@@ -1,12 +1,21 @@
 /**
  * Load conversation history; abort in-flight fetch when conversationId changes.
  */
-import { useEffect, useState } from 'react';
+import {
+  useEffect,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { chatAPI } from '../services/api';
 import { isAbortError } from '../services/sseParse';
+import type { Message } from '../types/api';
 
-export function useConversationHistory(conversationId, setError) {
-  const [messages, setMessages] = useState([]);
+export function useConversationHistory(
+  conversationId: string | number | null | undefined,
+  setError?: Dispatch<SetStateAction<string | null>>
+) {
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -26,9 +35,9 @@ export function useConversationHistory(conversationId, setError) {
           signal: controller.signal,
         });
         if (controller.signal.aborted) return;
-        const history = response.data.messages || response.data || [];
-        setMessages(history);
-      } catch (err) {
+        const history = response.data.messages || [];
+        setMessages(Array.isArray(history) ? history : []);
+      } catch (err: unknown) {
         if (isAbortError(err) || controller.signal.aborted) return;
         if (setError) {
           setError('Не вдалося завантажити історію повідомлень');

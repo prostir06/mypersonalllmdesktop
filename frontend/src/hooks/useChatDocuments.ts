@@ -1,16 +1,26 @@
 /**
  * RAG documents list / upload / selection for chat.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from 'react';
+import type { AxiosError } from 'axios';
 import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
+import type { DocumentRecord } from '../types/api';
 
 export function useChatDocuments() {
-  const [userDocuments, setUserDocuments] = useState([]);
-  const [selectedDocIds, setSelectedDocIds] = useState([]);
+  const [userDocuments, setUserDocuments] = useState<DocumentRecord[]>([]);
+  const [selectedDocIds, setSelectedDocIds] = useState<Array<string | number>>(
+    []
+  );
   const [showDocModal, setShowDocModal] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadDocuments = useCallback(async () => {
     try {
@@ -26,7 +36,7 @@ export function useChatDocuments() {
   }, [loadDocuments]);
 
   const handleFileUpload = useCallback(
-    async (e) => {
+    async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const formData = new FormData();
@@ -41,8 +51,9 @@ export function useChatDocuments() {
         if (res.data.document?.id) {
           setSelectedDocIds((prev) => [...prev, res.data.document.id]);
         }
-      } catch (err) {
-        const msg = err.response?.data?.error || 'Помилка завантаження файлу';
+      } catch (err: unknown) {
+        const ax = err as AxiosError<{ error?: string }>;
+        const msg = ax.response?.data?.error || 'Помилка завантаження файлу';
         toast.error(msg);
       } finally {
         setUploadingDoc(false);
@@ -52,14 +63,17 @@ export function useChatDocuments() {
     [loadDocuments]
   );
 
-  const handleToggleDoc = useCallback((docId, checked) => {
-    setSelectedDocIds((prev) =>
-      checked ? [...prev, docId] : prev.filter((id) => id !== docId)
-    );
-  }, []);
+  const handleToggleDoc = useCallback(
+    (docId: string | number, checked: boolean) => {
+      setSelectedDocIds((prev) =>
+        checked ? [...prev, docId] : prev.filter((id) => id !== docId)
+      );
+    },
+    []
+  );
 
   const handleDeleteDoc = useCallback(
-    async (docId) => {
+    async (docId: string | number) => {
       await documentsAPI.delete(docId);
       setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
       await loadDocuments();

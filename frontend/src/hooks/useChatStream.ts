@@ -1,9 +1,33 @@
 /**
  * Streaming / send chat turns with AbortController and rAF token batching.
  */
-import { useCallback, useRef, useState } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
+import type { AxiosError } from 'axios';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
+import type { Message } from '../types/api';
+
+export type AttachedImage = {
+  url: string;
+  base64: string;
+} | null;
+
+export type UseChatStreamArgs = {
+  conversationId: string | number | null | undefined;
+  onNewMessage?: (conversationId?: string | number) => void;
+  selectedModel: string;
+  selectedProvider: string;
+  temperature: number;
+  selectedDocIds: Array<string | number>;
+  attachedImage: AttachedImage;
+  setAttachedImage: Dispatch<SetStateAction<AttachedImage>>;
+};
 
 export function useChatStream({
   conversationId,
@@ -14,12 +38,12 @@ export function useChatStream({
   selectedDocIds,
   attachedImage,
   setAttachedImage,
-}) {
+}: UseChatStreamArgs) {
   const [streaming, setStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState('');
-  const [error, setError] = useState(null);
-  const abortRef = useRef(null);
-  const rafRef = useRef(null);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const rafRef = useRef<number | null>(null);
   const pendingTextRef = useRef('');
 
   const flushStreamText = useCallback(() => {
@@ -28,7 +52,7 @@ export function useChatStream({
   }, []);
 
   const queueStreamToken = useCallback(
-    (token) => {
+    (token: string) => {
       pendingTextRef.current += token;
       if (rafRef.current == null) {
         rafRef.current = requestAnimationFrame(flushStreamText);
@@ -42,7 +66,10 @@ export function useChatStream({
   }, []);
 
   const sendMessage = useCallback(
-    async (userContent, setMessages) => {
+    async (
+      userContent: string,
+      setMessages: Dispatch<SetStateAction<Message[]>>
+    ) => {
       setError(null);
 
       setMessages((prev) => [
@@ -102,7 +129,7 @@ export function useChatStream({
         ]);
         if (onNewMessage) onNewMessage();
         sentOk = true;
-      } catch (err) {
+      } catch (err: unknown) {
         if (isAbortError(err)) {
           if (rafRef.current != null) {
             cancelAnimationFrame(rafRef.current);
@@ -123,7 +150,6 @@ export function useChatStream({
           return;
         }
 
-        // Server already reported a stream failure — skip non-stream fallback
         if (isSseStreamError(err)) {
           setError(`Не вдалося отримати відповідь від AI: ${err.message}`);
           return;
@@ -143,14 +169,23 @@ export function useChatStream({
             {
               role: 'assistant',
               content: data.content,
-              created_at: data.timestamp,
+              created_at:
+                typeof data.timestamp === 'string'
+                  ? data.timestamp
+                  : data.timestamp
+                    ? String(data.timestamp)
+                    : undefined,
             },
           ]);
           if (onNewMessage) onNewMessage(data.conversationId);
           sentOk = true;
-        } catch (fallbackErr) {
+        } catch (fallbackErr: unknown) {
+          const ax = fallbackErr as AxiosError<{ error?: string }>;
           const msg =
-            fallbackErr.response?.data?.error || fallbackErr.message;
+            ax.response?.data?.error ||
+            (fallbackErr instanceof Error
+              ? fallbackErr.message
+              : String(fallbackErr));
           setError(`Не вдалося отримати відповідь від AI: ${msg}`);
         }
       } finally {
