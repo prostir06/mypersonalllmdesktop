@@ -43,6 +43,23 @@ function validateChatMessage(
   return true;
 }
 
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+/** Public JSON body — never leak internals in production. */
+function publicErrorJson(
+  publicError: string,
+  details: string
+): { error: string; details?: string } {
+  if (isProduction()) return { error: publicError };
+  return { error: publicError, details };
+}
+
+function publicStreamErrorText(details: string): string {
+  return isProduction() ? 'Stream failed' : details;
+}
+
 export async function sendMessage(
   req: AuthRequest,
   res: Response,
@@ -69,7 +86,9 @@ export async function sendMessage(
     }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`Error in sendMessage: ${message}`);
-    res.status(500).json({ error: 'Failed to send message', details: message });
+    res
+      .status(500)
+      .json(publicErrorJson('Failed to send message', message));
   }
 }
 
@@ -127,9 +146,9 @@ export async function streamMessage(
     if (!res.headersSent) {
       res
         .status(500)
-        .json({ error: 'Failed to stream message', details: message });
+        .json(publicErrorJson('Failed to stream message', message));
     } else {
-      writeSse(res, { type: 'error', error: message });
+      writeSse(res, { type: 'error', error: publicStreamErrorText(message) });
       res.end();
     }
   }
@@ -161,7 +180,9 @@ export async function getHistory(
     logger.error(`Error in getHistory: ${message}`);
     res
       .status(500)
-      .json({ error: 'Failed to fetch conversation history', details: message });
+      .json(
+        publicErrorJson('Failed to fetch conversation history', message)
+      );
   }
 }
 

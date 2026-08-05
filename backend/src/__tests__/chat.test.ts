@@ -161,6 +161,74 @@ describe('chat routes', () => {
     expect(res.body.error).toBe('Failed to send message');
   });
 
+  it('POST /send omits details in production', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      mockedChat.sendMessage.mockRejectedValue(new Error('secret internals'));
+      const res = await request(app).post('/api/chat/send').send({ message: 'hi' });
+      expect(res.status).toBe(500);
+      expect(res.body.error).toBe('Failed to send message');
+      expect(res.body.details).toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('POST /send includes details outside production', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
+    try {
+      mockedChat.sendMessage.mockRejectedValue(new Error('secret internals'));
+      const res = await request(app).post('/api/chat/send').send({ message: 'hi' });
+      expect(res.status).toBe(500);
+      expect(res.body.details).toBe('secret internals');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('POST /stream omits raw error text in production after SSE start', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      mockedChat.streamMessage.mockImplementation(
+        async (
+          _input: unknown,
+          _onToken: (t: string) => void,
+          onInit?: (id: number) => void
+        ) => {
+          if (onInit) onInit(3);
+          throw new Error('provider secret');
+        }
+      );
+
+      const res = await request(app)
+        .post('/api/chat/stream')
+        .send({ message: 'hi', conversationId: 3 });
+
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('"type":"error"');
+      expect(res.text).not.toContain('provider secret');
+      expect(res.text).toContain('Stream failed');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
+  it('GET /history omits details in production', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      mockedChat.getHistory.mockRejectedValue(new Error('db path leak'));
+      const res = await request(app).get('/api/chat/history/1');
+      expect(res.status).toBe(500);
+      expect(res.body.details).toBeUndefined();
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
   it('GET /search returns 500 on service failure', async () => {
     mockedChat.searchMessages.mockRejectedValue(new Error('db'));
     const res = await request(app).get('/api/chat/search').query({ q: 'ab' });
