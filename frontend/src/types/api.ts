@@ -163,10 +163,14 @@ export interface UserSettings {
   default_provider?: string;
   default_ollama_host?: string;
   system_prompt?: string;
+  has_openai_api_key?: boolean;
   [key: string]: unknown;
 }
 
-export type SettingsUpdatePayload = Partial<UserSettings>;
+export type SettingsUpdatePayload = Partial<UserSettings> & {
+  openai_api_key?: string;
+  clear_openai_api_key?: boolean;
+};
 
 export interface ConversationExportResponse {
   content: string;

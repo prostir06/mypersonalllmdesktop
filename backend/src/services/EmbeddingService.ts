@@ -19,15 +19,27 @@ type RelevantChunk = {
 };
 
 class EmbeddingService {
-  static isAvailable(): boolean {
-    return Boolean(
+  static resolveKey(apiKey?: string | null): string | null {
+    if (apiKey && apiKey !== 'your_openai_api_key_here') return apiKey;
+    if (
       process.env.OPENAI_API_KEY &&
-        process.env.OPENAI_API_KEY !== 'your_openai_api_key_here'
-    );
+      process.env.OPENAI_API_KEY !== 'your_openai_api_key_here'
+    ) {
+      return process.env.OPENAI_API_KEY;
+    }
+    return null;
   }
 
-  static async generateEmbedding(text: string): Promise<number[] | null> {
-    if (!this.isAvailable()) {
+  static isAvailable(apiKey?: string | null): boolean {
+    return Boolean(this.resolveKey(apiKey));
+  }
+
+  static async generateEmbedding(
+    text: string,
+    apiKey?: string | null
+  ): Promise<number[] | null> {
+    const key = this.resolveKey(apiKey);
+    if (!key) {
       logger.warn(
         'EmbeddingService: OPENAI_API_KEY not configured. Skipping embedding generation.'
       );
@@ -48,7 +60,7 @@ class EmbeddingService {
         },
         {
           headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            Authorization: `Bearer ${key}`,
             'Content-Type': 'application/json',
           },
           timeout: 30000,
@@ -71,9 +83,11 @@ class EmbeddingService {
   }
 
   static async generateBatchEmbeddings(
-    texts: string[]
+    texts: string[],
+    apiKey?: string | null
   ): Promise<(number[] | null)[]> {
-    if (!this.isAvailable()) {
+    const key = this.resolveKey(apiKey);
+    if (!key) {
       logger.warn(
         'EmbeddingService: OPENAI_API_KEY not configured. Skipping batch embedding.'
       );
@@ -101,7 +115,7 @@ class EmbeddingService {
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              Authorization: `Bearer ${key}`,
               'Content-Type': 'application/json',
             },
             timeout: 60000,

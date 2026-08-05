@@ -56,6 +56,7 @@ describe('Settings API (Prisma)', () => {
       max_tokens: 2000,
       default_provider: 'openai',
       system_prompt: '',
+      has_openai_api_key: false,
     });
     expect(res.body).toHaveProperty('default_ollama_host');
     expect(res.body).not.toHaveProperty('defaultModel');
@@ -89,6 +90,7 @@ describe('Settings API (Prisma)', () => {
       default_provider: 'openai',
       default_ollama_host: 'http://ollama.local/v1',
       system_prompt: 'Be concise',
+      has_openai_api_key: false,
     });
     expect(mockedPrisma.userSettings.findUnique).toHaveBeenCalledWith({
       where: { userId: 9 },
@@ -148,5 +150,30 @@ describe('Settings API (Prisma)', () => {
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('errors');
     expect(mockedPrisma.userSettings.upsert).not.toHaveBeenCalled();
+  });
+
+  it('PUT encrypts openai_api_key and GET reports has_openai_api_key', async () => {
+    process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+    mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
+      id: 2,
+      userId: 9,
+      ...args.create,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }));
+
+    const putRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ openai_api_key: 'sk-user-secret-key' });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.has_openai_api_key).toBe(true);
+    expect(JSON.stringify(putRes.body)).not.toMatch(/sk-user-secret/);
+    const enc = mockedPrisma.userSettings.upsert.mock.calls[0][0].create.openaiApiKeyEnc;
+    expect(typeof enc).toBe('string');
+    expect(enc).not.toContain('sk-user');
   });
 });

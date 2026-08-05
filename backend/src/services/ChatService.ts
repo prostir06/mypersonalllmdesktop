@@ -7,6 +7,7 @@ import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
 import ProviderFactory = require('./providerFactory');
 import { buildMessageFtsQuery } from '../utils/messageFts';
+import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
 
 class ChatError extends Error {
   statusCode: number;
@@ -110,8 +111,12 @@ class ChatService {
     if (ragEnabled) {
       try {
         let queryEmbedding: number[] | null = null;
-        if (userMessage && EmbeddingService.isAvailable()) {
-          queryEmbedding = await EmbeddingService.generateEmbedding(userMessage);
+        const openaiKey = await resolveOpenAiApiKey(userId);
+        if (userMessage && EmbeddingService.isAvailable(openaiKey)) {
+          queryEmbedding = await EmbeddingService.generateEmbedding(
+            userMessage,
+            openaiKey
+          );
         }
 
         const relevantChunks = await EmbeddingService.findRelevantChunks(
@@ -196,7 +201,7 @@ class ChatService {
     chatMessages: ChatMessage[];
     options: ChatOptions;
   }> {
-    const options = { ...(input.options || {}) };
+    const options: ChatOptions = { ...(input.options || {}) };
     const convId = await this.ensureConversationId(
       input.userId,
       input.conversationId,
@@ -220,6 +225,11 @@ class ChatService {
       : { role: 'user', content: input.message };
 
     if (options.image) delete options.image;
+
+    const openaiKey = await resolveOpenAiApiKey(input.userId);
+    if (openaiKey) {
+      options.apiKey = openaiKey;
+    }
 
     return {
       convId,

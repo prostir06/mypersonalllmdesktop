@@ -7,6 +7,7 @@ import {
   getMaxUploadBytes,
   resolveDocumentKind,
 } from '../utils/fileMagic';
+import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
 
 type FileInfo = {
   originalname: string;
@@ -114,9 +115,13 @@ class DocumentService {
 
     const chunks = this.chunkText(extractedText);
     let embeddings: Array<number[] | null> = [];
+    const openaiKey = await resolveOpenAiApiKey(userId);
 
-    if (EmbeddingService.isAvailable()) {
-      embeddings = await EmbeddingService.generateBatchEmbeddings(chunks);
+    if (EmbeddingService.isAvailable(openaiKey)) {
+      embeddings = await EmbeddingService.generateBatchEmbeddings(
+        chunks,
+        openaiKey
+      );
     }
 
     const hasAnyEmbedding = embeddings.some(Boolean);
@@ -167,7 +172,7 @@ class DocumentService {
       `Document uploaded & chunked: ${originalname} (id=${doc.id}, ${chunks.length} chunks, embeddings=${embeddings.filter(Boolean).length})`
     );
 
-    if (!EmbeddingService.isAvailable()) {
+    if (!EmbeddingService.isAvailable(openaiKey)) {
       logger.warn(
         'Embeddings not generated: OPENAI_API_KEY not configured. RAG will use fallback chunk selection.'
       );

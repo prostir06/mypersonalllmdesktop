@@ -39,6 +39,15 @@ const validateSettingsUpdate = [
     .optional()
     .isString()
     .withMessage('System prompt must be a string'),
+  body('openai_api_key')
+    .optional()
+    .isString()
+    .isLength({ max: 256 })
+    .withMessage('OpenAI API key too long'),
+  body('clear_openai_api_key')
+    .optional()
+    .isBoolean()
+    .withMessage('clear_openai_api_key must be boolean'),
 ];
 
 /**

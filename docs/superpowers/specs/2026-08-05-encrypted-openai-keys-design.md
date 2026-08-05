@@ -1,7 +1,7 @@
 # Per-User Encrypted OpenAI API Keys — Design
 
 **Date:** 2026-08-05  
-**Status:** Approved for implementation (pending file review)  
+**Status:** Implemented  
 **Parent:** Project Evolution v2 — P8 item 4  
 **Scope:** Store each user’s OpenAI API key encrypted at rest (server master key); fall back to `OPENAI_API_KEY` env
 

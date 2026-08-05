@@ -34,6 +34,7 @@ model UserSettings {
   temperature       Decimal  @default(0.7) @db.Decimal(3, 2)
   maxTokens         Int      @default(2000) @map("max_tokens")
   systemPrompt      String   @default("") @map("system_prompt") @db.Text
+  openaiApiKeyEnc   String?  @map("openai_api_key_enc") @db.Text
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 

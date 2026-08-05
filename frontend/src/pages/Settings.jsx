@@ -26,6 +26,9 @@ const Settings = () => {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [clearOpenaiKey, setClearOpenaiKey] = useState(false);
+  const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState(null);
@@ -43,6 +46,9 @@ const Settings = () => {
           'http://127.0.0.1:11434/v1/chat/completions'
       );
       setSystemPrompt(settingsData.system_prompt || '');
+      setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
+      setOpenaiApiKey('');
+      setClearOpenaiKey(false);
     }
   }, [settingsData]);
 
@@ -117,14 +123,23 @@ const Settings = () => {
     setError('');
 
     try {
-      await updateSettingsMutation.mutateAsync({
+      const payload = {
         default_provider: provider,
         default_model: model,
         temperature: parseFloat(temperature),
         max_tokens: parseInt(maxTokens, 10),
         default_ollama_host: ollamaHost,
         system_prompt: systemPrompt,
-      });
+      };
+      if (clearOpenaiKey) {
+        payload.clear_openai_api_key = true;
+        payload.openai_api_key = '';
+      } else if (openaiApiKey.trim()) {
+        payload.openai_api_key = openaiApiKey.trim();
+      }
+      await updateSettingsMutation.mutateAsync(payload);
+      setOpenaiApiKey('');
+      setClearOpenaiKey(false);
       toast.success('Налаштування збережено! ✅');
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Помилка збереження';
@@ -253,6 +268,54 @@ const Settings = () => {
               </Col>
             )}
           </Row>
+        </div>
+
+        <div className="glass-panel p-4 mb-3">
+          <h6
+            className="fw-semibold mb-3 text-muted text-uppercase"
+            style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+          >
+            Ключ OpenAI
+          </h6>
+          <Form.Group className="mb-2">
+            <Form.Label htmlFor="openai-api-key" className="small fw-semibold">
+              API ключ (зберігається зашифрованим)
+              {hasOpenaiKey && (
+                <span className="badge text-bg-success ms-2">збережено</span>
+              )}
+            </Form.Label>
+            <Form.Control
+              id="openai-api-key"
+              type="password"
+              autoComplete="off"
+              value={openaiApiKey}
+              onChange={(e) => {
+                setOpenaiApiKey(e.target.value);
+                if (e.target.value) setClearOpenaiKey(false);
+              }}
+              placeholder={
+                hasOpenaiKey
+                  ? 'Залиште порожнім, щоб не змінювати'
+                  : 'sk-...'
+              }
+              className="bg-dark text-light border-secondary shadow-none"
+              disabled={clearOpenaiKey}
+            />
+            <Form.Check
+              className="mt-2 small"
+              type="checkbox"
+              id="clear-openai-key"
+              label="Очистити збережений ключ"
+              checked={clearOpenaiKey}
+              onChange={(e) => {
+                setClearOpenaiKey(e.target.checked);
+                if (e.target.checked) setOpenaiApiKey('');
+              }}
+            />
+            <Form.Text className="text-muted">
+              Якщо ключ не задано — використовується OPENAI_API_KEY з сервера.
+            </Form.Text>
+          </Form.Group>
         </div>
 
         <div className="glass-panel p-4 mb-3">

@@ -2,10 +2,6 @@ import OpenAI from 'openai';
 import logger from '../logger';
 import { evaluateSafeMathExpression } from '../utils/safeMath';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'dummy',
-});
-
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
     type: 'function',
@@ -43,8 +39,18 @@ type ProviderOptions = {
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
+  apiKey?: string;
+  signal?: AbortSignal;
   [key: string]: unknown;
 };
+
+function clientFor(options: ProviderOptions): OpenAI {
+  const apiKey =
+    typeof options.apiKey === 'string' && options.apiKey.trim()
+      ? options.apiKey.trim()
+      : process.env.OPENAI_API_KEY || 'dummy';
+  return new OpenAI({ apiKey });
+}
 
 function buildBaseParams(
   messages: ChatMessage[],
@@ -59,6 +65,7 @@ function buildBaseParams(
     tool_choice: _tc,
     stream: _stream,
     signal: _signal,
+    apiKey: _apiKey,
     ...rest
   } = options;
 
@@ -95,6 +102,7 @@ async function sendOpenAIMessage(
   try {
     const enableTools = options.enableTools === true;
     const base = buildBaseParams(messages, model, options);
+    const openai = clientFor(options);
 
     const response = await openai.chat.completions.create({
       ...base,
@@ -170,6 +178,7 @@ async function streamOpenAIMessage(
     const base = buildBaseParams(messages, model, options);
     const signal =
       options.signal instanceof AbortSignal ? options.signal : undefined;
+    const openai = clientFor(options);
     const stream = await openai.chat.completions.create(
       {
         ...base,

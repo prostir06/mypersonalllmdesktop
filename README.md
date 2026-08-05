@@ -132,6 +132,7 @@ DB_PASSWORD=password
 JWT_SECRET=your_jwt_secret_key_change_this_in_production
 JWT_ACCESS_EXPIRE=15m
 JWT_REFRESH_EXPIRE=30d
+ENCRYPTION_KEY=
 OPENAI_API_KEY=your_openai_api_key_here
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
 CORS_ORIGIN=http://localhost:3000
