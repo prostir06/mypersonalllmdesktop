@@ -15,16 +15,15 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 
 ```
 .
-├── backend/                 # Express API (JS entry + TypeScript modules via ts-node)
-│   ├── prisma/              # Prisma schema & migrations
+├── backend/                 # Express API (TypeScript → dist/)
+│   ├── prisma/              # Schema source of truth + migrations (pgvector)
 │   ├── src/
 │   │   ├── routes/
 │   │   ├── controllers/
 │   │   ├── services/
 │   │   ├── middleware/
-│   │   ├── config/          # prisma.ts, database.js (health)
+│   │   ├── config/
 │   │   └── utils/
-│   ├── database.sql         # Optional/legacy SQL bootstrap for Docker init
 │   └── Dockerfile
 ├── frontend/                # React + Vite SPA
 │   ├── src/
@@ -45,7 +44,7 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 createdb llm_assistant
 ```
 
-Use Prisma migrations from `backend/` (preferred). Fresh Docker Compose applies migrations via `docker-entrypoint.sh` (pgvector image). Do not use `database.sql` for new installs.
+Use Prisma migrations from `backend/` as the only schema source of truth. Fresh Docker Compose applies them via `docker-entrypoint.sh` on `pgvector/pgvector:pg15`.
 
 ```bash
 cd backend
@@ -91,7 +90,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Postgres uses `pgvector/pgvector:pg15`. On first boot the backend runs `prisma migrate deploy` (schema includes vector embeddings for RAG).
 
-**Existing volumes created with the old `database.sql` init:** recreate once so pgvector is available:
+**Existing volumes created before Prisma/pgvector:** recreate once so the vector extension is available:
 
 ```bash
 docker compose down -v
@@ -178,7 +177,7 @@ npm run serve    # preview build
 
 ## Notes
 
-- Prefer Prisma migrations (`backend/prisma/`) as schema source of truth. `database.sql` is deprecated (no pgvector); Docker uses `pgvector/pgvector:pg15` + `prisma migrate deploy`.
+- Schema source of truth: `backend/prisma/` + `prisma migrate deploy`. Docker image: `pgvector/pgvector:pg15`.
 - Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
 - Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
 
