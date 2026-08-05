@@ -118,15 +118,38 @@ async function streamOllamaMessage(
     const payload = buildOllamaPayload(messages, model, options, true);
 
     const apiUrl = resolveOllamaUrl(ollama_host);
+    const signal =
+      options.signal instanceof AbortSignal ? options.signal : undefined;
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'stream',
+      ...(signal ? { signal } : {}),
     });
 
     let fullContent = '';
 
     return new Promise<{ content: string; model: string }>((resolve, reject) => {
       let buffer = '';
+
+      const onAbort = () => {
+        try {
+          response.data.destroy?.();
+        } catch {
+          // ignore
+        }
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        reject(err);
+      };
+
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+          return;
+        }
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
       response.data.on('data', (chunk: Buffer | string) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
@@ -152,15 +175,25 @@ async function streamOllamaMessage(
       });
 
       response.data.on('end', () => {
+        if (signal) signal.removeEventListener('abort', onAbort);
         resolve({ content: fullContent, model });
       });
 
       response.data.on('error', (err: Error) => {
+        if (signal) signal.removeEventListener('abort', onAbort);
         reject(err);
       });
     });
   } catch (error: unknown) {
     if (isAllowlistError(error)) throw error;
+    if (
+      error &&
+      typeof error === 'object' &&
+      ((error as { name?: string }).name === 'AbortError' ||
+        (error as { code?: string }).code === 'ERR_CANCELED')
+    ) {
+      throw error;
+    }
     const err = error as { response?: { data?: unknown }; message?: string };
     console.error('Ollama Stream API error:', err.response?.data || err.message);
     throw new Error('Failed to stream from Ollama API');

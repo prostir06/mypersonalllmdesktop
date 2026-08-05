@@ -5,6 +5,10 @@
 import { Request, Response, NextFunction } from 'express';
 import ChatService = require('../services/ChatService');
 import logger from '../logger';
+import {
+  bindClientAbortSignal,
+  isAbortError,
+} from '../utils/requestAbort';
 
 type AuthRequest = Request & { userId?: number };
 
@@ -97,6 +101,7 @@ export async function streamMessage(
   res: Response,
   _next: NextFunction
 ): Promise<void> {
+  const signal = bindClientAbortSignal(req, res);
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
 
@@ -117,6 +122,7 @@ export async function streamMessage(
         model,
         provider,
         options: streamOptions,
+        signal,
       },
       (token: string) => {
         writeSse(res, { type: 'token', token });
@@ -137,6 +143,10 @@ export async function streamMessage(
     });
     res.end();
   } catch (error: unknown) {
+    if (isAbortError(error)) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`Error in streamMessage: ${message}`);
     if (isChatError(error) && !res.headersSent) {

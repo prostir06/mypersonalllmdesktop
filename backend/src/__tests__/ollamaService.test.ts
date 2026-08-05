@@ -101,6 +101,19 @@ describe('ollamaService', () => {
     expect(payload.temperature).toBe(0.5);
   });
 
+  it('streamOllamaMessage forwards AbortSignal to axios', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => ee.emit('end'));
+      return Promise.resolve({ data: ee });
+    });
+    const ac = new AbortController();
+    await streamOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2', {
+      signal: ac.signal,
+    } as any);
+    expect(mockedAxios.post.mock.calls[0][2].signal).toBe(ac.signal);
+  });
+
   it('streamOllamaMessage emits tokens', async () => {
     mockedAxios.post = jest.fn().mockImplementation(() => {
       const ee = new EventEmitter();

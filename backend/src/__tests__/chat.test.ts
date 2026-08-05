@@ -116,6 +116,8 @@ describe('chat routes', () => {
     expect(res.text).toContain('"type":"init"');
     expect(res.text).toContain('"type":"token"');
     expect(res.text).toContain('"type":"done"');
+    const input = mockedChat.streamMessage.mock.calls[0][0];
+    expect(input.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('POST /stream returns 403 JSON before SSE headers', async () => {

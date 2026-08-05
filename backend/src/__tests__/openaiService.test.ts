@@ -148,5 +148,20 @@ describe('openaiService (SDK)', () => {
       expect(mockCreate.mock.calls[0][0].stream).toBe(true);
       expect(mockCreate.mock.calls[0][0].tools).toBeUndefined();
     });
+
+    it('forwards AbortSignal to OpenAI client', async () => {
+      async function* gen() {
+        yield { choices: [{ delta: { content: 'x' } }] };
+      }
+      mockCreate.mockResolvedValueOnce(gen());
+      const ac = new AbortController();
+      await streamOpenAIMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gpt-3.5-turbo',
+        { signal: ac.signal },
+        jest.fn()
+      );
+      expect(mockCreate.mock.calls[0][1]).toEqual({ signal: ac.signal });
+    });
   });
 });

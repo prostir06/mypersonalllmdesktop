@@ -58,6 +58,7 @@ function buildBaseParams(
     tools: _tools,
     tool_choice: _tc,
     stream: _stream,
+    signal: _signal,
     ...rest
   } = options;
 
@@ -167,13 +168,23 @@ async function streamOpenAIMessage(
 ) {
   try {
     const base = buildBaseParams(messages, model, options);
-    const stream = await openai.chat.completions.create({
-      ...base,
-      stream: true,
-    });
+    const signal =
+      options.signal instanceof AbortSignal ? options.signal : undefined;
+    const stream = await openai.chat.completions.create(
+      {
+        ...base,
+        stream: true,
+      },
+      signal ? { signal } : undefined
+    );
 
     let fullContent = '';
     for await (const chunk of stream) {
+      if (signal?.aborted) {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        throw err;
+      }
       if (!chunk.choices || chunk.choices.length === 0) continue;
       const token = chunk.choices[0]?.delta?.content || '';
       if (token) {
@@ -189,7 +200,15 @@ async function streamOpenAIMessage(
     }
 
     return { content: fullContent, model };
-  } catch {
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      ((error as { name?: string }).name === 'AbortError' ||
+        (error as { code?: string }).code === 'ABORT_ERR')
+    ) {
+      throw error;
+    }
     logger.error('OpenAI Stream API error in streamOpenAIMessage');
     throw new Error('Failed to stream from OpenAI API');
   }

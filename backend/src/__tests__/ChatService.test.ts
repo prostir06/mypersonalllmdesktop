@@ -401,6 +401,35 @@ describe('ChatService', () => {
       });
     });
 
+    it('forwards AbortSignal into provider options', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.streamMessage.mockResolvedValue({ content: 'ok' });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const ac = new AbortController();
+      await ChatService.streamMessage(
+        {
+          userId: 1,
+          conversationId: 10,
+          message: 'Hi',
+          options: { temperature: 0.2 },
+          signal: ac.signal,
+        },
+        () => undefined
+      );
+
+      expect(mockedProvider.streamMessage.mock.calls[0][3]).toMatchObject({
+        temperature: 0.2,
+        signal: ac.signal,
+      });
+    });
+
     it('does not persist when provider stream fails', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
       mockedPrisma.message.findMany.mockResolvedValue([]);

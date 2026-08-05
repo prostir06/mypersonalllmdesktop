@@ -39,6 +39,7 @@ type SendInput = {
   model?: string;
   provider?: string;
   options?: ChatOptions;
+  signal?: AbortSignal;
 };
 
 type ChatMessage =
@@ -269,7 +270,7 @@ class ChatService {
       input.provider || 'openai',
       chatMessages,
       input.model || 'gpt-3.5-turbo',
-      options,
+      { ...options, signal: input.signal },
       onToken
     );
 

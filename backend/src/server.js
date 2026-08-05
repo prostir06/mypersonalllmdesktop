@@ -15,7 +15,19 @@ const app = express();
 
 // Security & Performance Middlewares
 app.use(helmet());
-app.use(compression());
+app.use(
+  compression({
+    filter: (req, res) => {
+      // SSE must not be buffered/compressed
+      const path = req.path || '';
+      const url = req.url || '';
+      if (path === '/api/chat/stream' || url.startsWith('/api/chat/stream')) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+  })
+);
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true
