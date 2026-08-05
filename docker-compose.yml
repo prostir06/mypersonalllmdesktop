@@ -1,4 +1,6 @@
-version: '3.8'
+# Default stack = local/dev (bind-mount + published Postgres).
+# Production (fail-closed secrets, no DB host port, no bind-mount):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 services:
   postgres:
@@ -45,6 +47,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      # Dev only: live source. Production override resets this so image dist/ is used.
       - ./backend:/app
       - /app/node_modules
     entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
@@ -61,8 +64,6 @@ services:
     container_name: llm-assistant-frontend
     ports:
       - "3000:80"
-    environment:
-      NODE_OPTIONS: "--max-old-space-size=2048"
     depends_on:
       - backend
     networks:

@@ -1,6 +1,26 @@
 #!/bin/sh
 set -e
 
+# Fail closed in production: no placeholder secrets, no ts-node fallback.
+if [ "${NODE_ENV}" = "production" ]; then
+  case "${JWT_SECRET}" in
+    ""|"change_this_secret_in_production")
+      echo "FATAL: JWT_SECRET must be set to a strong non-default value in production" >&2
+      exit 1
+      ;;
+  esac
+  case "${DB_PASSWORD}" in
+    ""|"password")
+      echo "FATAL: DB_PASSWORD must be set to a strong non-default value in production" >&2
+      exit 1
+      ;;
+  esac
+  if [ ! -f dist/server.js ]; then
+    echo "FATAL: dist/server.js missing; production refuses ts-node bind-mount fallback" >&2
+    exit 1
+  fi
+fi
+
 echo "Waiting for database and applying Prisma migrations..."
 npx prisma migrate deploy --config prisma/prisma.config.ts
 

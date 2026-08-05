@@ -30,7 +30,9 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 │   ├── src/
 │   └── Dockerfile
 ├── docs/superpowers/specs/  # Design specs
-└── docker-compose.yml
+├── docker-compose.yml       # Local/dev stack
+├── docker-compose.prod.yml  # Production overrides (required secrets)
+├── .env.example             # Root Compose env template
 ```
 
 ## Quick start
@@ -70,12 +72,21 @@ App: http://localhost:3000. API: http://localhost:5000 (proxied via Vite `/api`)
 
 ### With Docker
 
-```bash
-# Set secrets in a root or shell env (never commit .env)
-export OPENAI_API_KEY=your_api_key_here
-export JWT_SECRET=change_this_secret_in_production
+**Local / development** (bind-mount, published Postgres `5432`, soft defaults):
 
-docker-compose up -d
+```bash
+cp .env.example .env
+# Optional: set OPENAI_API_KEY
+docker compose up -d --build
+```
+
+**Production** (required secrets, no host DB port, image `dist/` only):
+
+```bash
+cp .env.example .env
+# Set strong JWT_SECRET and DB_PASSWORD (placeholders are rejected at boot)
+# Set OPENAI_API_KEY if using OpenAI
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 Postgres uses `pgvector/pgvector:pg15`. On first boot the backend runs `prisma migrate deploy` (schema includes vector embeddings for RAG).
