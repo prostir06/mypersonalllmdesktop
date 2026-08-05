@@ -100,9 +100,41 @@ export type StreamTokenCallback = (token: string) => void;
 export type StreamInitCallback = (conversationId: string | number) => void;
 
 export interface ModelRecord {
-  id?: string | number;
-  name?: string;
+  id: string | number;
+  user_id?: string | number | null;
+  name: string;
+  model_id: string;
+  description?: string | null;
+  provider: string;
+  temperature?: number;
+  max_tokens?: number;
+  is_default?: boolean;
+  created_at?: string;
+}
+
+export interface ModelCreatePayload {
+  name: string;
+  modelId: string;
+  description?: string;
+  temperature?: number;
+  maxTokens?: number;
   provider?: string;
+}
+
+export interface ModelUpdatePayload {
+  name?: string;
+  description?: string;
+  temperature?: number;
+  maxTokens?: number;
+  provider?: string;
+}
+
+/** Remote Ollama discovery rows (Settings maps to value/label). */
+export interface RemoteModelOption {
+  id?: string;
+  name?: string;
+  value?: string;
+  label?: string;
   [key: string]: unknown;
 }
 

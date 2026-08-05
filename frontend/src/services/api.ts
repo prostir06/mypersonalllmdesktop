@@ -18,8 +18,11 @@ import type {
   DocumentRecord,
   DocumentUploadResponse,
   ListQueryParams,
+  ModelCreatePayload,
   ModelRecord,
+  ModelUpdatePayload,
   PaginatedList,
+  RemoteModelOption,
   SettingsUpdatePayload,
   StreamInitCallback,
   StreamTokenCallback,
@@ -260,12 +263,14 @@ export const modelsAPI = {
   getRemote: (
     provider: string,
     host?: string
-  ): Promise<AxiosResponse<ModelRecord[] | { models?: ModelRecord[] }>> =>
+  ): Promise<AxiosResponse<RemoteModelOption[] | { models?: RemoteModelOption[] }>> =>
     api.get('/models/remote', { params: { provider, host } }),
-  create: (model: ModelRecord): Promise<AxiosResponse<ModelRecord>> =>
+  create: (model: ModelCreatePayload): Promise<AxiosResponse<ModelRecord>> =>
     api.post('/models', model),
-  update: (id: string | number, model: ModelRecord): Promise<AxiosResponse<ModelRecord>> =>
-    api.put(`/models/${id}`, model),
+  update: (
+    id: string | number,
+    model: ModelUpdatePayload
+  ): Promise<AxiosResponse<ModelRecord>> => api.put(`/models/${id}`, model),
   delete: (id: string | number): Promise<AxiosResponse<SuccessResponse>> =>
     api.delete(`/models/${id}`),
 };

@@ -4,4 +4,5 @@ export const queryKeys = {
   conversations: ['conversations'] as const,
   history: (id: string | number) => ['history', id] as const,
   documents: ['documents'] as const,
+  models: ['models'] as const,
 };
