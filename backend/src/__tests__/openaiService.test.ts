@@ -29,7 +29,18 @@ describe('openaiService (SDK)', () => {
 
     it('rejects exponentiation **', () => {
       const result = executeTool('calculate', { expression: '2**1024' });
-      expect(result).toMatch(/Error|Недійсний|invalid/i);
+      expect(result).toMatch(/Error|Недійсний|invalid|Exponentiation/i);
+    });
+
+    it('rejects identifier injection', () => {
+      const result = executeTool('calculate', {
+        expression: 'process.exit(1)',
+      });
+      expect(result).toMatch(/Error/i);
+    });
+
+    it('evaluates precedence without Function', () => {
+      expect(executeTool('calculate', { expression: '1+2*3' })).toBe('7');
     });
   });
 

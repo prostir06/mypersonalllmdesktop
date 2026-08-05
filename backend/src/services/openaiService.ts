@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import logger from '../logger';
+import { evaluateSafeMathExpression } from '../utils/safeMath';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy',
@@ -72,16 +73,7 @@ function buildBaseParams(
 function executeTool(name: string, args: { expression?: string }): string {
   try {
     if (name === 'calculate') {
-      const raw = args.expression || '';
-      if (raw.includes('**') || raw.includes('^')) {
-        throw new Error('Недійсний математичний вираз');
-      }
-      const safeExpression = raw.replace(/[^0-9+\-*/(). ]/g, '');
-      if (!safeExpression || safeExpression.includes('**')) {
-        throw new Error('Недійсний математичний вираз');
-      }
-      const safeEval = new Function('return (' + safeExpression + ')');
-      return String(safeEval());
+      return String(evaluateSafeMathExpression(args.expression || ''));
     }
     if (name === 'get_current_time') {
       return new Date().toLocaleString('uk-UA');
