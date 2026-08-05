@@ -49,6 +49,58 @@ describe('ollamaService', () => {
     expect(mockedAxios.post).not.toHaveBeenCalled();
   });
 
+  it('sendOllamaMessage ignores client overrides of model/messages/stream', async () => {
+    mockedAxios.post = jest.fn().mockResolvedValue({
+      data: {
+        choices: [{ message: { content: 'ok' } }],
+        usage: {},
+        model: 'llama2',
+      },
+    });
+
+    const messages = [{ role: 'user', content: 'Hi' }];
+    await sendOllamaMessage(messages, 'llama2', {
+      model: 'evil',
+      messages: [],
+      stream: true,
+      temperature: 0.2,
+      max_tokens: 100,
+      top_p: 0.9,
+      hack: 'nope',
+    } as any);
+
+    const payload = mockedAxios.post.mock.calls[0][1];
+    expect(payload.model).toBe('llama2');
+    expect(payload.messages).toBe(messages);
+    expect(payload.stream).toBeUndefined();
+    expect(payload.temperature).toBe(0.2);
+    expect(payload.max_tokens).toBe(100);
+    expect(payload.top_p).toBe(0.9);
+    expect(payload.hack).toBeUndefined();
+  });
+
+  it('streamOllamaMessage keeps stream:true and service model/messages', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => ee.emit('end'));
+      return Promise.resolve({ data: ee });
+    });
+
+    const messages = [{ role: 'user', content: 'Hi' }];
+    await streamOllamaMessage(messages, 'llama2', {
+      model: 'evil',
+      messages: [{ role: 'system', content: 'pwn' }],
+      stream: false,
+      temperature: 0.5,
+    } as any);
+
+    const payload = mockedAxios.post.mock.calls[0][1];
+    expect(payload.model).toBe('llama2');
+    expect(payload.messages).toBe(messages);
+    expect(payload.stream).toBe(true);
+    expect(payload.temperature).toBe(0.5);
+  });
+
   it('streamOllamaMessage emits tokens', async () => {
     mockedAxios.post = jest.fn().mockImplementation(() => {
       const ee = new EventEmitter();

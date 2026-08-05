@@ -4,12 +4,25 @@ import { assertAllowedHttpUrl } from '../utils/urlAllowlist';
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
 
+/** Client may set only these sampling fields — never model/messages/stream. */
+const OLLAMA_SAMPLING_KEYS = [
+  'temperature',
+  'max_tokens',
+  'top_p',
+  'stop',
+  'num_predict',
+  'seed',
+] as const;
+
 type ChatMessage = { role: string; content: unknown };
 type ProviderOptions = {
   ollama_host?: string;
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
+  stop?: unknown;
+  num_predict?: number;
+  seed?: number;
   [key: string]: unknown;
 };
 
@@ -27,21 +40,54 @@ function isAllowlistError(error: unknown): boolean {
   );
 }
 
+function pickOllamaSamplingOptions(
+  options: ProviderOptions
+): Partial<Record<(typeof OLLAMA_SAMPLING_KEYS)[number], unknown>> {
+  const picked: Partial<
+    Record<(typeof OLLAMA_SAMPLING_KEYS)[number], unknown>
+  > = {};
+  for (const key of OLLAMA_SAMPLING_KEYS) {
+    if (options[key] !== undefined) {
+      picked[key] = options[key];
+    }
+  }
+  return picked;
+}
+
+/** Build request body with reserved fields owned by the service. */
+function buildOllamaPayload(
+  messages: ChatMessage[],
+  model: string,
+  options: ProviderOptions,
+  stream = false
+): Record<string, unknown> {
+  const sampling = pickOllamaSamplingOptions(options);
+  const payload: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: (sampling.temperature as number | undefined) ?? 0.7,
+    max_tokens: (sampling.max_tokens as number | undefined) ?? 2000,
+    top_p: (sampling.top_p as number | undefined) ?? 1,
+  };
+
+  if (sampling.stop !== undefined) payload.stop = sampling.stop;
+  if (sampling.num_predict !== undefined) {
+    payload.num_predict = sampling.num_predict;
+  }
+  if (sampling.seed !== undefined) payload.seed = sampling.seed;
+  if (stream) payload.stream = true;
+
+  return payload;
+}
+
 async function sendOllamaMessage(
   messages: ChatMessage[],
   model = 'llama2',
   options: ProviderOptions = {}
 ) {
   try {
-    const { ollama_host, ...payloadOptions } = options;
-    const payload = {
-      model,
-      messages,
-      temperature: payloadOptions.temperature || 0.7,
-      max_tokens: payloadOptions.max_tokens || 2000,
-      top_p: payloadOptions.top_p || 1,
-      ...payloadOptions,
-    };
+    const { ollama_host } = options;
+    const payload = buildOllamaPayload(messages, model, options, false);
 
     const apiUrl = resolveOllamaUrl(ollama_host);
     const response = await axios.post(apiUrl, payload, {
@@ -68,16 +114,8 @@ async function streamOllamaMessage(
   onChunk?: (token: string) => void
 ) {
   try {
-    const { ollama_host, ...payloadOptions } = options;
-    const payload = {
-      model,
-      messages,
-      temperature: payloadOptions.temperature || 0.7,
-      max_tokens: payloadOptions.max_tokens || 2000,
-      top_p: payloadOptions.top_p || 1,
-      stream: true,
-      ...payloadOptions,
-    };
+    const { ollama_host } = options;
+    const payload = buildOllamaPayload(messages, model, options, true);
 
     const apiUrl = resolveOllamaUrl(ollama_host);
     const response = await axios.post(apiUrl, payload, {
@@ -132,4 +170,7 @@ async function streamOllamaMessage(
 export = {
   sendOllamaMessage,
   streamOllamaMessage,
+  // exported for unit tests / reuse
+  pickOllamaSamplingOptions,
+  buildOllamaPayload,
 };
