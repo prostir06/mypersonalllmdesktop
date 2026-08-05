@@ -7,23 +7,7 @@ import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-toastify';
 
-const LazyHighlighter = lazy(() =>
-  Promise.all([
-    import('react-syntax-highlighter'),
-    import('react-syntax-highlighter/dist/esm/styles/prism'),
-  ]).then(([mod, styles]) => {
-    const Prism = mod.Prism || mod.default;
-    return {
-      default: function Highlighted({ language, children, ...props }) {
-        return (
-          <Prism style={styles.oneDark} language={language} PreTag="div" {...props}>
-            {children}
-          </Prism>
-        );
-      },
-    };
-  })
-);
+const LazyHighlighter = lazy(() => import('./CodeHighlighter'));
 
 const CodeBlock = ({ inline, className, children, ...props }) => {
   const match = /language-(\w+)/.exec(className || '');

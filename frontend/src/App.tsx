@@ -1,10 +1,7 @@
 /**
- * @file App.js
- * Головний компонент додатку. Налаштовує маршрутизацію та надає глобальні контексти.
- * Використовує AuthProvider для централізованого управління авторизацією.
+ * App shell: routing, auth, React Query. Heavy pages are code-split.
  */
-
-import React, { Suspense } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Container, Spinner } from 'react-bootstrap';
 import { ToastContainer } from 'react-toastify';
@@ -16,11 +13,12 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Navigation from './components/Navigation';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,10 +29,6 @@ const queryClient = new QueryClient({
   },
 });
 
-/**
- * AppRoutes — внутрішній компонент, який використовує useAuth().
- * Розміщено всередині AuthProvider, тому може безпечно використовувати контекст.
- */
 const AppRoutes = () => {
   const { isAuthenticated } = useAuth();
 
@@ -58,18 +52,12 @@ const AppRoutes = () => {
   );
 };
 
-/**
- * Компонент завантаження (Suspense fallback)
- */
 const LoadingFallback = () => (
   <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
     <Spinner animation="border" variant="primary" />
   </div>
 );
 
-/**
- * App — кореневий компонент, що обгортає все у AuthProvider, QueryClientProvider та ErrorBoundary
- */
 function App() {
   return (
     <ErrorBoundary>
