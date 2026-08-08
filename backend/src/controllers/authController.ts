@@ -12,6 +12,7 @@ import {
   rotateRefreshToken,
   setRefreshCookie,
 } from '../utils/refreshTokens';
+import { isRegistrationAllowed } from '../utils/registrationGate';
 
 class JwtSecretMissingError extends Error {
   constructor() {
@@ -59,6 +60,11 @@ async function getDummyHash(): Promise<string> {
 }
 
 export async function register(req: Request, res: Response): Promise<void> {
+  if (!isRegistrationAllowed()) {
+    res.status(403).json({ error: 'Реєстрація нових користувачів вимкнена' });
+    return;
+  }
+
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     res.status(400).json({ errors: errors.array() });

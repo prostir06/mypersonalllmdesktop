@@ -75,6 +75,22 @@ describe('Auth API (Prisma)', () => {
     expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
   });
 
+  it('POST /register returns 403 when registration is disabled', async () => {
+    const prev = process.env.ALLOW_REGISTRATION;
+    process.env.ALLOW_REGISTRATION = 'false';
+    try {
+      const res = await request(app)
+        .post('/api/auth/register')
+        .send({ email: 'a@b.com', password: 'Password1', name: 'Ada' });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/реєстрац/i);
+      expect(mockedPrisma.user.create).not.toHaveBeenCalled();
+    } finally {
+      if (prev === undefined) delete process.env.ALLOW_REGISTRATION;
+      else process.env.ALLOW_REGISTRATION = prev;
+    }
+  });
+
   it('POST /login returns 400 for unknown user without leaking existence', async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
 

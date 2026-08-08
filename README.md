@@ -114,7 +114,11 @@ Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend con
 
 ## Auth
 
-No default users. Register via `POST /api/auth/register` or the UI.
+No default users. Register via `POST /api/auth/register` or the UI when allowed.
+
+Registration is gated by `ALLOW_REGISTRATION`:
+- unset → allowed when `NODE_ENV` is not `production`, denied in production
+- `true` / `false` → explicit override (use `false` for personal/prod deploys)
 
 ## Configuration
 
