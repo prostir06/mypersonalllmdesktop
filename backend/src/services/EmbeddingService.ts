@@ -22,7 +22,38 @@ type RelevantChunk = {
   similarity: number;
 };
 
+const EMBEDDING_COLUMN_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let embeddingColumnCache: { value: boolean; checkedAt: number } | null = null;
+
+async function hasEmbeddingColumn(): Promise<boolean> {
+  const now = Date.now();
+  if (
+    embeddingColumnCache &&
+    now - embeddingColumnCache.checkedAt < EMBEDDING_COLUMN_CACHE_TTL_MS
+  ) {
+    return embeddingColumnCache.value;
+  }
+
+  const columnCheck = (await prisma.$queryRawUnsafe(
+    `SELECT 1 FROM information_schema.columns
+     WHERE table_name = 'document_chunks' AND column_name = 'embedding'
+     LIMIT 1`
+  )) as unknown[];
+
+  embeddingColumnCache = {
+    value: columnCheck.length > 0,
+    checkedAt: now,
+  };
+  return embeddingColumnCache.value;
+}
+
 class EmbeddingService {
+  /** Test helper — clear process-local schema probe cache. */
+  static resetEmbeddingColumnCache(): void {
+    embeddingColumnCache = null;
+  }
+
   static resolveKey(apiKey?: string | null): string | null {
     if (apiKey && apiKey !== 'your_openai_api_key_here') return apiKey;
     if (
@@ -160,13 +191,7 @@ class EmbeddingService {
     packOptions: PackRagOptions = {}
   ): Promise<RelevantChunk[]> {
     try {
-      const columnCheck = (await prisma.$queryRawUnsafe(
-        `SELECT 1 FROM information_schema.columns
-         WHERE table_name = 'document_chunks' AND column_name = 'embedding'
-         LIMIT 1`
-      )) as unknown[];
-
-      const hasPgVector = columnCheck.length > 0;
+      const hasPgVector = await hasEmbeddingColumn();
 
       if (hasPgVector && queryEmbedding) {
         const vectorLiteral = `[${queryEmbedding.join(',')}]`;
@@ -178,6 +203,7 @@ class EmbeddingService {
           JOIN documents d ON d.id = dc.document_id
           WHERE d.user_id = $2
             AND dc.embedding IS NOT NULL
+            AND d.status = 'ready'
         `;
 
         if (documentIds.length > 0) {
@@ -212,6 +238,7 @@ class EmbeddingService {
         FROM document_chunks dc
         JOIN documents d ON d.id = dc.document_id
         WHERE d.user_id = $1
+          AND d.status = 'ready'
       `;
 
       if (documentIds.length > 0) {
@@ -220,7 +247,7 @@ class EmbeddingService {
       }
 
       fallbackParams.push(limit * 2);
-      fallbackQuery += ` ORDER BY dc.id ASC LIMIT $${fallbackParams.length}`;
+      fallbackQuery += ` ORDER BY d.created_at DESC, dc.chunk_index ASC, dc.id ASC LIMIT $${fallbackParams.length}`;
 
       const fallbackRows = (await prisma.$queryRawUnsafe(
         fallbackQuery,

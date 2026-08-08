@@ -26,6 +26,7 @@ describe('EmbeddingService (Prisma)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv };
+    EmbeddingService.resetEmbeddingColumnCache();
   });
 
   afterAll(() => {
@@ -152,6 +153,31 @@ describe('EmbeddingService (Prisma)', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('fallback')
       );
+      const fallbackSql = mockedPrisma.$queryRawUnsafe.mock.calls[1][0] as string;
+      expect(fallbackSql).toMatch(/ORDER BY d\.created_at DESC/i);
+      expect(fallbackSql).toMatch(/dc\.chunk_index ASC/i);
+    });
+
+    it('caches embedding-column probe across findRelevantChunks calls', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          { content: 'vector text', filename: 'doc2.txt', similarity: 0.95 },
+        ])
+        .mockResolvedValueOnce([
+          { content: 'vector text 2', filename: 'doc3.txt', similarity: 0.9 },
+        ]);
+
+      await EmbeddingService.findRelevantChunks([0.1, 0.2], 1, [], 5);
+      await EmbeddingService.findRelevantChunks([0.3, 0.4], 1, [], 5);
+
+      const probeCalls = mockedPrisma.$queryRawUnsafe.mock.calls.filter(
+        (call) =>
+          typeof call[0] === 'string' &&
+          call[0].includes('information_schema.columns')
+      );
+      expect(probeCalls).toHaveLength(1);
+      expect(mockedPrisma.$queryRawUnsafe).toHaveBeenCalledTimes(3);
     });
 
     it('passes documentIds into vector query params', async () => {
