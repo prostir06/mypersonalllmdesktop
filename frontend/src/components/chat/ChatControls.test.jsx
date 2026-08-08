@@ -1,0 +1,34 @@
+import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import ChatControls from './ChatControls';
+
+describe('ChatControls', () => {
+  it('renders provider/model and notifies on provider change', async () => {
+    const onProviderChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChatControls
+        selectedProvider="openai"
+        onProviderChange={onProviderChange}
+        selectedModel="gpt-4"
+        onModelChange={vi.fn()}
+        availableModels={[{ value: 'gpt-4', label: 'GPT-4' }]}
+        temperature={0.7}
+        onTemperatureChange={vi.fn()}
+        selectedDocIds={[]}
+        streaming={false}
+        onShowPromptModal={vi.fn()}
+        onShowDocModal={vi.fn()}
+        onExportChat={vi.fn()}
+        messagesCount={0}
+      />
+    );
+
+    expect(screen.getByLabelText(/Провайдер AI/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('gpt-4');
+    await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'ollama');
+    expect(onProviderChange).toHaveBeenCalled();
+  });
+});
