@@ -11,7 +11,7 @@ import { usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const Profile = () => {
-  const { user, setUser } = useAuth();
+  const { setUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,7 @@ const Profile = () => {
       setName(data.name || '');
       setEmail(data.email || '');
       setUser(data);
-    } catch (err) {
+    } catch (_err) {
       setError('Не вдалося завантажити профіль');
     } finally {
       setLoading(false);

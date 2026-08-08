@@ -1,28 +1,27 @@
 /**
- * @file components/ErrorBoundary.js
- * Глобальний Error Boundary — перехоплює будь-які JavaScript помилки в дереві компонентів
- * та відображає зрозуміле повідомлення замість порожнього екрану.
+ * Global Error Boundary — catch render errors and show a recovery UI.
  */
-
-import React from 'react';
+import React, { type ErrorInfo, type ReactNode } from 'react';
 import { Container, Button } from 'react-bootstrap';
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
+type Props = { children: ReactNode };
+type State = { hasError: boolean; error: Error | null };
+
+class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, info) {
-    // У production тут можна надіслати помилку до Sentry або іншого сервісу
+  componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('ErrorBoundary caught:', error, info);
   }
 
-  handleReset = () => {
+  handleReset = (): void => {
     this.setState({ hasError: false, error: null });
     window.location.href = '/';
   };
