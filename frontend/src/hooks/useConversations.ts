@@ -1,28 +1,45 @@
 /**
- * React Query hooks for conversation list CRUD.
+ * React Query hooks for conversation list CRUD (paginated).
  */
-import { useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { conversationAPI } from '../services/api';
-import type { Conversation, PaginatedList } from '../types/api';
+import type { Conversation } from '../types/api';
 import { queryKeys } from './queryKeys';
+import { nextListOffset } from '../utils/listPagination';
 
-type ConversationsPage = PaginatedList<Conversation>;
-
-function emptyPage(): ConversationsPage {
-  return { items: [], total: 0, limit: 50, offset: 0 };
-}
+const PAGE_SIZE = 50;
 
 export function useConversations() {
-  return useQuery({
+  const query = useInfiniteQuery({
     queryKey: queryKeys.conversations,
-    queryFn: async () => {
-      const response = await conversationAPI.getAll();
+    queryFn: async ({ pageParam }) => {
+      const response = await conversationAPI.getAll({
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      });
       return response.data;
     },
+    initialPageParam: 0,
+    getNextPageParam: (last) => nextListOffset(last),
     staleTime: 1000 * 30,
-    select: (page) => page.items,
   });
+
+  const conversations = useMemo(
+    () => query.data?.pages.flatMap((p) => p.items) ?? [],
+    [query.data]
+  );
+
+  return {
+    ...query,
+    conversations,
+    hasMore: Boolean(query.hasNextPage),
+    loadMore: () => query.fetchNextPage(),
+  };
 }
 
 export function useCreateConversation() {
@@ -32,18 +49,8 @@ export function useCreateConversation() {
       const response = await conversationAPI.create(title);
       return response.data as Conversation;
     },
-    onSuccess: (created) => {
-      queryClient.setQueryData<ConversationsPage>(
-        queryKeys.conversations,
-        (prev) => {
-          const base = prev || emptyPage();
-          return {
-            ...base,
-            items: [created, ...base.items],
-            total: base.total + 1,
-          };
-        }
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
     },
   });
 }
@@ -56,17 +63,7 @@ export function useDeleteConversation() {
       return id;
     },
     onSuccess: (id) => {
-      queryClient.setQueryData<ConversationsPage>(
-        queryKeys.conversations,
-        (prev) => {
-          const base = prev || emptyPage();
-          return {
-            ...base,
-            items: base.items.filter((c) => c.id !== id),
-            total: Math.max(0, base.total - 1),
-          };
-        }
-      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       queryClient.removeQueries({ queryKey: queryKeys.history(id) });
     },
   });
@@ -85,19 +82,8 @@ export function useRenameConversation() {
       await conversationAPI.update(id, title);
       return { id, title };
     },
-    onSuccess: ({ id, title }) => {
-      queryClient.setQueryData<ConversationsPage>(
-        queryKeys.conversations,
-        (prev) => {
-          const base = prev || emptyPage();
-          return {
-            ...base,
-            items: base.items.map((c) =>
-              c.id === id ? { ...c, title } : c
-            ),
-          };
-        }
-      );
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
     },
   });
 }

@@ -19,7 +19,13 @@ const Dashboard = () => {
   const [renamingId, setRenamingId] = useState(null);
   const [renameTitle, setRenameTitle] = useState('');
 
-  const { data: conversations = [], isLoading } = useConversations();
+  const {
+    conversations,
+    isLoading,
+    hasMore,
+    loadMore,
+    isFetchingNextPage,
+  } = useConversations();
   const createConversation = useCreateConversation();
   const deleteConversation = useDeleteConversation();
   const renameConversation = useRenameConversation();
@@ -169,6 +175,22 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))
+            )}
+            {hasMore && (
+              <div className="text-center py-2">
+                <Button
+                  variant="outline-secondary"
+                  size="sm"
+                  disabled={isFetchingNextPage}
+                  onClick={() => loadMore()}
+                >
+                  {isFetchingNextPage ? (
+                    <Spinner animation="border" size="sm" />
+                  ) : (
+                    'Показати ще'
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </div>

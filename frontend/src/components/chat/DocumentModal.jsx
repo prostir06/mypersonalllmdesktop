@@ -18,6 +18,9 @@ const DocumentModal = React.memo(({
   uploadingDoc,
   fileInputRef,
   onFileChange,
+  hasMore,
+  onLoadMore,
+  loadingMore,
 }) => {
   return (
     <Modal show={show} onHide={onHide} centered className="glass-modal">
@@ -36,6 +39,7 @@ const DocumentModal = React.memo(({
             onChange={onFileChange}
             accept=".pdf,.docx,.txt,.md"
             style={{ display: 'none' }}
+            disabled={uploadingDoc}
           />
           <Button
             variant="outline-primary"
@@ -45,7 +49,12 @@ const DocumentModal = React.memo(({
             className="w-100 py-2"
           >
             {uploadingDoc
-              ? <Spinner size="sm" animation="border" />
+              ? (
+                <span className="d-inline-flex align-items-center gap-2">
+                  <Spinner size="sm" animation="border" />
+                  Завантаження та індексація…
+                </span>
+                )
               : '➕ Завантажити новий файл (PDF/DOCX/TXT)'}
           </Button>
         </div>
@@ -68,6 +77,7 @@ const DocumentModal = React.memo(({
                       id={`doc-${doc.id}`}
                       label={doc.filename}
                       checked={isSelected}
+                      disabled={uploadingDoc}
                       onChange={(e) => onToggleDoc(doc.id, e.target.checked)}
                     />
                     <small className="text-muted" style={{ fontSize: '0.75rem' }}>
@@ -78,6 +88,7 @@ const DocumentModal = React.memo(({
                   <Button
                     variant="outline-danger"
                     size="sm"
+                    disabled={uploadingDoc}
                     onClick={() => onDeleteDoc(doc.id)}
                   >
                     🗑
@@ -87,9 +98,25 @@ const DocumentModal = React.memo(({
             })}
           </ListGroup>
         )}
+        {hasMore && (
+          <div className="text-center mt-3">
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              disabled={loadingMore || uploadingDoc}
+              onClick={onLoadMore}
+            >
+              {loadingMore ? (
+                <Spinner size="sm" animation="border" />
+              ) : (
+                'Показати ще'
+              )}
+            </Button>
+          </div>
+        )}
       </Modal.Body>
       <Modal.Footer className="border-secondary bg-dark text-light">
-        <Button variant="secondary" size="sm" onClick={onHide}>
+        <Button variant="secondary" size="sm" onClick={onHide} disabled={uploadingDoc}>
           Готово
         </Button>
       </Modal.Footer>

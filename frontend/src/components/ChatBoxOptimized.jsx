@@ -44,6 +44,9 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     handleFileUpload,
     handleToggleDoc,
     handleDeleteDoc,
+    hasMoreDocuments,
+    loadMoreDocuments,
+    loadingMoreDocuments,
   } = useChatDocuments();
 
   const {
@@ -310,6 +313,9 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         uploadingDoc={uploadingDoc}
         fileInputRef={fileInputRef}
         onFileChange={handleFileUpload}
+        hasMore={hasMoreDocuments}
+        onLoadMore={loadMoreDocuments}
+        loadingMore={loadingMoreDocuments}
       />
 
       <PromptLibraryModal

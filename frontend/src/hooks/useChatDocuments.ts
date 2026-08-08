@@ -1,17 +1,25 @@
 /**
- * RAG documents list / upload / selection — list cached in React Query.
+ * RAG documents list / upload / selection — paginated list in React Query.
  */
 import {
   useCallback,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
 } from 'react';
 import type { AxiosError } from 'axios';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
 import { queryKeys } from './queryKeys';
+import { nextListOffset } from '../utils/listPagination';
+
+const PAGE_SIZE = 50;
 
 export function useChatDocuments() {
   const queryClient = useQueryClient();
@@ -21,15 +29,24 @@ export function useChatDocuments() {
   const [showDocModal, setShowDocModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const documentsQuery = useQuery({
+  const documentsQuery = useInfiniteQuery({
     queryKey: queryKeys.documents,
-    queryFn: async () => {
-      const res = await documentsAPI.getAll();
+    queryFn: async ({ pageParam }) => {
+      const res = await documentsAPI.getAll({
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      });
       return res.data;
     },
+    initialPageParam: 0,
+    getNextPageParam: (last) => nextListOffset(last),
     staleTime: 1000 * 60,
-    select: (page) => page.items,
   });
+
+  const userDocuments = useMemo(
+    () => documentsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [documentsQuery.data]
+  );
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -94,7 +111,7 @@ export function useChatDocuments() {
   );
 
   return {
-    userDocuments: documentsQuery.data || [],
+    userDocuments,
     selectedDocIds,
     showDocModal,
     setShowDocModal,
@@ -103,5 +120,8 @@ export function useChatDocuments() {
     handleFileUpload,
     handleToggleDoc,
     handleDeleteDoc,
+    hasMoreDocuments: Boolean(documentsQuery.hasNextPage),
+    loadMoreDocuments: () => documentsQuery.fetchNextPage(),
+    loadingMoreDocuments: documentsQuery.isFetchingNextPage,
   };
 }
