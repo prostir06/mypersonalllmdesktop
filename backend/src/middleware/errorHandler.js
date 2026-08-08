@@ -7,6 +7,7 @@ const errorHandler = (err, req, res, next) => {
     stack: err.stack,
     url: req.url,
     method: req.method,
+    requestId: req.id,
     timestamp: new Date().toISOString()
   });
 

@@ -34,7 +34,7 @@ function signAccessToken(userId: number): string {
   const expiresIn = (process.env.JWT_ACCESS_EXPIRE ||
     process.env.JWT_EXPIRE ||
     '15m') as SignOptions['expiresIn'];
-  return jwt.sign({ userId }, secret, { expiresIn });
+  return jwt.sign({ userId }, secret, { algorithm: 'HS256', expiresIn });
 }
 
 async function attachSession(res: Response, userId: number): Promise<string> {

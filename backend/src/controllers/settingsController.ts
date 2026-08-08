@@ -97,7 +97,9 @@ export async function getSettings(req: SettingsRequest, res: Response): Promise<
     try {
       const secret = process.env.JWT_SECRET;
       if (secret) {
-        const decoded = jwt.verify(token, secret) as { userId: number };
+        const decoded = jwt.verify(token, secret, {
+          algorithms: ['HS256'],
+        }) as { userId: number };
         req.userId = decoded.userId;
       }
     } catch {
