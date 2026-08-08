@@ -17,29 +17,10 @@ type StreamFn = (
 
 type ProviderHandlers = { send: SendFn; stream: StreamFn };
 
+/** Honest public providers only. Unknown names fall back to OpenAI with a warn. */
 class ProviderFactory {
   static providers: Record<string, ProviderHandlers> = {
     openai: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
-    },
-    chatgpt: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
-    },
-    gpt: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
-    },
-    microsoft: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
-    },
-    copilot: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
-    },
-    google: {
       send: openaiService.sendOpenAIMessage as SendFn,
       stream: openaiService.streamOpenAIMessage as StreamFn,
     },
@@ -50,8 +31,16 @@ class ProviderFactory {
   };
 
   static getProvider(name?: string): ProviderHandlers {
-    const providerName = name?.toLowerCase() || 'openai';
-    return this.providers[providerName] || this.providers.openai;
+    const providerName = (name?.toLowerCase() || 'openai').trim();
+    if (this.providers[providerName]) {
+      return this.providers[providerName];
+    }
+    if (providerName && providerName !== 'openai') {
+      logger.warn(
+        `Unknown provider "${name}" — using OpenAI handlers (via OpenAI)`
+      );
+    }
+    return this.providers.openai;
   }
 
   static async sendMessage(

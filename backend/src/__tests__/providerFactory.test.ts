@@ -57,6 +57,14 @@ describe('ProviderFactory', () => {
     );
   });
 
+  it('warns when unknown provider falls back via OpenAI', () => {
+    const logger = require('../logger');
+    ProviderFactory.getProvider('microsoft');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/via OpenAI/i)
+    );
+  });
+
   it('sendMessage wires to openai', async () => {
     const messages = [{ role: 'user', content: 'Привіт' }];
     const result = await ProviderFactory.sendMessage(
@@ -86,10 +94,8 @@ describe('ProviderFactory', () => {
     expect(result.content).toBe('Hello World');
   });
 
-  it('lists available providers', () => {
+  it('lists only honest available providers', () => {
     const providers = ProviderFactory.getAvailableProviders();
-    expect(providers).toContain('openai');
-    expect(providers).toContain('ollama');
-    expect(providers).toContain('microsoft');
+    expect(providers).toEqual(['openai', 'ollama']);
   });
 });
