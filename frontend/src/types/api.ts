@@ -110,6 +110,8 @@ export interface ModelRecord {
   max_tokens?: number;
   is_default?: boolean;
   created_at?: string;
+  /** From catalog / server capability map — prefer over name heuristics. */
+  supports_vision?: boolean;
 }
 
 export interface ModelCreatePayload {

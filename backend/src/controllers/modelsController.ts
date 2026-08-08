@@ -6,6 +6,7 @@ import {
   assertAllowedHttpUrl,
   UrlNotAllowedError,
 } from '../utils/urlAllowlist';
+import { modelSupportsVision } from '../utils/modelCapabilities';
 
 type AuthRequest = Request & { userId?: number };
 
@@ -48,6 +49,7 @@ export function toPublicModel(row: LlmModelRow) {
     max_tokens: row.maxTokens,
     is_default: row.isDefault,
     created_at: row.createdAt,
+    supports_vision: modelSupportsVision(row.modelId),
   };
 }
 

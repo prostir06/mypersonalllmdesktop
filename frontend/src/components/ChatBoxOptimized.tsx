@@ -24,6 +24,7 @@ import {
   catalogModelsToOptions,
   type ModelOption,
 } from '../utils/catalogModelOptions';
+import { modelSupportsVision } from '../utils/modelSupportsVision';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
@@ -323,12 +324,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onAttachImage={() =>
           imageInputRef.current && imageInputRef.current.click()
         }
-        supportsVision={
-          Boolean(
-            selectedModel?.includes('gpt-4') ||
-              selectedModel?.includes('gpt-4o')
-          )
-        }
+        supportsVision={modelSupportsVision(selectedModel, catalogModels)}
       />
 
       <input
