@@ -18,8 +18,19 @@ import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
 import { queryKeys } from './queryKeys';
 import { nextListOffset } from '../utils/listPagination';
+import type { DocumentRecord, PaginatedList } from '../types/api';
 
 const PAGE_SIZE = 50;
+
+function pageHasPending(
+  data: { pages: PaginatedList<DocumentRecord>[] } | undefined
+): boolean {
+  return Boolean(
+    data?.pages.some((page) =>
+      page.items.some((doc) => doc.status === 'pending')
+    )
+  );
+}
 
 export function useChatDocuments() {
   const queryClient = useQueryClient();
@@ -41,6 +52,8 @@ export function useChatDocuments() {
     initialPageParam: 0,
     getNextPageParam: (last) => nextListOffset(last),
     staleTime: 1000 * 60,
+    refetchInterval: (query) =>
+      pageHasPending(query.state.data) ? 1500 : false,
   });
 
   const userDocuments = useMemo(
@@ -56,11 +69,11 @@ export function useChatDocuments() {
       return { fileName: file.name, ...res.data };
     },
     onSuccess: (data) => {
-      toast.success(
-        `📄 Файл "${data.fileName}" опрацьовано! Створено ${data.chunksCount} чанків.`
+      toast.info(
+        `📄 Файл "${data.fileName}" прийнято. Індексація виконується у фоні…`
       );
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
-      if (data.document?.id) {
+      if (data.document?.id && data.document.status !== 'failed') {
         setSelectedDocIds((prev) => [...prev, data.document.id]);
       }
     },

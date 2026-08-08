@@ -52,7 +52,7 @@ const DocumentModal = React.memo(({
               ? (
                 <span className="d-inline-flex align-items-center gap-2">
                   <Spinner size="sm" animation="border" />
-                  Завантаження та індексація…
+                  Завантаження…
                 </span>
                 )
               : '➕ Завантажити новий файл (PDF/DOCX/TXT)'}
@@ -66,6 +66,14 @@ const DocumentModal = React.memo(({
           <ListGroup variant="flush">
             {userDocuments.map((doc) => {
               const isSelected = selectedDocIds.includes(doc.id);
+              const status = doc.status || 'ready';
+              const isReady = status === 'ready';
+              const statusLabel =
+                status === 'pending'
+                  ? 'індексація…'
+                  : status === 'failed'
+                    ? 'помилка'
+                    : null;
               return (
                 <ListGroup.Item
                   key={doc.id}
@@ -77,11 +85,13 @@ const DocumentModal = React.memo(({
                       id={`doc-${doc.id}`}
                       label={doc.filename}
                       checked={isSelected}
-                      disabled={uploadingDoc}
+                      disabled={uploadingDoc || !isReady}
                       onChange={(e) => onToggleDoc(doc.id, e.target.checked)}
                     />
                     <small className="text-muted" style={{ fontSize: '0.75rem' }}>
-                      {doc.chunks_count} фрагментів | {(doc.file_size / 1024).toFixed(1)} KB
+                      {statusLabel ? `${statusLabel} | ` : ''}
+                      {doc.chunks_count ?? 0} фрагментів |{' '}
+                      {((doc.file_size || 0) / 1024).toFixed(1)} KB
                     </small>
                   </div>
 

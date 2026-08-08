@@ -22,8 +22,15 @@ type DocumentRow = {
   filename: string;
   fileType: string;
   fileSize: number;
+  status?: string;
   createdAt: Date;
 };
+
+type EnqueueFn = (job: () => void) => void;
+
+function defaultEnqueue(job: () => void): void {
+  setImmediate(job);
+}
 
 function toPublicDocument(row: DocumentRow, chunksCount?: number) {
   const base = {
@@ -32,6 +39,7 @@ function toPublicDocument(row: DocumentRow, chunksCount?: number) {
     filename: row.filename,
     file_type: row.fileType,
     file_size: row.fileSize,
+    status: row.status || 'ready',
     created_at: row.createdAt,
   };
 
@@ -100,88 +108,142 @@ class DocumentService {
     return buffer.toString('utf-8');
   }
 
-  static async uploadAndProcess(fileInfo: FileInfo, userId: number) {
-    const { originalname, mimetype, size, buffer } = fileInfo;
+  static assertWithinSizeLimit(fileInfo: FileInfo): void {
+    const { size, buffer } = fileInfo;
     const maxBytes = getMaxUploadBytes();
     if (size > maxBytes || buffer.length > maxBytes) {
       throw new Error(`Файл перевищує ліміт розміру (${maxBytes} байт)`);
     }
+  }
 
-    const extractedText = await this.extractText(buffer, mimetype, originalname);
+  /** Accept upload immediately; process parse/embed in background. */
+  static async acceptUpload(
+    fileInfo: FileInfo,
+    userId: number,
+    enqueue: EnqueueFn = defaultEnqueue
+  ) {
+    this.assertWithinSizeLimit(fileInfo);
+    const { originalname, mimetype, size } = fileInfo;
 
-    if (!extractedText || extractedText.trim().length === 0) {
-      throw new Error('Не вдалося витягти текст з надісланого файлу');
-    }
+    const doc = await prisma.document.create({
+      data: {
+        userId,
+        filename: originalname,
+        fileType: mimetype,
+        fileSize: size,
+        status: 'pending',
+      },
+    });
 
-    const chunks = this.chunkText(extractedText);
-    let embeddings: Array<number[] | null> = [];
-    const openaiKey = await resolveOpenAiApiKey(userId);
-
-    if (EmbeddingService.isAvailable(openaiKey)) {
-      embeddings = await EmbeddingService.generateBatchEmbeddings(
-        chunks,
-        openaiKey
-      );
-    }
-
-    const hasAnyEmbedding = embeddings.some(Boolean);
-
-    const doc = await prisma.$transaction(async (tx) => {
-      const created = await tx.document.create({
-        data: {
-          userId,
-          filename: originalname,
-          fileType: mimetype,
-          fileSize: size,
-        },
+    enqueue(() => {
+      void this.finalizeUpload(doc.id, userId, fileInfo).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(`Background document processing failed id=${doc.id}: ${message}`);
       });
+    });
 
-      if (!hasAnyEmbedding) {
-        await tx.documentChunk.createMany({
-          data: chunks.map((content, chunkIndex) => ({
-            documentId: created.id,
-            chunkIndex,
-            content,
-          })),
-        });
-      } else {
-        const values: string[] = [];
-        const params: unknown[] = [];
-        let p = 1;
-        for (let i = 0; i < chunks.length; i++) {
-          const embedding = embeddings[i] || null;
-          if (embedding) {
-            values.push(`($${p++}, $${p++}, $${p++}, $${p++}::vector)`);
-            params.push(created.id, i, chunks[i], `[${embedding.join(',')}]`);
-          } else {
-            values.push(`($${p++}, $${p++}, $${p++}, NULL)`);
-            params.push(created.id, i, chunks[i]);
-          }
-        }
-        await tx.$executeRawUnsafe(
-          `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
-           VALUES ${values.join(', ')}`,
-          ...params
+    return { document: toPublicDocument(doc) };
+  }
+
+  /** Parse, chunk, embed an already-created pending document. */
+  static async finalizeUpload(docId: number, userId: number, fileInfo: FileInfo) {
+    const { originalname, mimetype, buffer } = fileInfo;
+
+    try {
+      const extractedText = await this.extractText(buffer, mimetype, originalname);
+
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('Не вдалося витягти текст з надісланого файлу');
+      }
+
+      const chunks = this.chunkText(extractedText);
+      let embeddings: Array<number[] | null> = [];
+      const openaiKey = await resolveOpenAiApiKey(userId);
+
+      if (EmbeddingService.isAvailable(openaiKey)) {
+        embeddings = await EmbeddingService.generateBatchEmbeddings(
+          chunks,
+          openaiKey
         );
       }
 
-      return created;
+      const hasAnyEmbedding = embeddings.some(Boolean);
+
+      const doc = await prisma.$transaction(async (tx) => {
+        if (!hasAnyEmbedding) {
+          await tx.documentChunk.createMany({
+            data: chunks.map((content, chunkIndex) => ({
+              documentId: docId,
+              chunkIndex,
+              content,
+            })),
+          });
+        } else {
+          const values: string[] = [];
+          const params: unknown[] = [];
+          let p = 1;
+          for (let i = 0; i < chunks.length; i++) {
+            const embedding = embeddings[i] || null;
+            if (embedding) {
+              values.push(`($${p++}, $${p++}, $${p++}, $${p++}::vector)`);
+              params.push(docId, i, chunks[i], `[${embedding.join(',')}]`);
+            } else {
+              values.push(`($${p++}, $${p++}, $${p++}, NULL)`);
+              params.push(docId, i, chunks[i]);
+            }
+          }
+          await tx.$executeRawUnsafe(
+            `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
+             VALUES ${values.join(', ')}`,
+            ...params
+          );
+        }
+
+        return tx.document.update({
+          where: { id: docId },
+          data: { status: 'ready' },
+        });
+      });
+
+      logger.info(
+        `Document uploaded & chunked: ${originalname} (id=${docId}, ${chunks.length} chunks, embeddings=${embeddings.filter(Boolean).length})`
+      );
+
+      if (!EmbeddingService.isAvailable(openaiKey)) {
+        logger.warn(
+          'Embeddings not generated: OPENAI_API_KEY not configured. RAG will use fallback chunk selection.'
+        );
+      }
+
+      return {
+        document: toPublicDocument(doc),
+        chunksCount: chunks.length,
+      };
+    } catch (error: unknown) {
+      await prisma.document.update({
+        where: { id: docId },
+        data: { status: 'failed' },
+      });
+      throw error;
+    }
+  }
+
+  /** Sync helper (tests / legacy): accept then await finalize. */
+  static async uploadAndProcess(fileInfo: FileInfo, userId: number) {
+    this.assertWithinSizeLimit(fileInfo);
+    const { originalname, mimetype, size } = fileInfo;
+
+    const doc = await prisma.document.create({
+      data: {
+        userId,
+        filename: originalname,
+        fileType: mimetype,
+        fileSize: size,
+        status: 'pending',
+      },
     });
 
-    logger.info(
-      `Document uploaded & chunked: ${originalname} (id=${doc.id}, ${chunks.length} chunks, embeddings=${embeddings.filter(Boolean).length})`
-    );
-
-    if (!EmbeddingService.isAvailable(openaiKey)) {
-      logger.warn(
-        'Embeddings not generated: OPENAI_API_KEY not configured. RAG will use fallback chunk selection.'
-      );
-    }
-
-    return {
-      document: toPublicDocument(doc),
-      chunksCount: chunks.length,
-    };
+    return this.finalizeUpload(doc.id, userId, fileInfo);
   }
 
   static async getByUser(userId: number, limit = 50, offset = 0) {
@@ -203,6 +265,15 @@ class DocumentService {
       limit,
       offset,
     };
+  }
+
+  static async getById(docId: number, userId: number) {
+    const row = await prisma.document.findFirst({
+      where: { id: docId, userId },
+      include: { _count: { select: { chunks: true } } },
+    });
+    if (!row) return null;
+    return toPublicDocument(row, row._count.chunks);
   }
 
   static async delete(docId: number, userId: number): Promise<boolean> {

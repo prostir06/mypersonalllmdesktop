@@ -30,8 +30,36 @@ describe('DocumentModal', () => {
       />
     );
 
-    expect(screen.getByText(/Завантаження та індексація/i)).toBeInTheDocument();
+    expect(screen.getByText(/Завантаження…/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Готово/i })).toBeDisabled();
+  });
+
+  it('shows pending status and disables checkbox until ready', () => {
+    render(
+      <DocumentModal
+        show
+        onHide={vi.fn()}
+        userDocuments={[
+          {
+            id: 2,
+            filename: 'pending.txt',
+            chunks_count: 0,
+            file_size: 10,
+            status: 'pending',
+          },
+        ]}
+        selectedDocIds={[]}
+        onToggleDoc={vi.fn()}
+        onDeleteDoc={vi.fn()}
+        onUploadClick={vi.fn()}
+        uploadingDoc={false}
+        fileInputRef={{ current: null }}
+        onFileChange={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/індексація…/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('pending.txt')).toBeDisabled();
   });
 
   it('calls onLoadMore when Показати ще is clicked', async () => {

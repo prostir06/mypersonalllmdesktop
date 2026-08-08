@@ -98,6 +98,7 @@ model Document {
   filename  String   @db.VarChar(255)
   fileType  String   @map("file_type") @db.VarChar(50)
   fileSize  Int      @map("file_size")
+  status    String   @default("ready") @db.VarChar(20)
   createdAt DateTime @default(now()) @map("created_at")
 
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)

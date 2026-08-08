@@ -294,6 +294,8 @@ export const documentsAPI = {
     params?: ListQueryParams
   ): Promise<AxiosResponse<PaginatedList<DocumentRecord>>> =>
     api.get('/documents', { params }),
+  getById: (id: string | number): Promise<AxiosResponse<DocumentRecord>> =>
+    api.get(`/documents/${id}`),
   upload: (formData: FormData): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

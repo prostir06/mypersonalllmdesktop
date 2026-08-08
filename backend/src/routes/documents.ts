@@ -4,6 +4,7 @@ import auth from '../middleware/auth';
 import {
   uploadDocument,
   listDocuments,
+  getDocument,
   deleteDocument,
 } from '../controllers/documentsController';
 import { getMaxUploadBytes } from '../utils/fileMagic';
@@ -42,6 +43,7 @@ const upload = multer({
 
 router.post('/upload', auth, upload.single('file'), uploadDocument);
 router.get('/', auth, listDocuments);
+router.get('/:id', auth, getDocument);
 router.delete('/:id', auth, deleteDocument);
 
 export = router;

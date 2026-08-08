@@ -13,7 +13,11 @@ jest.mock('../config/prisma', () => ({
   default: {
     document: {
       create: jest.fn(),
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
       deleteMany: jest.fn(),
       count: jest.fn(),
     },
@@ -45,7 +49,11 @@ import EmbeddingService from '../services/EmbeddingService';
 const mockedPrisma = prisma as unknown as {
   document: {
     create: jest.Mock;
+    findUnique: jest.Mock;
+    findFirst: jest.Mock;
     findMany: jest.Mock;
+    update: jest.Mock;
+    updateMany: jest.Mock;
     deleteMany: jest.Mock;
     count: jest.Mock;
   };
@@ -110,111 +118,161 @@ describe('DocumentService (Prisma)', () => {
     });
   });
 
-  describe('uploadAndProcess', () => {
-    it('creates document + executeRaw chunk when embedding present', async () => {
+  describe('acceptUpload', () => {
+    it('creates pending document and enqueues processing without awaiting it', async () => {
       mockedPrisma.document.create.mockResolvedValue({
         id: 42,
         userId: 1,
         filename: 'test.txt',
         fileType: 'text/plain',
         fileSize: 100,
+        status: 'pending',
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
       });
-      mockedEmbed.isAvailable.mockReturnValue(true);
-      mockedEmbed.generateBatchEmbeddings.mockResolvedValue([[0.1, 0.2]]);
-      mockedPrisma.$executeRawUnsafe.mockResolvedValue(1);
 
-      const result = await DocumentService.uploadAndProcess(
+      const queued: Array<() => void> = [];
+      const result = await DocumentService.acceptUpload(
         {
           originalname: 'test.txt',
           mimetype: 'text/plain',
           size: 100,
           buffer: Buffer.from('Текст для тестування', 'utf-8'),
         },
-        1
+        1,
+        (job) => {
+          queued.push(job);
+        }
       );
 
       expect(result.document).toMatchObject({
         id: 42,
-        user_id: 1,
+        status: 'pending',
         filename: 'test.txt',
-        file_type: 'text/plain',
-        file_size: 100,
       });
-      expect(result.chunksCount).toBe(1);
-      expect(mockedPrisma.$transaction).toHaveBeenCalled();
-      expect(mockedPrisma.document.create).toHaveBeenCalled();
-      expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
-      expect(mockedPrisma.documentChunk.create).not.toHaveBeenCalled();
-      expect(JSON.stringify(mockedPrisma)).not.toMatch(/CREATE TABLE/i);
+      expect(mockedPrisma.document.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          userId: 1,
+          filename: 'test.txt',
+          status: 'pending',
+        }),
+      });
+      expect(queued).toHaveLength(1);
+      expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('uses documentChunk.createMany when embeddings unavailable', async () => {
-      mockedPrisma.document.create.mockResolvedValue({
-        id: 7,
-        userId: 1,
-        filename: 'a.txt',
-        fileType: 'text/plain',
-        fileSize: 3,
-        createdAt: new Date(),
-      });
-      mockedEmbed.isAvailable.mockReturnValue(false);
-      mockedPrisma.documentChunk.createMany.mockResolvedValue({ count: 1 });
-
-      await DocumentService.uploadAndProcess(
-        {
-          originalname: 'a.txt',
-          mimetype: 'text/plain',
-          size: 3,
-          buffer: Buffer.from('abc', 'utf-8'),
-        },
-        1
-      );
-
-      expect(mockedPrisma.$transaction).toHaveBeenCalled();
-      expect(mockedPrisma.documentChunk.createMany).toHaveBeenCalledWith({
-        data: [
-          { documentId: 7, chunkIndex: 0, content: 'abc' },
-        ],
-      });
-      expect(mockedPrisma.documentChunk.create).not.toHaveBeenCalled();
-      expect(mockedPrisma.$executeRawUnsafe).not.toHaveBeenCalled();
-    });
-
-    it('rejects files over MAX_FILE_SIZE', async () => {
+    it('rejects files over MAX_FILE_SIZE before create', async () => {
       const prev = process.env.MAX_FILE_SIZE;
       process.env.MAX_FILE_SIZE = '5';
       try {
         await expect(
-          DocumentService.uploadAndProcess(
+          DocumentService.acceptUpload(
             {
               originalname: 'big.txt',
               mimetype: 'text/plain',
               size: 10,
               buffer: Buffer.from('0123456789', 'utf-8'),
             },
-            1
+            1,
+            () => undefined
           )
         ).rejects.toThrow(/ліміт/i);
-        expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+        expect(mockedPrisma.document.create).not.toHaveBeenCalled();
       } finally {
         if (prev === undefined) delete process.env.MAX_FILE_SIZE;
         else process.env.MAX_FILE_SIZE = prev;
       }
     });
+  });
 
-    it('throws when extracted text empty', async () => {
+  describe('finalizeUpload', () => {
+    it('writes chunks with embeddings and marks ready', async () => {
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateBatchEmbeddings.mockResolvedValue([[0.1, 0.2]]);
+      mockedPrisma.$executeRawUnsafe.mockResolvedValue(1);
+      mockedPrisma.document.update.mockResolvedValue({
+        id: 42,
+        userId: 1,
+        filename: 'test.txt',
+        fileType: 'text/plain',
+        fileSize: 100,
+        status: 'ready',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+
+      const result = await DocumentService.finalizeUpload(
+        42,
+        1,
+        {
+          originalname: 'test.txt',
+          mimetype: 'text/plain',
+          size: 100,
+          buffer: Buffer.from('Текст для тестування', 'utf-8'),
+        }
+      );
+
+      expect(result.chunksCount).toBe(1);
+      expect(result.document.status).toBe('ready');
+      expect(mockedPrisma.$transaction).toHaveBeenCalled();
+      expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
+      expect(mockedPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 42 },
+        data: { status: 'ready' },
+      });
+    });
+
+    it('uses createMany when embeddings unavailable and marks ready', async () => {
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedPrisma.documentChunk.createMany.mockResolvedValue({ count: 1 });
+      mockedPrisma.document.update.mockResolvedValue({
+        id: 7,
+        userId: 1,
+        filename: 'a.txt',
+        fileType: 'text/plain',
+        fileSize: 3,
+        status: 'ready',
+        createdAt: new Date(),
+      });
+
+      await DocumentService.finalizeUpload(7, 1, {
+        originalname: 'a.txt',
+        mimetype: 'text/plain',
+        size: 3,
+        buffer: Buffer.from('abc', 'utf-8'),
+      });
+
+      expect(mockedPrisma.documentChunk.createMany).toHaveBeenCalledWith({
+        data: [{ documentId: 7, chunkIndex: 0, content: 'abc' }],
+      });
+      expect(mockedPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 7 },
+        data: { status: 'ready' },
+      });
+    });
+
+    it('marks failed when extracted text empty', async () => {
+      mockedPrisma.document.update.mockResolvedValue({
+        id: 3,
+        userId: 1,
+        filename: 'empty.txt',
+        fileType: 'text/plain',
+        fileSize: 0,
+        status: 'failed',
+        createdAt: new Date(),
+      });
+
       await expect(
-        DocumentService.uploadAndProcess(
-          {
-            originalname: 'empty.txt',
-            mimetype: 'text/plain',
-            size: 0,
-            buffer: Buffer.from('', 'utf-8'),
-          },
-          1
-        )
+        DocumentService.finalizeUpload(3, 1, {
+          originalname: 'empty.txt',
+          mimetype: 'text/plain',
+          size: 0,
+          buffer: Buffer.from('', 'utf-8'),
+        })
       ).rejects.toThrow(/витягти текст/i);
+
+      expect(mockedPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 3 },
+        data: { status: 'failed' },
+      });
       expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     });
   });

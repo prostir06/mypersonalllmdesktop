@@ -47,17 +47,17 @@ export async function uploadDocument(
       req.file.originalname = decodeMulterFilename(req.file.originalname);
     }
 
-    const result = await DocumentService.uploadAndProcess(req.file, req.userId!);
-    res.status(201).json({
+    const result = await DocumentService.acceptUpload(req.file, req.userId!);
+    res.status(202).json({
       document: result.document,
-      chunksCount: result.chunksCount,
-      message: 'Файл успішно опрацьовано та збережено для RAG',
+      status: 'pending',
+      message: 'Файл прийнято. Індексація виконується у фоні',
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/upload error: ${message}`);
 
-    if (message.includes('витягти текст')) {
+    if (message.includes('ліміт розміру')) {
       res.status(400).json({ error: message });
       return;
     }
@@ -78,6 +78,30 @@ export async function listDocuments(
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /documents error: ${message}`);
     res.status(500).json({ error: 'Не вдалося отримати список документів' });
+  }
+}
+
+export async function getDocument(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!/^\d+$/.test(String(req.params.id))) {
+      res.status(400).json({ error: 'Некоректний ідентифікатор документа' });
+      return;
+    }
+
+    const doc = await DocumentService.getById(Number(req.params.id), req.userId!);
+    if (!doc) {
+      res.status(404).json({ error: 'Документ не знайдено' });
+      return;
+    }
+
+    res.json(doc);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`GET /documents/${req.params.id} error: ${message}`);
+    res.status(500).json({ error: 'Не вдалося отримати документ' });
   }
 }
 

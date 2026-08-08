@@ -10,8 +10,10 @@ jest.mock('../middleware/auth', () => (req: any, _res: any, next: any) => {
 jest.mock('../services/DocumentService', () => ({
   __esModule: true,
   default: {
+    acceptUpload: jest.fn(),
     uploadAndProcess: jest.fn(),
     getByUser: jest.fn(),
+    getById: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -30,8 +32,10 @@ app.use(express.json());
 app.use('/api/documents', documentsRouter);
 
 const mockedService = DocumentService as unknown as {
+  acceptUpload: jest.Mock;
   uploadAndProcess: jest.Mock;
   getByUser: jest.Mock;
+  getById: jest.Mock;
   delete: jest.Mock;
 };
 
@@ -95,10 +99,59 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.body.error).toBe('Будь ласка, виберіть файл для завантаження');
   });
 
+  it('POST /upload returns 202 pending and schedules processing', async () => {
+    mockedService.acceptUpload.mockResolvedValue({
+      document: {
+        id: 11,
+        user_id: 1,
+        filename: 'note.txt',
+        file_type: 'text/plain',
+        file_size: 1,
+        status: 'pending',
+        created_at: '2026-01-01T00:00:00.000Z',
+      },
+    });
+
+    const res = await request(app)
+      .post('/api/documents/upload')
+      .attach('file', Buffer.from('x'), 'note.txt');
+
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe('pending');
+    expect(res.body.document.id).toBe(11);
+    expect(res.body.document.status).toBe('pending');
+    expect(mockedService.acceptUpload).toHaveBeenCalled();
+    expect(mockedService.uploadAndProcess).not.toHaveBeenCalled();
+  });
+
+  it('GET /:id returns document from service', async () => {
+    mockedService.getById.mockResolvedValue({
+      id: 11,
+      user_id: 1,
+      filename: 'note.txt',
+      file_type: 'text/plain',
+      file_size: 1,
+      status: 'ready',
+      chunks_count: 2,
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const res = await request(app).get('/api/documents/11');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ready');
+    expect(mockedService.getById).toHaveBeenCalledWith(11, 1);
+  });
+
+  it('GET /:id returns 404 when missing', async () => {
+    mockedService.getById.mockResolvedValue(null);
+    const res = await request(app).get('/api/documents/99');
+    expect(res.status).toBe(404);
+  });
+
   it('POST /upload in production omits internal error details', async () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
-    mockedService.uploadAndProcess.mockRejectedValue(
+    mockedService.acceptUpload.mockRejectedValue(
       new Error('ENOENT /secret/path.pdf')
     );
     try {
@@ -116,7 +169,7 @@ describe('Documents API (Prisma routes)', () => {
   it('POST /upload in non-production includes internal error details', async () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'test';
-    mockedService.uploadAndProcess.mockRejectedValue(
+    mockedService.acceptUpload.mockRejectedValue(
       new Error('ENOENT /secret/path.pdf')
     );
     try {

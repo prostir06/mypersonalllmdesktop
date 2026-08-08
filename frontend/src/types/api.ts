@@ -142,12 +142,16 @@ export interface DocumentRecord {
   id: string | number;
   filename?: string;
   original_name?: string;
+  status?: 'pending' | 'ready' | 'failed' | string;
+  chunks_count?: number;
+  file_size?: number;
   [key: string]: unknown;
 }
 
 export interface DocumentUploadResponse {
   document: DocumentRecord;
-  chunksCount: number;
+  status?: string;
+  chunksCount?: number;
   message?: string;
 }
 
