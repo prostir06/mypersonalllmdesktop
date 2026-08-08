@@ -25,6 +25,7 @@ import {
   type ModelOption,
 } from '../utils/catalogModelOptions';
 import { modelSupportsVision } from '../utils/modelSupportsVision';
+import type { UserSettings } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
@@ -32,13 +33,13 @@ import DocumentModal from './chat/DocumentModal';
 import PromptLibraryModal from './PromptLibraryModal';
 
 // Incremental: child controls still JSX without prop types.
-/* eslint-disable @typescript-eslint/no-explicit-any */
-const ChatControlsView = ChatControls as React.ComponentType<any>;
-const MessageListView = MessageList as React.ComponentType<any>;
-const MessageInputView = MessageInput as React.ComponentType<any>;
-const DocumentModalView = DocumentModal as React.ComponentType<any>;
-const PromptLibraryModalView = PromptLibraryModal as React.ComponentType<any>;
-/* eslint-enable @typescript-eslint/no-explicit-any */
+const ChatControlsView = ChatControls as React.ComponentType<Record<string, unknown>>;
+const MessageListView = MessageList as React.ComponentType<Record<string, unknown>>;
+const MessageInputView = MessageInput as React.ComponentType<Record<string, unknown>>;
+const DocumentModalView = DocumentModal as React.ComponentType<Record<string, unknown>>;
+const PromptLibraryModalView = PromptLibraryModal as unknown as React.ComponentType<
+  Record<string, unknown>
+>;
 
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
@@ -81,6 +82,34 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     loadingMoreDocuments,
   } = useChatDocuments();
 
+  const catalogOptions = useMemo(
+    () => catalogModelsToOptions(catalogModels, selectedProvider),
+    [catalogModels, selectedProvider]
+  );
+
+  // Prefer live Ollama tags when available; otherwise Settings catalog.
+  const availableModels = useMemo(() => {
+    let list =
+      selectedProvider === 'ollama' && remoteModels.length > 0
+        ? remoteModels
+        : catalogOptions;
+    if (selectedModel && !list.some((m) => m.value === selectedModel)) {
+      list = [
+        { value: selectedModel, label: `${selectedModel} (Обрана)` },
+        ...list,
+      ];
+    }
+    return list;
+  }, [selectedProvider, remoteModels, catalogOptions, selectedModel]);
+
+  const activeModel = useMemo(() => {
+    if (availableModels.length === 0) return selectedModel;
+    if (availableModels.some((m) => m.value === selectedModel)) {
+      return selectedModel;
+    }
+    return availableModels[0].value;
+  }, [availableModels, selectedModel]);
+
   const {
     streaming,
     streamedText,
@@ -91,7 +120,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   } = useChatStream({
     conversationId,
     onNewMessage,
-    selectedModel,
+    selectedModel: activeModel,
     selectedProvider,
     temperature,
     selectedDocIds,
@@ -121,18 +150,48 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     }
   }, []);
 
-  useEffect(() => {
-    if (!settings) return;
-    const prov = settings.default_provider || 'openai';
-    const mod = settings.default_model || '';
-    const host = settings.default_ollama_host;
-    setSelectedProvider(prov);
-    setSelectedModel(mod);
-    if (settings.temperature !== undefined) {
-      setTemperature(parseFloat(String(settings.temperature)));
+  const [settingsSnapshot, setSettingsSnapshot] = useState<
+    UserSettings | undefined
+  >(undefined);
+
+  if (settings !== settingsSnapshot) {
+    setSettingsSnapshot(settings);
+    if (settings) {
+      setSelectedProvider(settings.default_provider || 'openai');
+      setSelectedModel(settings.default_model || '');
+      if (settings.temperature !== undefined) {
+        setTemperature(parseFloat(String(settings.temperature)));
+      }
     }
-    if (prov === 'ollama') void fetchRemoteModels(host);
-  }, [settings, fetchRemoteModels]);
+  }
+
+  // Side-effect only: discover Ollama tags when settings say ollama.
+  useEffect(() => {
+    if (settings?.default_provider !== 'ollama') return;
+    const host = settings.default_ollama_host;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await modelsAPI.getRemote('ollama', host);
+        if (cancelled) return;
+        const raw = Array.isArray(response.data)
+          ? response.data
+          : response.data?.models || [];
+        const fetched = raw.map((m) => ({
+          value: String(m.id || m.name || ''),
+          label: `${m.name || m.id} (Локальна)`,
+        }));
+        if (fetched.length > 0) setRemoteModels(fetched);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Could not fetch remote Ollama models:', message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settings?.default_provider, settings?.default_ollama_host]);
 
   const scrollToBottom = useCallback(() => {
     if (
@@ -147,33 +206,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     scrollToBottom();
   }, [messages, streamedText, scrollToBottom]);
 
-  const catalogOptions = useMemo(
-    () => catalogModelsToOptions(catalogModels, selectedProvider),
-    [catalogModels, selectedProvider]
-  );
-
-  // Prefer live Ollama tags when available; otherwise Settings catalog.
-  const availableModels = useMemo(() => {
-    let list =
-      selectedProvider === 'ollama' && remoteModels.length > 0
-        ? remoteModels
-        : catalogOptions;
-    if (selectedModel && !list.some((m) => m.value === selectedModel)) {
-      list = [
-        { value: selectedModel, label: `${selectedModel} (Обрана)` },
-        ...list,
-      ];
-    }
-    return list;
-  }, [selectedProvider, remoteModels, catalogOptions, selectedModel]);
-
-  useEffect(() => {
-    if (availableModels.length === 0) return;
-    if (!availableModels.some((m) => m.value === selectedModel)) {
-      setSelectedModel(availableModels[0].value);
-    }
-  }, [availableModels, selectedModel]);
-
   const handleProviderChange = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {
       const provider = e.target.value;
@@ -187,7 +219,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     },
     [catalogModels, fetchRemoteModels, settings?.default_ollama_host]
   );
-
   const copyMessage = useCallback((text: string) => {
     void navigator.clipboard.writeText(text);
     toast.success('Скопійовано! 📋', { autoClose: 1500 });
@@ -276,7 +307,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       <ChatControlsView
         selectedProvider={selectedProvider}
         onProviderChange={handleProviderChange}
-        selectedModel={selectedModel}
+        selectedModel={activeModel}
         onModelChange={setSelectedModel}
         availableModels={availableModels}
         temperature={temperature}
@@ -324,7 +355,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onAttachImage={() =>
           imageInputRef.current && imageInputRef.current.click()
         }
-        supportsVision={modelSupportsVision(selectedModel, catalogModels)}
+        supportsVision={modelSupportsVision(activeModel, catalogModels)}
       />
 
       <input

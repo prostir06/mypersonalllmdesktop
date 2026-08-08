@@ -1,7 +1,7 @@
 /**
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-import React, { useState, useEffect, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
@@ -10,12 +10,17 @@ import { useModels } from '../hooks/useModels';
 import { modelsAPI } from '../services/api';
 import { catalogModelsToOptions, type ModelOption } from '../utils/catalogModelOptions';
 import ModelCatalog from '../components/settings/ModelCatalog';
-import type { SettingsUpdatePayload } from '../types/api';
+import type { SettingsUpdatePayload, UserSettings } from '../types/api';
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI API' },
   { value: 'ollama', label: 'Ollama (Local Server)' },
 ] as const;
+
+function normalizeProvider(raw: string | undefined): string {
+  const prov = raw || 'openai';
+  return prov === 'openai' || prov === 'ollama' ? prov : 'openai';
+}
 
 const Settings: React.FC = () => {
   const { data: settingsData, isLoading: isLoadingSettings } = useSettings();
@@ -35,12 +40,38 @@ const Settings: React.FC = () => {
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'error' | null>(null);
+  const [settingsSnapshot, setSettingsSnapshot] = useState<
+    UserSettings | undefined
+  >(undefined);
 
-  useEffect(() => {
-    if (settingsData) {
-      let prov = settingsData.default_provider || 'openai';
-      if (prov !== 'openai' && prov !== 'ollama') prov = 'openai';
-      setProvider(prov);
+  const settingsFingerprint = settingsData
+    ? [
+        settingsData.default_provider,
+        settingsData.default_model,
+        settingsData.temperature,
+        settingsData.max_tokens,
+        settingsData.default_ollama_host,
+        settingsData.system_prompt,
+        settingsData.has_openai_api_key,
+      ].join('|')
+    : '';
+
+  // Hydrate form when server settings fingerprint changes (no effect).
+  if (settingsData && settingsData !== settingsSnapshot) {
+    const prevFp = settingsSnapshot
+      ? [
+          settingsSnapshot.default_provider,
+          settingsSnapshot.default_model,
+          settingsSnapshot.temperature,
+          settingsSnapshot.max_tokens,
+          settingsSnapshot.default_ollama_host,
+          settingsSnapshot.system_prompt,
+          settingsSnapshot.has_openai_api_key,
+        ].join('|')
+      : '';
+    if (settingsFingerprint !== prevFp) {
+      setSettingsSnapshot(settingsData);
+      setProvider(normalizeProvider(settingsData.default_provider));
       setModel(settingsData.default_model || '');
       setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
       setMaxTokens(parseInt(String(settingsData.max_tokens ?? 2000), 10) || 2000);
@@ -48,12 +79,14 @@ const Settings: React.FC = () => {
         settingsData.default_ollama_host ||
           'http://127.0.0.1:11434/v1/chat/completions'
       );
-      setSystemPrompt(settingsData.system_prompt || '');
+      setSystemPrompt(String(settingsData.system_prompt || ''));
       setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
       setOpenaiApiKey('');
       setClearOpenaiKey(false);
+    } else if (settingsData !== settingsSnapshot) {
+      setSettingsSnapshot(settingsData);
     }
-  }, [settingsData]);
+  }
 
   const catalogOptions = useMemo(
     () => catalogModelsToOptions(catalogModels, provider),
@@ -65,12 +98,9 @@ const Settings: React.FC = () => {
       ? remoteModels
       : catalogOptions;
 
-  useEffect(() => {
-    if (currentModels.length === 0) return;
-    if (!currentModels.some((opt) => opt.value === model)) {
-      setModel(currentModels[0].value);
-    }
-  }, [currentModels, model]);
+  const activeModel = currentModels.some((opt) => opt.value === model)
+    ? model
+    : currentModels[0]?.value || '';
 
   const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -121,7 +151,7 @@ const Settings: React.FC = () => {
     try {
       const payload: SettingsUpdatePayload = {
         default_provider: provider,
-        default_model: model,
+        default_model: activeModel,
         temperature: Number(temperature),
         max_tokens: Number(maxTokens),
         default_ollama_host: ollamaHost,
@@ -200,7 +230,7 @@ const Settings: React.FC = () => {
                 </Form.Label>
                 <Form.Select
                   id="model-select"
-                  value={model}
+                  value={activeModel}
                   onChange={(e) => setModel(e.target.value)}
                   className="bg-dark text-light border-secondary shadow-none"
                   disabled={currentModels.length === 0}

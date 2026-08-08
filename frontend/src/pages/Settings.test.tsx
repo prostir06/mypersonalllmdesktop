@@ -6,16 +6,18 @@ import Settings from './Settings';
 
 const mutateAsync = vi.fn().mockResolvedValue({});
 
+const settingsData = {
+  default_provider: 'openai',
+  default_model: 'gpt-4o-mini',
+  temperature: 0.7,
+  max_tokens: 2000,
+  system_prompt: '',
+  has_openai_api_key: false,
+};
+
 vi.mock('../hooks/useSettings', () => ({
   useSettings: () => ({
-    data: {
-      default_provider: 'openai',
-      default_model: 'gpt-4o-mini',
-      temperature: 0.7,
-      max_tokens: 2000,
-      system_prompt: '',
-      has_openai_api_key: false,
-    },
+    data: settingsData,
     isLoading: false,
   }),
   useUpdateSettings: () => ({

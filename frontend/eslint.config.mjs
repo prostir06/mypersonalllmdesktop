@@ -20,7 +20,7 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
@@ -46,8 +46,8 @@ export default tseslint.config(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      // Existing JSX still syncs props→state in effects; tighten later.
-      'react-hooks/set-state-in-effect': 'off',
+      // Remaining JSX still hydrates forms in effects; warn while migrating to TSX.
+      'react-hooks/set-state-in-effect': 'warn',
       'no-unused-vars': [
         'error',
         {
