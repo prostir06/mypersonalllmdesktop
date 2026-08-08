@@ -84,7 +84,7 @@ Packaged Windows build (after `frontend` production build): `cd desktop && npm r
 
 ### With Docker
 
-**Local / development** (bind-mount, published Postgres `5432`, soft defaults):
+**Default `docker compose` = local/dev** (bind-mount of `./backend`, published Postgres `5432`, soft secret defaults). Prefer rebuilding host `backend/dist` after code changes, or use prod compose so the image `dist/` is authoritative.
 
 ```bash
 cp .env.example .env
@@ -92,12 +92,12 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-**Production** (required secrets, no host DB port, image `dist/` only):
+**Production** (required secrets, no host DB port, image `dist/` only — no ts-node fallback):
 
 ```bash
 cp .env.example .env
-# Set strong JWT_SECRET and DB_PASSWORD (placeholders are rejected at boot)
-# Set OPENAI_API_KEY if using OpenAI
+# Required: strong JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY (placeholders rejected at boot)
+# Optional: OPENAI_API_KEY, ALLOW_REGISTRATION=false (default deny when NODE_ENV=production)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
@@ -136,7 +136,7 @@ DB_PASSWORD=password
 JWT_SECRET=your_jwt_secret_key_change_this_in_production
 JWT_ACCESS_EXPIRE=15m
 JWT_REFRESH_EXPIRE=30d
-ENCRYPTION_KEY=
+ENCRYPTION_KEY=   # required in production (compose prod + entrypoint)
 OPENAI_API_KEY=your_openai_api_key_here
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
 CORS_ORIGIN=http://localhost:3000

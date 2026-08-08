@@ -15,6 +15,12 @@ if [ "${NODE_ENV}" = "production" ]; then
       exit 1
       ;;
   esac
+  case "${ENCRYPTION_KEY}" in
+    "")
+      echo "FATAL: ENCRYPTION_KEY must be set in production (32-byte base64 or 64 hex chars)" >&2
+      exit 1
+      ;;
+  esac
   if [ ! -f dist/server.js ]; then
     echo "FATAL: dist/server.js missing; production refuses ts-node bind-mount fallback" >&2
     exit 1

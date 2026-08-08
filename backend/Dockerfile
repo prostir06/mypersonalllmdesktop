@@ -1,7 +1,7 @@
 # ============================================================
-# Multi-stage Dockerfile для BACKEND
-# Auth і Prisma-конфіг — TypeScript; runtime через ts-node/register
-# (docker-compose монтує ./backend поверх /app, тому потрібен ts-node у image)
+# Multi-stage Dockerfile for BACKEND
+# Image build emits dist/; production entrypoint runs node dist/server.js.
+# Default compose may bind-mount ./backend (dev) and fall back to ts-node.
 # ============================================================
 
 # --- Stage 1: Dependencies + Prisma Client ---

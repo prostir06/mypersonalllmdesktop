@@ -1,5 +1,9 @@
-// Routes/controllers are TypeScript — register before any require('./routes/*')
-require('ts-node/register');
+// Routes/controllers are TypeScript — register only when running from src/
+// (dev / compose bind-mount fallback). Compiled dist/ must not load ts-node.
+const path = require('path');
+if (path.basename(__dirname) !== 'dist') {
+  require('ts-node/register');
+}
 
 const express = require('express');
 const cors = require('cors');
