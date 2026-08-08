@@ -16,6 +16,18 @@ type AuthRequest = Request & {
   file?: UploadedFile;
 };
 
+function isProduction(): boolean {
+  return process.env.NODE_ENV === 'production';
+}
+
+function publicUploadError(
+  publicError: string,
+  details: string
+): { error: string } {
+  if (isProduction()) return { error: publicError };
+  return { error: `${publicError}: ${details}` };
+}
+
 export async function uploadDocument(
   req: AuthRequest,
   res: Response
@@ -45,7 +57,7 @@ export async function uploadDocument(
       return;
     }
 
-    res.status(500).json({ error: `Помилка обробки файлу: ${message}` });
+    res.status(500).json(publicUploadError('Помилка обробки файлу', message));
   }
 }
 

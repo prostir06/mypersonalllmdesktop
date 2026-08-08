@@ -94,4 +94,22 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Будь ласка, виберіть файл для завантаження');
   });
+
+  it('POST /upload in production omits internal error details', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    mockedService.uploadAndProcess.mockRejectedValue(
+      new Error('ENOENT /secret/path.pdf')
+    );
+    try {
+      const res = await request(app)
+        .post('/api/documents/upload')
+        .attach('file', Buffer.from('x'), 'x.txt');
+      expect(res.status).toBe(500);
+      expect(res.body.error).not.toMatch(/ENOENT|secret/);
+      expect(res.body.error).toMatch(/Помилка обробки файлу/);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
 });
