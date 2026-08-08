@@ -92,6 +92,7 @@ async function sendOllamaMessage(
     const apiUrl = resolveOllamaUrl(ollama_host);
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
+      maxRedirects: 0,
     });
 
     return {
@@ -123,6 +124,7 @@ async function streamOllamaMessage(
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'stream',
+      maxRedirects: 0,
       ...(signal ? { signal } : {}),
     });
 

@@ -49,6 +49,34 @@ describe('ollamaService', () => {
     expect(mockedAxios.post).not.toHaveBeenCalled();
   });
 
+  it('sendOllamaMessage disables axios redirects', async () => {
+    mockedAxios.post = jest.fn().mockResolvedValue({
+      data: {
+        choices: [{ message: { content: 'ok' } }],
+        usage: {},
+        model: 'llama2',
+      },
+    });
+    await sendOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2', {
+      ollama_host: 'http://127.0.0.1:11434/v1/chat/completions',
+    });
+    expect(mockedAxios.post.mock.calls[0][2]).toMatchObject({
+      maxRedirects: 0,
+    });
+  });
+
+  it('streamOllamaMessage disables axios redirects', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => ee.emit('end'));
+      return Promise.resolve({ data: ee });
+    });
+    await streamOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2');
+    expect(mockedAxios.post.mock.calls[0][2]).toMatchObject({
+      maxRedirects: 0,
+    });
+  });
+
   it('sendOllamaMessage ignores client overrides of model/messages/stream', async () => {
     mockedAxios.post = jest.fn().mockResolvedValue({
       data: {

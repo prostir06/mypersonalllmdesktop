@@ -239,6 +239,7 @@ describe('Models API (Prisma)', () => {
     expect(res.body).toEqual([{ id: 'llama3', name: 'llama3' }]);
     expect(mockedAxios.get).toHaveBeenCalled();
     expect(mockedAxios.get.mock.calls[0][0]).toBe('http://127.0.0.1:11434/api/tags');
+    expect(mockedAxios.get.mock.calls[0][1]).toMatchObject({ maxRedirects: 0 });
   });
 
   it('GET /remote returns 502 when all candidates fail', async () => {
