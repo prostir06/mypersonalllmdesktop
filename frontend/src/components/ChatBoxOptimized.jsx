@@ -6,35 +6,22 @@ import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { conversationAPI, modelsAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
+import { useModels } from '../hooks/useModels';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
 import { useChatStream } from '../hooks/useChatStream';
 import { useConversationHistory } from '../hooks/useConversationHistory';
+import { catalogModelsToOptions } from '../utils/catalogModelOptions';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import DocumentModal from './chat/DocumentModal';
 import PromptLibraryModal from './PromptLibraryModal';
 
-const MODEL_OPTIONS = {
-  openai: [
-    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo (Швидка)' },
-    { value: 'gpt-4', label: 'GPT-4 (Розумна)' },
-    { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
-    { value: 'gpt-4o', label: 'GPT-4o (Найновіша)' },
-  ],
-  ollama: [
-    { value: 'llama2', label: 'Llama 2 (Локальна)' },
-    { value: 'llama3', label: 'Llama 3 (Локальна)' },
-    { value: 'mistral', label: 'Mistral (Локальна)' },
-    { value: 'codellama', label: 'CodeLlama' },
-  ],
-};
-
 const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('openai');
-  const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
+  const [selectedModel, setSelectedModel] = useState('');
   const [remoteModels, setRemoteModels] = useState([]);
   const [temperature, setTemperature] = useState(0.7);
   const [showPromptModal, setShowPromptModal] = useState(false);
@@ -43,6 +30,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
   const messagesEndRef = useRef(null);
 
   const { data: settings } = useSettings();
+  const { data: catalogModels = [] } = useModels();
   const updateSettings = useUpdateSettings();
   const { isListening, speakingIdx, toggleListening, speakText } =
     useSpeech(setInputMessage);
@@ -97,7 +85,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
   useEffect(() => {
     if (!settings) return;
     const prov = settings.default_provider || 'openai';
-    const mod = settings.default_model || 'gpt-3.5-turbo';
+    const mod = settings.default_model || '';
     const host = settings.default_ollama_host;
     setSelectedProvider(prov);
     setSelectedModel(mod);
@@ -120,11 +108,17 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     scrollToBottom();
   }, [messages, streamedText, scrollToBottom]);
 
+  const catalogOptions = useMemo(
+    () => catalogModelsToOptions(catalogModels, selectedProvider),
+    [catalogModels, selectedProvider]
+  );
+
+  // Prefer live Ollama tags when available; otherwise Settings catalog.
   const availableModels = useMemo(() => {
     let list =
       selectedProvider === 'ollama' && remoteModels.length > 0
         ? remoteModels
-        : MODEL_OPTIONS[selectedProvider] || MODEL_OPTIONS.openai;
+        : catalogOptions;
     if (selectedModel && !list.some((m) => m.value === selectedModel)) {
       list = [
         { value: selectedModel, label: `${selectedModel} (Обрана)` },
@@ -132,20 +126,27 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
       ];
     }
     return list;
-  }, [selectedProvider, remoteModels, selectedModel]);
+  }, [selectedProvider, remoteModels, catalogOptions, selectedModel]);
+
+  useEffect(() => {
+    if (availableModels.length === 0) return;
+    if (!availableModels.some((m) => m.value === selectedModel)) {
+      setSelectedModel(availableModels[0].value);
+    }
+  }, [availableModels, selectedModel]);
 
   const handleProviderChange = useCallback(
     (e) => {
       const provider = e.target.value;
       setSelectedProvider(provider);
-      if (provider === 'ollama') fetchRemoteModels();
-      const models =
-        provider === 'ollama' && remoteModels.length > 0
-          ? remoteModels
-          : MODEL_OPTIONS[provider] || MODEL_OPTIONS.openai;
-      if (models.length > 0) setSelectedModel(models[0].value);
+      setRemoteModels([]);
+      if (provider === 'ollama') {
+        fetchRemoteModels(settings?.default_ollama_host);
+      }
+      const models = catalogModelsToOptions(catalogModels, provider);
+      setSelectedModel(models[0]?.value || '');
     },
-    [remoteModels, fetchRemoteModels]
+    [catalogModels, fetchRemoteModels, settings?.default_ollama_host]
   );
 
   const copyMessage = useCallback((text) => {

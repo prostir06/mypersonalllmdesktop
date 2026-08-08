@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useModels } from '../hooks/useModels';
 import { modelsAPI } from '../services/api';
+import { catalogModelsToOptions } from '../utils/catalogModelOptions';
 import ModelCatalog from '../components/settings/ModelCatalog';
 
 const providerOptions = [
@@ -53,13 +54,7 @@ const Settings = () => {
   }, [settingsData]);
 
   const catalogOptions = useMemo(
-    () =>
-      catalogModels
-        .filter((m) => m.provider === provider)
-        .map((m) => ({
-          value: m.model_id,
-          label: m.name || m.model_id,
-        })),
+    () => catalogModelsToOptions(catalogModels, provider),
     [catalogModels, provider]
   );
 
@@ -79,9 +74,7 @@ const Settings = () => {
     const val = e.target.value;
     setProvider(val);
     setRemoteModels([]);
-    const options = catalogModels
-      .filter((m) => m.provider === val)
-      .map((m) => ({ value: m.model_id, label: m.name || m.model_id }));
+    const options = catalogModelsToOptions(catalogModels, val);
     setModel(options[0]?.value || '');
   };
 
