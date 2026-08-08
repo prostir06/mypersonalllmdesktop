@@ -24,7 +24,7 @@
     ],
     "extraResources": [
       {
-        "from": "../frontend/dist",
+        "from": "../frontend/build",
         "to": "ui",
         "filter": ["**/*"]
       }

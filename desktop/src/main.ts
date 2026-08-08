@@ -21,8 +21,8 @@ function packagedUiRoot(): string {
 }
 
 function devUiRoot(): string {
-  // When running unpackaged: ../frontend/dist relative to desktop/
-  return path.join(__dirname, '..', '..', 'frontend', 'dist');
+  // When running unpackaged: ../frontend/build relative to desktop/
+  return path.join(__dirname, '..', '..', 'frontend', 'build');
 }
 
 async function createWindow(): Promise<void> {

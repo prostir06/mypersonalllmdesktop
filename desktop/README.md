@@ -36,7 +36,7 @@ Env (optional):
 
 ## Prod-like local (static UI + /api proxy)
 
-Builds TypeScript and opens Electron against `frontend/dist`, serving on `127.0.0.1:3911` and proxying `/api` → backend (keeps refresh cookies same-origin).
+Builds TypeScript and opens Electron against `frontend/build` (Vite `outDir`), serving on `127.0.0.1:3911` and proxying `/api` → backend (keeps refresh cookies same-origin).
 
 ```bash
 cd frontend && npm run build
