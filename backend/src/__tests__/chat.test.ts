@@ -73,6 +73,32 @@ describe('chat routes', () => {
     });
   });
 
+  it('POST /send forces enableTools false even if client requests tools', async () => {
+    mockedChat.sendMessage.mockResolvedValue({
+      conversationId: 1,
+      messageId: 2,
+      content: 'ok',
+      role: 'assistant',
+      timestamp: new Date(),
+      usage: {},
+    });
+    const res = await request(app)
+      .post('/api/chat/send')
+      .send({
+        message: 'hi',
+        options: { enableTools: true, temperature: 0.2 },
+      });
+    expect(res.status).toBe(200);
+    expect(mockedChat.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          enableTools: false,
+          temperature: 0.2,
+        }),
+      })
+    );
+  });
+
   it('GET /history/:id 404', async () => {
     const err: any = new Error('Conversation not found');
     err.statusCode = 404;

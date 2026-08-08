@@ -74,13 +74,16 @@ export async function sendMessage(
 
     if (!validateChatMessage(message, res)) return;
 
+    // Never let clients enable tools on /send (parity with /stream).
+    const safeOptions = { ...options, enableTools: false };
+
     const result = await ChatService.sendMessage({
       userId: req.userId!,
       conversationId,
       message,
       model,
       provider,
-      options,
+      options: safeOptions,
     });
     res.json(result);
   } catch (error: unknown) {
