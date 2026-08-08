@@ -315,13 +315,16 @@ class ChatService {
       throw new ChatError(404, 'Conversation not found');
     }
 
-    const rows = await prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' },
-      take: limit,
-      skip: offset,
-      select: { id: true, role: true, content: true, createdAt: true },
-    });
+    const [rows, total] = await Promise.all([
+      prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'asc' },
+        take: limit,
+        skip: offset,
+        select: { id: true, role: true, content: true, createdAt: true },
+      }),
+      prisma.message.count({ where: { conversationId } }),
+    ]);
 
     return {
       messages: rows.map((m) => ({
@@ -330,7 +333,7 @@ class ChatService {
         content: m.content,
         created_at: m.createdAt,
       })),
-      total: rows.length,
+      total,
       limit,
       offset,
     };

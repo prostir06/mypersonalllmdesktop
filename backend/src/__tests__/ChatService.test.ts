@@ -9,6 +9,7 @@ jest.mock('../config/prisma', () => ({
     message: {
       create: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     userSettings: {
       findUnique: jest.fn(),
@@ -256,6 +257,7 @@ describe('ChatService', () => {
       mockedPrisma.message.findMany.mockResolvedValue([
         { id: 1, role: 'user', content: 'a', createdAt },
       ]);
+      mockedPrisma.message.count.mockResolvedValue(1);
 
       const result = await ChatService.getHistory(1, 5, 100, 0);
       expect(result.messages[0]).toEqual({
@@ -263,6 +265,21 @@ describe('ChatService', () => {
         role: 'user',
         content: 'a',
         created_at: createdAt,
+      });
+    });
+
+    it('returns total as conversation message count not page length', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      mockedPrisma.message.findMany.mockResolvedValue([
+        { id: 1, role: 'user', content: 'a', createdAt: new Date() },
+      ]);
+      mockedPrisma.message.count.mockResolvedValue(42);
+
+      const result = await ChatService.getHistory(1, 5, 1, 0);
+      expect(result.total).toBe(42);
+      expect(result.messages).toHaveLength(1);
+      expect(mockedPrisma.message.count).toHaveBeenCalledWith({
+        where: { conversationId: 5 },
       });
     });
   });
