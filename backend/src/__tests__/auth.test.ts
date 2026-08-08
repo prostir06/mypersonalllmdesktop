@@ -151,7 +151,7 @@ describe('Auth API (Prisma)', () => {
     expect(mockedPrisma.refreshToken.findUnique).not.toHaveBeenCalled();
   });
 
-  it('POST /refresh returns 401 for revoked token', async () => {
+  it('POST /refresh returns 401 for revoked token and revokes all sessions', async () => {
     const raw = 'revoked-token';
     mockedPrisma.refreshToken.findUnique.mockResolvedValue({
       id: 1,
@@ -160,12 +160,17 @@ describe('Auth API (Prisma)', () => {
       expiresAt: new Date(Date.now() + 60_000),
       revokedAt: new Date(),
     });
+    mockedPrisma.refreshToken.updateMany.mockResolvedValue({ count: 2 });
 
     const res = await request(app)
       .post('/api/auth/refresh')
       .set('Cookie', [`refresh_token=${raw}`]);
 
     expect(res.status).toBe(401);
+    expect(mockedPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: 7, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
   });
 
   it('POST /logout revokes and clears cookie', async () => {

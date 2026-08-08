@@ -64,7 +64,20 @@ export async function rotateRefreshToken(
     where: { tokenHash },
   });
 
-  if (!existing || existing.revokedAt || existing.expiresAt.getTime() <= Date.now()) {
+  if (!existing) {
+    return null;
+  }
+
+  // Reuse of an already-rotated/revoked token → revoke all sessions for that user
+  if (existing.revokedAt) {
+    await prisma.refreshToken.updateMany({
+      where: { userId: existing.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return null;
+  }
+
+  if (existing.expiresAt.getTime() <= Date.now()) {
     return null;
   }
 
