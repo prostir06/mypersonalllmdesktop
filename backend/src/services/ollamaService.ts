@@ -90,6 +90,8 @@ async function sendOllamaMessage(
     const payload = buildOllamaPayload(messages, model, options, false);
 
     const apiUrl = resolveOllamaUrl(ollama_host);
+    // maxRedirects: 0 — after URL allowlist, axios must not follow redirects
+    // to a disallowed host (SSRF bypass).
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       maxRedirects: 0,
@@ -124,6 +126,7 @@ async function streamOllamaMessage(
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'stream',
+      // Same SSRF guard as sendOllamaMessage: never follow redirects.
       maxRedirects: 0,
       ...(signal ? { signal } : {}),
     });

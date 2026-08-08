@@ -20,6 +20,11 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
+/**
+ * Build upload error JSON for clients.
+ * Production: public message only (no paths / stack / internals).
+ * Other envs: append details to speed up local debugging.
+ */
 function publicUploadError(
   publicError: string,
   details: string

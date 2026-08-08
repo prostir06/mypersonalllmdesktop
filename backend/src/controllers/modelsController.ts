@@ -211,6 +211,7 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
     let models: { id: string; name: string }[] | null = null;
     for (const url of candidates) {
       try {
+        // Do not follow redirects after host allowlist (SSRF).
         const r = await axios.get(url, { timeout: 5000, maxRedirects: 0 });
         if (r.status === 200 && r.data) {
           const data = r.data.models || r.data.data || r.data || r.data.engines;

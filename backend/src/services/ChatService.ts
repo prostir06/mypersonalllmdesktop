@@ -303,40 +303,49 @@ class ChatService {
     limit: number,
     offset: number
   ) {
+    // Reject non-positive / non-integer ids before Prisma (NaN would coerce badly).
     if (!Number.isInteger(conversationId) || conversationId <= 0) {
       throw new ChatError(404, 'Conversation not found');
     }
 
-    const owned = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId },
-      select: { id: true },
-    });
-    if (!owned) {
-      throw new ChatError(404, 'Conversation not found');
+    try {
+      const owned = await prisma.conversation.findFirst({
+        where: { id: conversationId, userId },
+        select: { id: true },
+      });
+      if (!owned) {
+        throw new ChatError(404, 'Conversation not found');
+      }
+
+      // Page of messages + full conversation count (not page length) for clients.
+      const [rows, total] = await Promise.all([
+        prisma.message.findMany({
+          where: { conversationId },
+          orderBy: { createdAt: 'asc' },
+          take: limit,
+          skip: offset,
+          select: { id: true, role: true, content: true, createdAt: true },
+        }),
+        prisma.message.count({ where: { conversationId } }),
+      ]);
+
+      return {
+        messages: rows.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          created_at: m.createdAt,
+        })),
+        total,
+        limit,
+        offset,
+      };
+    } catch (err: unknown) {
+      if (err instanceof ChatError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`getHistory failed for user ${userId}: ${message}`);
+      throw err;
     }
-
-    const [rows, total] = await Promise.all([
-      prisma.message.findMany({
-        where: { conversationId },
-        orderBy: { createdAt: 'asc' },
-        take: limit,
-        skip: offset,
-        select: { id: true, role: true, content: true, createdAt: true },
-      }),
-      prisma.message.count({ where: { conversationId } }),
-    ]);
-
-    return {
-      messages: rows.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        created_at: m.createdAt,
-      })),
-      total,
-      limit,
-      offset,
-    };
   }
 
   static async searchMessages(

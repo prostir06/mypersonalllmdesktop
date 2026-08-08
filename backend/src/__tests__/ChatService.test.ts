@@ -282,6 +282,18 @@ describe('ChatService', () => {
         where: { conversationId: 5 },
       });
     });
+
+    it('logs and rethrows when Prisma history load fails', async () => {
+      const logger = require('../logger');
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      mockedPrisma.message.findMany.mockRejectedValue(new Error('db history'));
+      await expect(ChatService.getHistory(1, 5, 100, 0)).rejects.toThrow(
+        'db history'
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/getHistory failed.*db history/)
+      );
+    });
   });
 
   describe('searchMessages', () => {

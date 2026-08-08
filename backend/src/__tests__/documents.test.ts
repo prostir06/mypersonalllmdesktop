@@ -112,4 +112,21 @@ describe('Documents API (Prisma routes)', () => {
       process.env.NODE_ENV = prev;
     }
   });
+
+  it('POST /upload in non-production includes internal error details', async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'test';
+    mockedService.uploadAndProcess.mockRejectedValue(
+      new Error('ENOENT /secret/path.pdf')
+    );
+    try {
+      const res = await request(app)
+        .post('/api/documents/upload')
+        .attach('file', Buffer.from('x'), 'x.txt');
+      expect(res.status).toBe(500);
+      expect(res.body.error).toMatch(/ENOENT \/secret\/path\.pdf/);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
 });

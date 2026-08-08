@@ -5,6 +5,11 @@ import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { startUiServer, type UiServer } from './uiServer';
+import {
+  assertUiRootExists,
+  packagedUiRoot,
+  unpackagedUiRoot,
+} from './uiPaths';
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
@@ -13,16 +18,6 @@ let uiServer: UiServer | null = null;
 
 function preloadPath(): string {
   return path.join(__dirname, 'preload.js');
-}
-
-function packagedUiRoot(): string {
-  // electron-builder extraResources → resources/ui
-  return path.join(process.resourcesPath, 'ui');
-}
-
-function devUiRoot(): string {
-  // When running unpackaged: ../frontend/build relative to desktop/
-  return path.join(__dirname, '..', '..', 'frontend', 'build');
 }
 
 async function createWindow(): Promise<void> {
@@ -60,12 +55,22 @@ async function createWindow(): Promise<void> {
     return;
   }
 
-  const backendOrigin = resolveBackendOrigin();
-  const port = uiPort();
-  const uiRoot = app.isPackaged ? packagedUiRoot() : devUiRoot();
+  try {
+    const backendOrigin = resolveBackendOrigin();
+    const port = uiPort();
+    // Packaged: resources/ui. Local start: Vite outDir frontend/build.
+    const rawRoot = app.isPackaged
+      ? packagedUiRoot(process.resourcesPath)
+      : unpackagedUiRoot(__dirname);
+    const uiRoot = assertUiRootExists(rawRoot);
 
-  uiServer = await startUiServer({ uiRoot, backendOrigin, port });
-  await mainWindow.loadURL(`http://127.0.0.1:${uiServer.port}`);
+    uiServer = await startUiServer({ uiRoot, backendOrigin, port });
+    await mainWindow.loadURL(`http://127.0.0.1:${uiServer.port}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Failed to bind static UI + /api proxy:', message);
+    throw err;
+  }
 }
 
 app.whenReady().then(() => {
