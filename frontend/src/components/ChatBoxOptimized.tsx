@@ -1,33 +1,64 @@
 /**
  * Chat orchestrator — wires settings, stream, speech, and documents hooks.
  */
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import { conversationAPI, modelsAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useModels } from '../hooks/useModels';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatStream, type AttachedImage } from '../hooks/useChatStream';
 import { useConversationHistory } from '../hooks/useConversationHistory';
-import { catalogModelsToOptions } from '../utils/catalogModelOptions';
+import {
+  catalogModelsToOptions,
+  type ModelOption,
+} from '../utils/catalogModelOptions';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import DocumentModal from './chat/DocumentModal';
 import PromptLibraryModal from './PromptLibraryModal';
 
-const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
+// Incremental: child controls still JSX without prop types.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const ChatControlsView = ChatControls as React.ComponentType<any>;
+const MessageListView = MessageList as React.ComponentType<any>;
+const MessageInputView = MessageInput as React.ComponentType<any>;
+const DocumentModalView = DocumentModal as React.ComponentType<any>;
+const PromptLibraryModalView = PromptLibraryModal as React.ComponentType<any>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+type ChatBoxOptimizedProps = {
+  conversationId?: string | number | null;
+  onNewMessage?: (conversationId?: string | number) => void;
+};
+
+const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
+  conversationId,
+  onNewMessage,
+}) => {
   const [inputMessage, setInputMessage] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('openai');
   const [selectedModel, setSelectedModel] = useState('');
-  const [remoteModels, setRemoteModels] = useState([]);
+  const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [temperature, setTemperature] = useState(0.7);
   const [showPromptModal, setShowPromptModal] = useState(false);
-  const [attachedImage, setAttachedImage] = useState(null);
-  const imageInputRef = useRef(null);
-  const messagesEndRef = useRef(null);
+  const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(
+    null
+  );
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const { data: settings } = useSettings();
   const { data: catalogModels = [] } = useModels();
@@ -72,16 +103,20 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     setError
   );
 
-  const fetchRemoteModels = useCallback(async (hostUrl) => {
+  const fetchRemoteModels = useCallback(async (hostUrl?: string) => {
     try {
       const response = await modelsAPI.getRemote('ollama', hostUrl);
-      const fetched = (response.data || []).map((m) => ({
-        value: m.id || m.name,
+      const raw = Array.isArray(response.data)
+        ? response.data
+        : response.data?.models || [];
+      const fetched = raw.map((m) => ({
+        value: String(m.id || m.name || ''),
         label: `${m.name || m.id} (Локальна)`,
       }));
       if (fetched.length > 0) setRemoteModels(fetched);
-    } catch (err) {
-      console.warn('Could not fetch remote Ollama models:', err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('Could not fetch remote Ollama models:', message);
     }
   }, []);
 
@@ -93,9 +128,9 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     setSelectedProvider(prov);
     setSelectedModel(mod);
     if (settings.temperature !== undefined) {
-      setTemperature(parseFloat(settings.temperature));
+      setTemperature(parseFloat(String(settings.temperature)));
     }
-    if (prov === 'ollama') fetchRemoteModels(host);
+    if (prov === 'ollama') void fetchRemoteModels(host);
   }, [settings, fetchRemoteModels]);
 
   const scrollToBottom = useCallback(() => {
@@ -139,12 +174,12 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
   }, [availableModels, selectedModel]);
 
   const handleProviderChange = useCallback(
-    (e) => {
+    (e: ChangeEvent<HTMLSelectElement>) => {
       const provider = e.target.value;
       setSelectedProvider(provider);
       setRemoteModels([]);
       if (provider === 'ollama') {
-        fetchRemoteModels(settings?.default_ollama_host);
+        void fetchRemoteModels(settings?.default_ollama_host);
       }
       const models = catalogModelsToOptions(catalogModels, provider);
       setSelectedModel(models[0]?.value || '');
@@ -152,8 +187,8 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     [catalogModels, fetchRemoteModels, settings?.default_ollama_host]
   );
 
-  const copyMessage = useCallback((text) => {
-    navigator.clipboard.writeText(text);
+  const copyMessage = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text);
     toast.success('Скопійовано! 📋', { autoClose: 1500 });
   }, []);
 
@@ -194,12 +229,13 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         URL.revokeObjectURL(url);
       }
       toast.success('Чат експортовано у Markdown! 📄');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Помилка експорту');
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Помилка експорту');
     }
   }, [conversationId, messages]);
 
-  const handleImageAttach = useCallback((e) => {
+  const handleImageAttach = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
@@ -210,7 +246,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     reader.onload = (ev) => {
       setAttachedImage({
         url: URL.createObjectURL(file),
-        base64: ev.target.result,
+        base64: String(ev.target?.result || ''),
       });
       toast.info('🖼️ Зображення додано до повідомлення!');
     };
@@ -223,7 +259,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
     setAttachedImage(null);
   }, [attachedImage]);
 
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || streaming || loading) return;
     const userContent = inputMessage.trim();
@@ -236,7 +272,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
       className="glass-panel p-3 d-flex flex-column"
       style={{ height: 'calc(100vh - 120px)' }}
     >
-      <ChatControls
+      <ChatControlsView
         selectedProvider={selectedProvider}
         onProviderChange={handleProviderChange}
         selectedModel={selectedModel}
@@ -263,7 +299,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         </Alert>
       )}
 
-      <MessageList
+      <MessageListView
         messages={messages}
         loading={loading}
         streaming={streaming}
@@ -274,7 +310,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         messagesEndRef={messagesEndRef}
       />
 
-      <MessageInput
+      <MessageInputView
         inputMessage={inputMessage}
         onInputChange={setInputMessage}
         onSubmit={handleSendMessage}
@@ -288,7 +324,10 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
           imageInputRef.current && imageInputRef.current.click()
         }
         supportsVision={
-          selectedModel?.includes('gpt-4') || selectedModel?.includes('gpt-4o')
+          Boolean(
+            selectedModel?.includes('gpt-4') ||
+              selectedModel?.includes('gpt-4o')
+          )
         }
       />
 
@@ -300,7 +339,7 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         onChange={handleImageAttach}
       />
 
-      <DocumentModal
+      <DocumentModalView
         show={showDocModal}
         onHide={() => setShowDocModal(false)}
         userDocuments={userDocuments}
@@ -318,18 +357,22 @@ const ChatBoxOptimized = ({ conversationId, onNewMessage }) => {
         loadingMore={loadingMoreDocuments}
       />
 
-      <PromptLibraryModal
+      <PromptLibraryModalView
         show={showPromptModal}
         onHide={() => setShowPromptModal(false)}
-        onSelectPrompt={async (promptText) => {
+        onSelectPrompt={async (promptText: string) => {
           try {
             await updateSettings.mutateAsync({ system_prompt: promptText });
             toast.success('Нову роль AI успішно встановлено! 💡');
-          } catch (e) {
+          } catch (e: unknown) {
+            const ax = e as AxiosError<{
+              error?: string;
+              errors?: Array<{ msg?: string }>;
+            }> & { message?: string };
             const msg =
-              e?.response?.data?.error ||
-              e?.response?.data?.errors?.[0]?.msg ||
-              e?.message ||
+              ax?.response?.data?.error ||
+              ax?.response?.data?.errors?.[0]?.msg ||
+              ax?.message ||
               'невідома помилка';
             toast.error(`Помилка збереження ролі: ${msg}`);
             throw e;

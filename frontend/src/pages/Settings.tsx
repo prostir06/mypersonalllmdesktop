@@ -1,28 +1,30 @@
 /**
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useModels } from '../hooks/useModels';
 import { modelsAPI } from '../services/api';
-import { catalogModelsToOptions } from '../utils/catalogModelOptions';
+import { catalogModelsToOptions, type ModelOption } from '../utils/catalogModelOptions';
 import ModelCatalog from '../components/settings/ModelCatalog';
+import type { SettingsUpdatePayload } from '../types/api';
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI API' },
   { value: 'ollama', label: 'Ollama (Local Server)' },
-];
+] as const;
 
-const Settings = () => {
+const Settings: React.FC = () => {
   const { data: settingsData, isLoading: isLoadingSettings } = useSettings();
   const updateSettingsMutation = useUpdateSettings();
   const { data: catalogModels = [] } = useModels();
 
   const [provider, setProvider] = useState('openai');
   const [model, setModel] = useState('');
-  const [remoteModels, setRemoteModels] = useState([]);
+  const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [ollamaHost, setOllamaHost] = useState('http://127.0.0.1:11434/v1/chat/completions');
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
@@ -32,7 +34,7 @@ const Settings = () => {
   const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
-  const [ollamaStatus, setOllamaStatus] = useState(null);
+  const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'error' | null>(null);
 
   useEffect(() => {
     if (settingsData) {
@@ -40,8 +42,8 @@ const Settings = () => {
       if (prov !== 'openai' && prov !== 'ollama') prov = 'openai';
       setProvider(prov);
       setModel(settingsData.default_model || '');
-      setTemperature(parseFloat(settingsData.temperature) || 0.7);
-      setMaxTokens(parseInt(settingsData.max_tokens, 10) || 2000);
+      setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
+      setMaxTokens(parseInt(String(settingsData.max_tokens ?? 2000), 10) || 2000);
       setOllamaHost(
         settingsData.default_ollama_host ||
           'http://127.0.0.1:11434/v1/chat/completions'
@@ -70,7 +72,7 @@ const Settings = () => {
     }
   }, [currentModels, model]);
 
-  const handleProviderChange = (e) => {
+  const handleProviderChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setProvider(val);
     setRemoteModels([]);
@@ -87,9 +89,9 @@ const Settings = () => {
       const raw = Array.isArray(response.data)
         ? response.data
         : response.data?.models || [];
-      const fetched = raw.map((m) => ({
-        value: m.id || m.name || m.value,
-        label: m.name || m.id || m.label,
+      const fetched: ModelOption[] = raw.map((m) => ({
+        value: String(m.id || m.name || m.value || ''),
+        label: String(m.name || m.id || m.label || ''),
       }));
       setRemoteModels(fetched);
       if (fetched.length > 0) {
@@ -100,10 +102,11 @@ const Settings = () => {
         setOllamaStatus('error');
         setError('Моделей не знайдено. Переконайтеся, що Ollama запущено.');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       setOllamaStatus('error');
+      const ax = err as AxiosError<{ error?: string }>;
       setError(
-        err.response?.data?.error ||
+        ax.response?.data?.error ||
           'Не вдалося підключитися до Ollama. Перевірте URL та доступність сервера.'
       );
     } finally {
@@ -111,16 +114,16 @@ const Settings = () => {
     }
   };
 
-  const handleSave = async (e) => {
+  const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
     try {
-      const payload = {
+      const payload: SettingsUpdatePayload = {
         default_provider: provider,
         default_model: model,
-        temperature: parseFloat(temperature),
-        max_tokens: parseInt(maxTokens, 10),
+        temperature: Number(temperature),
+        max_tokens: Number(maxTokens),
         default_ollama_host: ollamaHost,
         system_prompt: systemPrompt,
       };
@@ -134,8 +137,9 @@ const Settings = () => {
       setOpenaiApiKey('');
       setClearOpenaiKey(false);
       toast.success('Налаштування збережено! ✅');
-    } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Помилка збереження';
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }> & { message?: string };
+      const msg = ax.response?.data?.error || ax.message || 'Помилка збереження';
       setError(msg);
       toast.error('Не вдалося зберегти налаштування');
     }
