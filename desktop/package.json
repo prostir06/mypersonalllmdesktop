@@ -10,6 +10,7 @@
     "dev": "npm run build:ts && cross-env ELECTRON_DEV=1 electron .",
     "start": "npm run build:ts && electron .",
     "pack": "npm run build:ts && electron-builder --dir",
+    "pack:ci": "npm run build:ts && electron-builder --dir --linux",
     "dist": "npm run build:ts && electron-builder --win"
   },
   "build": {
@@ -29,6 +30,10 @@
         "filter": ["**/*"]
       }
     ],
+    "linux": {
+      "target": ["dir"],
+      "category": "Utility"
+    },
     "win": {
       "target": ["nsis", "portable"]
     },

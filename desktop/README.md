@@ -59,6 +59,8 @@ cd ../desktop && npm run dist
 
 Artifacts: `desktop/release/`.
 
+CI also runs `npm run pack:ci` (`electron-builder --dir --linux`) after a frontend build — pack-only smoke, no GUI assert.
+
 ## Security
 
 - `contextIsolation`, no `nodeIntegration`, `sandbox`

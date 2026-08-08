@@ -129,7 +129,19 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: |
+            desktop/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend UI (Electron extraResources)
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
 
       - name: Install desktop dependencies
         run: npm ci
@@ -137,6 +149,14 @@ jobs:
 
       - name: Typecheck and unit tests
         run: npm test
+        working-directory: desktop
+
+      - name: Electron pack smoke (--dir, no GUI)
+        run: npm run pack:ci
+        working-directory: desktop
+
+      - name: Assert pack output exists
+        run: test -d release && ls -la release
         working-directory: desktop
 
   docker-build:
