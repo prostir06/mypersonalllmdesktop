@@ -5,6 +5,10 @@
 import axios from 'axios';
 import prisma from '../config/prisma';
 import logger from '../logger';
+import {
+  packRelevantChunks,
+  type PackRagOptions,
+} from '../utils/packRelevantChunks';
 
 const OPENAI_EMBEDDING_URL = 'https://api.openai.com/v1/embeddings';
 const EMBEDDING_MODEL = 'text-embedding-3-small';
@@ -152,7 +156,8 @@ class EmbeddingService {
     queryEmbedding: number[] | null,
     userId: number,
     documentIds: number[] = [],
-    limit = 5
+    limit = 5,
+    packOptions: PackRagOptions = {}
   ): Promise<RelevantChunk[]> {
     try {
       const columnCheck = (await prisma.$queryRawUnsafe(
@@ -180,7 +185,8 @@ class EmbeddingService {
           query += ` AND d.id = ANY($${params.length}::int[])`;
         }
 
-        params.push(limit);
+        // Fetch extra candidates so similarity/budget packing still has room.
+        params.push(Math.max(limit * 3, limit));
         query += ` ORDER BY dc.embedding <=> $1::vector LIMIT $${params.length}`;
 
         const rows = (await prisma.$queryRawUnsafe(
@@ -188,11 +194,12 @@ class EmbeddingService {
           ...params
         )) as RelevantChunk[];
 
-        if (rows.length > 0) {
+        const packed = packRelevantChunks(rows, packOptions).slice(0, limit);
+        if (packed.length > 0) {
           logger.info(
-            `EmbeddingService: Found ${rows.length} relevant chunks via vector search`
+            `EmbeddingService: Found ${packed.length} relevant chunks via vector search`
           );
-          return rows;
+          return packed;
         }
       }
 
@@ -215,10 +222,15 @@ class EmbeddingService {
       fallbackParams.push(limit * 2);
       fallbackQuery += ` ORDER BY dc.id ASC LIMIT $${fallbackParams.length}`;
 
-      return (await prisma.$queryRawUnsafe(
+      const fallbackRows = (await prisma.$queryRawUnsafe(
         fallbackQuery,
         ...fallbackParams
       )) as RelevantChunk[];
+
+      return packRelevantChunks(fallbackRows, {
+        minSimilarity: 0,
+        maxChars: packOptions.maxChars,
+      }).slice(0, limit);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`EmbeddingService.findRelevantChunks error: ${message}`);

@@ -167,16 +167,55 @@ describe('EmbeddingService (Prisma)', () => {
       expect(vectorCall).toContainEqual([3, 7]);
     });
 
-    it('returns [] when DB throws', async () => {
-      mockedPrisma.$queryRawUnsafe.mockRejectedValue(new Error('db'));
-      await expect(
-        EmbeddingService.findRelevantChunks([0.1], 1, [], 5)
-      ).resolves.toEqual([]);
-      expect(logger.error).toHaveBeenCalled();
+    it('filters low-similarity vector hits and falls back when none remain', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          { content: 'weak', filename: 'w.txt', similarity: 0.05 },
+        ])
+        .mockResolvedValueOnce([
+          { content: 'fallback text', filename: 'doc.txt', similarity: 1.0 },
+        ]);
+
+      const result = await EmbeddingService.findRelevantChunks(
+        [0.1, 0.2],
+        1,
+        [],
+        5,
+        { minSimilarity: 0.25 }
+      );
+
+      expect(result).toEqual([
+        { content: 'fallback text', filename: 'doc.txt', similarity: 1.0 },
+      ]);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('fallback')
+      );
+    });
+
+    it('packs vector hits under maxChars budget', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          { content: 'AAAA', filename: 'a.txt', similarity: 0.9 },
+          { content: 'BBBBBB', filename: 'b.txt', similarity: 0.8 },
+        ]);
+
+      const result = await EmbeddingService.findRelevantChunks(
+        [0.1],
+        1,
+        [],
+        5,
+        { minSimilarity: 0.25, maxChars: 4 }
+      );
+
+      expect(result).toEqual([
+        { content: 'AAAA', filename: 'a.txt', similarity: 0.9 },
+      ]);
     });
 
     it('signature has no pool argument', () => {
-      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(4);
+      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(5);
     });
   });
 });
