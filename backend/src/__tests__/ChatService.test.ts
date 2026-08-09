@@ -205,6 +205,35 @@ describe('ChatService', () => {
       expect(mockedProvider.sendMessage).toHaveBeenCalled();
     });
 
+    it('forces enableTools false before provider call', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Hi',
+        usage: {},
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      await ChatService.sendMessage({
+        userId: 1,
+        message: 'Hello',
+        provider: 'openai',
+        model: 'gpt-3.5-turbo',
+        options: { enableTools: true },
+      });
+
+      const opts = mockedProvider.sendMessage.mock.calls[0][3];
+      expect(opts.enableTools).toBe(false);
+    });
+
     it('throws ChatError 403 for foreign conversation', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue(null);
 

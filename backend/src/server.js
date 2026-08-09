@@ -66,6 +66,7 @@ const chatLimiter = rateLimit({
 app.use('/api/', globalLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
 app.use('/api/chat/send', chatLimiter);
 app.use('/api/chat/stream', chatLimiter);
 

@@ -203,6 +203,8 @@ class ChatService {
     options: ChatOptions;
   }> {
     const options: ChatOptions = { ...(input.options || {}) };
+    // Defense-in-depth: never honor client-enabled tools at the service layer
+    options.enableTools = false;
     const convId = await this.ensureConversationId(
       input.userId,
       input.conversationId,
