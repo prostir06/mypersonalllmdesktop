@@ -1,41 +1,38 @@
 /**
- * @file pages/Register.js
- * Сторінка реєстрації нового користувача. Використовує AuthContext.
+ * @file pages/Login.js
+ * Сторінка входу до системи. Використовує AuthContext для збереження токена.
  */
 
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { Form, Button, Container, Row, Col, Alert, Spinner } from 'react-bootstrap';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-const Register = () => {
+const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, name);
+      const response = await authAPI.login(email, password);
       login(response.data.token);
-      toast.success('Акаунт створено успішно! ✨');
+      toast.success('Успішний вхід! 🚀');
       navigate('/dashboard');
-    } catch (err) {
-      if (err.response?.data?.errors) {
-        const firstErr = err.response.data.errors[0]?.msg || 'Помилка валідації';
-        setError(`Помилка: ${firstErr}`);
-      } else {
-        setError(err.response?.data?.error || 'Помилка при реєстрації');
-      }
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      const msg = ax.response?.data?.error || 'Помилка при вході';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -47,9 +44,9 @@ const Register = () => {
         <Col md={6} lg={5}>
           <div className="glass-panel p-4 p-md-5">
             <div className="text-center mb-4">
-              <span style={{ fontSize: '3rem' }}>🚀</span>
-              <h3 className="fw-bold mt-2">Створити акаунт</h3>
-              <p className="text-muted small">Приєднуйтесь до платформи LLM Personal Assistant</p>
+              <span style={{ fontSize: '3rem' }}>🤖</span>
+              <h3 className="fw-bold mt-2">Вхід до LLM Assistant</h3>
+              <p className="text-muted small">Увійдіть для доступу до вашого персонального помічника</p>
             </div>
 
             {error && (
@@ -59,20 +56,6 @@ const Register = () => {
             )}
 
             <Form onSubmit={handleSubmit} className="d-flex flex-column gap-3">
-              <Form.Group>
-                <Form.Label className="small fw-semibold">Повне ім'я</Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="Олексій Коваленко"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  disabled={loading}
-                  autoComplete="name"
-                  className="bg-dark text-light border-secondary shadow-none py-2"
-                />
-              </Form.Group>
-
               <Form.Group>
                 <Form.Label className="small fw-semibold">Email адреса</Form.Label>
                 <Form.Control
@@ -91,18 +74,14 @@ const Register = () => {
                 <Form.Label className="small fw-semibold">Пароль</Form.Label>
                 <Form.Control
                   type="password"
-                  placeholder="Мінімум 8 символів"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  minLength="8"
                   disabled={loading}
-                  autoComplete="new-password"
+                  autoComplete="current-password"
                   className="bg-dark text-light border-secondary shadow-none py-2"
                 />
-                <Form.Text className="text-muted" style={{ fontSize: '0.75rem' }}>
-                  Мінімум 8 символів, одна велика літера та одна цифра
-                </Form.Text>
               </Form.Group>
 
               <Button
@@ -110,14 +89,14 @@ const Register = () => {
                 className="btn-accent py-2 mt-2 d-flex justify-content-center align-items-center gap-2"
                 disabled={loading}
               >
-                {loading ? <Spinner size="sm" animation="border" /> : <span>Зареєструватися ✨</span>}
+                {loading ? <Spinner size="sm" animation="border" /> : <span>Увійти в кабінет 🚀</span>}
               </Button>
             </Form>
 
             <p className="mt-4 mb-0 text-center small text-muted">
-              Вже маєте обліковий запис?{' '}
-              <Link to="/login" className="text-primary fw-semibold text-decoration-none">
-                Увійти
+              Немаєте облікового запису?{' '}
+              <Link to="/register" className="text-primary fw-semibold text-decoration-none">
+                Зареєструватись
               </Link>
             </p>
           </div>
@@ -127,4 +106,4 @@ const Register = () => {
   );
 };
 
-export default Register;
+export default Login;

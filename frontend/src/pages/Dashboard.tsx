@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, type FormEvent, type MouseEvent } from 'react';
 import { Row, Col, Button, Modal, Form, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import ChatBoxOptimized from '../components/ChatBoxOptimized';
 import MessageSearch from '../components/MessageSearch';
 import {
@@ -12,11 +13,13 @@ import {
   useRenameConversation,
 } from '../hooks/useConversations';
 
-const Dashboard = () => {
-  const [activeConversation, setActiveConversation] = useState(null);
+const Dashboard: React.FC = () => {
+  const [activeConversation, setActiveConversation] = useState<
+    string | number | null
+  >(null);
   const [showNewConvModal, setShowNewConvModal] = useState(false);
   const [newConvTitle, setNewConvTitle] = useState('');
-  const [renamingId, setRenamingId] = useState(null);
+  const [renamingId, setRenamingId] = useState<string | number | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
 
   const {
@@ -50,7 +53,10 @@ const Dashboard = () => {
     }
   };
 
-  const handleDeleteConversation = async (convId, e) => {
+  const handleDeleteConversation = async (
+    convId: string | number,
+    e?: MouseEvent
+  ) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Ви впевнені, що хочете видалити цю розмову?')) return;
     try {
@@ -64,26 +70,33 @@ const Dashboard = () => {
     }
   };
 
-  const startRename = (conv, e) => {
+  const startRename = (
+    conv: { id: string | number; title?: string },
+    e: MouseEvent
+  ) => {
     e.stopPropagation();
     setRenamingId(conv.id);
     setRenameTitle(conv.title || '');
   };
 
-  const saveRename = async (convId, e) => {
+  const saveRename = async (
+    convId: string | number,
+    e?: FormEvent | MouseEvent
+  ) => {
     e?.stopPropagation();
     const title = renameTitle.trim() || 'Новий чат';
     try {
       await renameConversation.mutateAsync({ id: convId, title });
       setRenamingId(null);
       toast.success('Назву оновлено');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Не вдалося перейменувати');
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Не вдалося перейменувати');
     }
   };
 
   const onNewMessage = useCallback(
-    (newId) => {
+    (newId?: string | number) => {
       invalidateConversations();
       if (newId) setActiveConversation(newId);
     },
@@ -102,7 +115,7 @@ const Dashboard = () => {
           </Button>
 
           <MessageSearch
-            onSelectConversation={(id) => {
+            onSelectConversation={(id: string | number) => {
               setActiveConversation(id);
               invalidateConversations();
             }}

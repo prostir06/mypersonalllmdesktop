@@ -1,13 +1,27 @@
 /**
- * @file components/chat/DocumentModal.js
- * Модальне вікно менеджера RAG документів.
- * Вилучений з ChatBoxOptimized.js для кращої читабельності та підтримки.
+ * RAG documents manager modal.
  */
-
-import React from 'react';
+import React, { type ChangeEvent, type RefObject } from 'react';
 import { Modal, Button, Form, ListGroup, Spinner } from 'react-bootstrap';
+import type { DocumentRecord } from '../../types/api';
 
-const DocumentModal = React.memo(({
+export type DocumentModalProps = {
+  show: boolean;
+  onHide: () => void;
+  userDocuments: DocumentRecord[];
+  selectedDocIds: Array<string | number>;
+  onToggleDoc: (docId: string | number, checked: boolean) => void;
+  onDeleteDoc: (docId: string | number) => void;
+  onUploadClick: () => void;
+  uploadingDoc: boolean;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
+};
+
+const DocumentModal = React.memo(function DocumentModal({
   show,
   onHide,
   userDocuments,
@@ -21,15 +35,18 @@ const DocumentModal = React.memo(({
   hasMore,
   onLoadMore,
   loadingMore,
-}) => {
+}: DocumentModalProps) {
   return (
     <Modal show={show} onHide={onHide} centered className="glass-modal">
       <Modal.Header closeButton className="border-secondary bg-dark text-light">
-        <Modal.Title className="fs-5 fw-bold">📎 Менеджер RAG документів</Modal.Title>
+        <Modal.Title className="fs-5 fw-bold">
+          📎 Менеджер RAG документів
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body className="bg-dark text-light">
         <p className="text-muted small">
-          Завантажте PDF, DOCX або TXT файли. Обрані документи додаватимуть свій вміст до контексту AI.
+          Завантажте PDF, DOCX або TXT файли. Обрані документи додаватимуть свій
+          вміст до контексту AI.
         </p>
 
         <div className="mb-3">
@@ -48,20 +65,24 @@ const DocumentModal = React.memo(({
             disabled={uploadingDoc}
             className="w-100 py-2"
           >
-            {uploadingDoc
-              ? (
-                <span className="d-inline-flex align-items-center gap-2">
-                  <Spinner size="sm" animation="border" />
-                  Завантаження…
-                </span>
-                )
-              : '➕ Завантажити новий файл (PDF/DOCX/TXT)'}
+            {uploadingDoc ? (
+              <span className="d-inline-flex align-items-center gap-2">
+                <Spinner size="sm" animation="border" />
+                Завантаження…
+              </span>
+            ) : (
+              '➕ Завантажити новий файл (PDF/DOCX/TXT)'
+            )}
           </Button>
         </div>
 
-        <h6 className="fw-semibold small text-muted text-uppercase mb-2">Ваші завантажені файли:</h6>
+        <h6 className="fw-semibold small text-muted text-uppercase mb-2">
+          Ваші завантажені файли:
+        </h6>
         {userDocuments.length === 0 ? (
-          <p className="text-muted small text-center my-3">Файлів ще не завантажено.</p>
+          <p className="text-muted small text-center my-3">
+            Файлів ще не завантажено.
+          </p>
         ) : (
           <ListGroup variant="flush">
             {userDocuments.map((doc) => {
@@ -126,7 +147,12 @@ const DocumentModal = React.memo(({
         )}
       </Modal.Body>
       <Modal.Footer className="border-secondary bg-dark text-light">
-        <Button variant="secondary" size="sm" onClick={onHide} disabled={uploadingDoc}>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={onHide}
+          disabled={uploadingDoc}
+        >
           Готово
         </Button>
       </Modal.Footer>

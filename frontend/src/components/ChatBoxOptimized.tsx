@@ -32,15 +32,6 @@ import MessageInput from './chat/MessageInput';
 import DocumentModal from './chat/DocumentModal';
 import PromptLibraryModal from './PromptLibraryModal';
 
-// Incremental: child controls still JSX without prop types.
-const ChatControlsView = ChatControls as React.ComponentType<Record<string, unknown>>;
-const MessageListView = MessageList as React.ComponentType<Record<string, unknown>>;
-const MessageInputView = MessageInput as React.ComponentType<Record<string, unknown>>;
-const DocumentModalView = DocumentModal as React.ComponentType<Record<string, unknown>>;
-const PromptLibraryModalView = PromptLibraryModal as unknown as React.ComponentType<
-  Record<string, unknown>
->;
-
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
   onNewMessage?: (conversationId?: string | number) => void;
@@ -310,7 +301,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       className="glass-panel p-3 d-flex flex-column"
       style={{ height: 'calc(100vh - 120px)' }}
     >
-      <ChatControlsView
+      <ChatControls
         selectedProvider={selectedProvider}
         onProviderChange={handleProviderChange}
         selectedModel={activeModel}
@@ -337,7 +328,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         </Alert>
       )}
 
-      <MessageListView
+      <MessageList
         messages={messages}
         loading={loading}
         streaming={streaming}
@@ -348,7 +339,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         messagesEndRef={messagesEndRef}
       />
 
-      <MessageInputView
+      <MessageInput
         inputMessage={inputMessage}
         onInputChange={setInputMessage}
         onSubmit={handleSendMessage}
@@ -372,7 +363,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onChange={handleImageAttach}
       />
 
-      <DocumentModalView
+      <DocumentModal
         show={showDocModal}
         onHide={() => setShowDocModal(false)}
         userDocuments={userDocuments}
@@ -390,7 +381,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         loadingMore={loadingMoreDocuments}
       />
 
-      <PromptLibraryModalView
+      <PromptLibraryModal
         show={showPromptModal}
         onHide={() => setShowPromptModal(false)}
         onSelectPrompt={async (promptText: string) => {

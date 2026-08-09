@@ -1,16 +1,23 @@
 /**
- * @file components/chat/MessageList.js
- * Список повідомлень чату з підтримкою стрімінгу та typing-indicator.
- * Вилучений з ChatBoxOptimized.js для кращої читабельності та підтримки.
+ * Chat message list with streaming bubble and typing indicator.
  */
-
-import React from 'react';
+import React, { type RefObject } from 'react';
 import { Spinner, Badge } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
-import MessageItem from './MessageItem';
-import { CodeBlock } from './MessageItem';
+import MessageItem, { CodeBlock, type ChatMessageView } from './MessageItem';
 
-const MessageList = React.memo(({
+export type MessageListProps = {
+  messages: ChatMessageView[];
+  loading: boolean;
+  streaming: boolean;
+  streamedText: string;
+  speakingIdx: number | null;
+  onSpeak: (content: string, idx: number) => void;
+  onCopy: (content: string) => void;
+  messagesEndRef: RefObject<HTMLDivElement | null>;
+};
+
+const MessageList = React.memo(function MessageList({
   messages,
   loading,
   streaming,
@@ -19,7 +26,7 @@ const MessageList = React.memo(({
   onSpeak,
   onCopy,
   messagesEndRef,
-}) => {
+}: MessageListProps) {
   if (loading && messages.length === 0) {
     return (
       <div className="messages-list flex-grow-1 mb-3 d-flex align-items-center justify-content-center">
@@ -36,7 +43,9 @@ const MessageList = React.memo(({
       <div className="messages-list flex-grow-1 mb-3 d-flex align-items-center justify-content-center">
         <div className="text-center py-5 text-muted">
           <h4>👋 Ласкаво просимо!</h4>
-          <p>Введіть запитання нижче або оберіть роль AI, щоб розпочати діалог.</p>
+          <p>
+            Введіть запитання нижче або оберіть роль AI, щоб розпочати діалог.
+          </p>
         </div>
       </div>
     );
@@ -59,7 +68,9 @@ const MessageList = React.memo(({
         <div className="message-bubble assistant">
           <div className="message-header">
             <span>🤖 Assistant</span>
-            <Badge bg="primary" className="ms-2">генерація...</Badge>
+            <Badge bg="primary" className="ms-2">
+              генерація...
+            </Badge>
           </div>
           <div className="markdown-content">
             {streamedText ? (
@@ -68,7 +79,9 @@ const MessageList = React.memo(({
               </ReactMarkdown>
             ) : (
               <div className="typing-indicator">
-                <span /><span /><span />
+                <span />
+                <span />
+                <span />
               </div>
             )}
           </div>

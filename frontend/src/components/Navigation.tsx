@@ -8,7 +8,7 @@ import { Navbar, Nav, Container, Button } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Navigation = () => {
+const Navigation: React.FC = () => {
   const location = useLocation();
   const { logout } = useAuth();
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
@@ -19,14 +19,14 @@ const Navigation = () => {
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   const handleLogout = async () => {
     await logout();
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <Navbar className="navbar-custom mb-3" expand="lg" sticky="top">

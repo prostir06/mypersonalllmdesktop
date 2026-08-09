@@ -1,20 +1,25 @@
 /**
  * Single chat message row with lazy-loaded syntax highlighter.
  */
-import React, { Suspense, lazy, useMemo } from 'react';
+import React, { Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
-import { motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-toastify';
 
 const LazyHighlighter = lazy(() => import('./CodeHighlighter'));
 
-const CodeBlock = ({ inline, className, children, ...props }) => {
+type CodeBlockProps = {
+  inline?: boolean;
+  className?: string;
+  children?: ReactNode;
+};
+
+const CodeBlock = ({ inline, className, children, ...props }: CodeBlockProps) => {
   const match = /language-(\w+)/.exec(className || '');
   const codeString = String(children).replace(/\n$/, '');
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(codeString);
+    void navigator.clipboard.writeText(codeString);
     toast.success('Код скопійовано! 📋', { autoClose: 1500 });
   };
 
@@ -66,17 +71,31 @@ const CodeBlock = ({ inline, className, children, ...props }) => {
   );
 };
 
-const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
+export type ChatMessageView = {
+  id?: string | number;
+  role: string;
+  content: string;
+};
+
+export type MessageItemProps = {
+  msg: ChatMessageView;
+  idx: number;
+  speakingIdx: number | null;
+  onSpeak: (content: string, idx: number) => void;
+  onCopy: (content: string) => void;
+};
+
+const MessageItem = React.memo(function MessageItem({
+  msg,
+  idx,
+  speakingIdx,
+  onSpeak,
+  onCopy,
+}: MessageItemProps) {
   const components = useMemo(() => ({ code: CodeBlock }), []);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 15, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.3, type: 'spring', stiffness: 200, damping: 20 }}
-      layout
-      className={`message-bubble ${msg.role}`}
-    >
+    <div className={`message-bubble ${msg.role}`}>
       <div className="message-header d-flex justify-content-between align-items-center">
         <span>{msg.role === 'user' ? '👤 Ви' : '🤖 Assistant'}</span>
         <div className="d-flex align-items-center gap-2">
@@ -109,7 +128,7 @@ const MessageItem = React.memo(({ msg, idx, speakingIdx, onSpeak, onCopy }) => {
       <div className="markdown-content">
         <ReactMarkdown components={components}>{msg.content}</ReactMarkdown>
       </div>
-    </motion.div>
+    </div>
   );
 });
 

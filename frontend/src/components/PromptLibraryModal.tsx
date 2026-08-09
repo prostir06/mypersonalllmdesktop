@@ -51,7 +51,15 @@ const PRESET_PROMPTS = [
   }
 ];
 
-const PromptLibraryModal = ({ show, onHide, onSelectPrompt }) => {
+const PromptLibraryModal = ({
+  show,
+  onHide,
+  onSelectPrompt,
+}: {
+  show: boolean;
+  onHide: () => void;
+  onSelectPrompt: (promptText: string) => Promise<void>;
+}) => {
   return (
     <Modal show={show} onHide={onHide} size="lg" centered className="glass-modal">
       <Modal.Header closeButton className="border-secondary bg-dark text-light">

@@ -1,31 +1,25 @@
 /**
- * @file components/chat/MessageInput.js
- * Поле введення повідомлення з кнопками STT (голосовий ввід), Vision (зображення) та надіслати.
- * Вилучений з ChatBoxOptimized.js для кращої читабельності та підтримки.
+ * Message composer with STT, vision attach, and stop-while-streaming.
  */
-
-import React from 'react';
+import React, { type FormEvent, type KeyboardEvent } from 'react';
 import { Form, Button } from 'react-bootstrap';
+import type { AttachedImage } from '../../hooks/useChatStream';
 
-/**
- * Компонент MessageInput.
- * Забезпечує поле введення повідомлень користувача з підтримкою Voice-to-Text (STT) 
- * та можливістю прикріплення зображень (Vision API).
- *
- * @component
- * @param {Object} props - Властивості компонента
- * @param {string} props.inputMessage - Поточний текст повідомлення
- * @param {function} props.onInputChange - Обробник зміни тексту повідомлення
- * @param {function} props.onSubmit - Обробник відправки повідомлення (натискання кнопки або Enter)
- * @param {boolean} props.isListening - Стан запису голосу (STT активний чи ні)
- * @param {function} props.onToggleListening - Обробник увімкнення/вимкнення мікрофону для STT
- * @param {boolean} props.streaming - Прапорець, що блокує ввід під час стрімінгу відповіді
- * @param {Object|null} props.attachedImage - Об'єкт прикріпленого зображення { url, base64 }
- * @param {function} props.onClearImage - Обробник видалення прикріпленого зображення
- * @param {function} props.onAttachImage - Обробник кліку на кнопку "Прикріпити зображення"
- * @param {boolean} props.supportsVision - Чи підтримує поточна модель роботу з зображеннями
- */
-const MessageInput = React.memo(({
+export type MessageInputProps = {
+  inputMessage: string;
+  onInputChange: (value: string) => void;
+  onSubmit: (e: FormEvent) => void;
+  isListening: boolean;
+  onToggleListening: () => void;
+  streaming: boolean;
+  onStop: () => void;
+  attachedImage: AttachedImage | null;
+  onClearImage: () => void;
+  onAttachImage: () => void;
+  supportsVision: boolean;
+};
+
+const MessageInput = React.memo(function MessageInput({
   inputMessage,
   onInputChange,
   onSubmit,
@@ -37,8 +31,8 @@ const MessageInput = React.memo(({
   onClearImage,
   onAttachImage,
   supportsVision,
-}) => {
-  const handleKeyDown = (e) => {
+}: MessageInputProps) {
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSubmit(e);
@@ -63,10 +57,12 @@ const MessageInput = React.memo(({
               width: 56,
               objectFit: 'cover',
               borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.15)'
+              border: '1px solid rgba(255,255,255,0.15)',
             }}
           />
-          <small className="text-muted flex-grow-1">🖼️ Зображення буде передано моделі</small>
+          <small className="text-muted flex-grow-1">
+            🖼️ Зображення буде передано моделі
+          </small>
           <Button
             variant="link"
             size="sm"

@@ -1,34 +1,28 @@
 /**
- * @file components/chat/ChatControls.js
- * Панель управління чатом: провайдер, модель, температура,
- * кнопки бібліотеки промптів та RAG документів.
+ * Chat toolbar: provider, model, temperature, prompts, RAG, export.
  */
-
-import React from 'react';
+import React, { type ChangeEvent } from 'react';
 import { Form, Button } from 'react-bootstrap';
 
-/**
- * Компонент ChatControls.
- * Відображає панель інструментів для налаштування параметрів чату та виклику додаткових функцій.
- * Використовує React.memo для уникнення зайвих рендерів.
- *
- * @component
- * @param {Object} props - Властивості компонента
- * @param {string} props.selectedProvider - Поточний вибраний AI провайдер ('openai', 'ollama' тощо)
- * @param {function} props.onProviderChange - Обробник зміни провайдера
- * @param {string} props.selectedModel - Поточна вибрана модель
- * @param {function} props.onModelChange - Обробник зміни моделі
- * @param {Array<{value: string, label: string}>} props.availableModels - Список доступних моделей
- * @param {number} props.temperature - Поточне значення температури (від 0 до 1.5)
- * @param {function} props.onTemperatureChange - Обробник зміни температури генерації
- * @param {Array<number>} props.selectedDocIds - Масив ID вибраних RAG документів
- * @param {boolean} props.streaming - Прапорець, що вказує чи йде наразі стрімінг відповіді
- * @param {function} props.onShowPromptModal - Функція для відкриття модалки бібліотеки промптів
- * @param {function} props.onShowDocModal - Функція для відкриття модалки вибору документів (RAG)
- * @param {function} props.onExportChat - Функція для експорту чату (Markdown)
- * @param {number} props.messagesCount - Загальна кількість повідомлень у чаті (для відображення кнопки експорту)
- */
-const ChatControls = React.memo(({
+export type ModelSelectOption = { value: string; label: string };
+
+export type ChatControlsProps = {
+  selectedProvider: string;
+  onProviderChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  selectedModel: string;
+  onModelChange: (value: string) => void;
+  availableModels: ModelSelectOption[];
+  temperature: number;
+  onTemperatureChange: (value: number) => void;
+  selectedDocIds: Array<string | number>;
+  streaming: boolean;
+  onShowPromptModal: () => void;
+  onShowDocModal: () => void;
+  onExportChat: () => void;
+  messagesCount: number;
+};
+
+const ChatControls = React.memo(function ChatControls({
   selectedProvider,
   onProviderChange,
   selectedModel,
@@ -42,7 +36,7 @@ const ChatControls = React.memo(({
   onShowDocModal,
   onExportChat,
   messagesCount,
-}) => {
+}: ChatControlsProps) {
   return (
     <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
       <div className="d-flex align-items-center gap-2">
@@ -69,7 +63,9 @@ const ChatControls = React.memo(({
           style={{ width: 'auto' }}
         >
           {availableModels.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
           ))}
         </Form.Select>
 
@@ -90,7 +86,10 @@ const ChatControls = React.memo(({
           title="Прикріпити RAG документи"
           className="d-flex align-items-center gap-1"
         >
-          📎 {selectedDocIds.length > 0 ? `RAG (${selectedDocIds.length})` : 'Документи'}
+          📎{' '}
+          {selectedDocIds.length > 0
+            ? `RAG (${selectedDocIds.length})`
+            : 'Документи'}
         </Button>
 
         {messagesCount > 0 && (
