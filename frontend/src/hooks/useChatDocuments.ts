@@ -23,6 +23,13 @@ import type { DocumentRecord, PaginatedList } from '../types/api';
 
 const PAGE_SIZE = 50;
 
+/** Auto-select after upload only when already ready (pending waits for poll). */
+export function shouldSelectDocumentOnUpload(
+  status?: string | null
+): boolean {
+  return status === 'ready';
+}
+
 function pageHasPending(
   data: { pages: PaginatedList<DocumentRecord>[] } | undefined
 ): boolean {
@@ -94,7 +101,10 @@ export function useChatDocuments() {
       );
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       // Select only when already ready; pending waits for poll toast above.
-      if (data.document?.id && data.document.status === 'ready') {
+      if (
+        data.document?.id &&
+        shouldSelectDocumentOnUpload(data.document.status)
+      ) {
         setSelectedDocIds((prev) => [...prev, data.document.id]);
       }
       if (data.document?.id) {

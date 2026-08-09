@@ -1,7 +1,11 @@
 /**
  * Restrict outbound HTTP(S) URLs used for Ollama / remote model discovery.
  * Default allowlist: loopback, host.docker.internal, plus OLLAMA_URL_ALLOWLIST.
+ * After hostname allowlist, optionally resolve DNS and reject link-local / metadata.
  */
+
+import dns from 'dns/promises';
+import net from 'net';
 
 export class UrlNotAllowedError extends Error {
   statusCode = 400;
@@ -45,6 +49,16 @@ function isBlockedIp(hostname: string): boolean {
   return false;
 }
 
+/** Post-DNS: reject link-local / metadata even if hostname was allowlisted. */
+export function isUnsafeResolvedAddress(ip: string): boolean {
+  const h = ip.replace(/^\[|\]$/g, '').toLowerCase();
+  if (!h) return true;
+  if (h === '0.0.0.0' || h === '::') return true;
+  if (h === '169.254.169.254' || h.startsWith('169.254.')) return true;
+  if (h.startsWith('fe80:')) return true;
+  return false;
+}
+
 /**
  * Parse and validate an HTTP(S) URL for outbound provider calls.
  * Returns the parsed URL on success; throws UrlNotAllowedError otherwise.
@@ -76,4 +90,38 @@ export function assertAllowedHttpUrl(raw: string): URL {
   }
 
   throw new UrlNotAllowedError('URL host is not allowed');
+}
+
+/**
+ * Hostname allowlist + DNS resolution check (blocks link-local / metadata IPs).
+ */
+export async function assertAllowedHttpUrlWithDns(raw: string): Promise<URL> {
+  const url = assertAllowedHttpUrl(raw);
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+
+  if (net.isIP(host)) {
+    if (isUnsafeResolvedAddress(host)) {
+      throw new UrlNotAllowedError('URL host resolved to a blocked address');
+    }
+    return url;
+  }
+
+  let addresses: Array<{ address: string; family: number }>;
+  try {
+    addresses = await dns.lookup(host, { all: true, verbatim: true });
+  } catch {
+    throw new UrlNotAllowedError('URL host could not be resolved');
+  }
+
+  if (!addresses.length) {
+    throw new UrlNotAllowedError('URL host could not be resolved');
+  }
+
+  for (const { address } of addresses) {
+    if (isUnsafeResolvedAddress(address)) {
+      throw new UrlNotAllowedError('URL host resolved to a blocked address');
+    }
+  }
+
+  return url;
 }

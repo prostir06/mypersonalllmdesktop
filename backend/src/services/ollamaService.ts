@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { assertAllowedHttpUrl } from '../utils/urlAllowlist';
+import { assertAllowedHttpUrlWithDns } from '../utils/urlAllowlist';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -26,9 +26,9 @@ type ProviderOptions = {
   [key: string]: unknown;
 };
 
-function resolveOllamaUrl(ollama_host?: string): string {
+async function resolveOllamaUrl(ollama_host?: string): Promise<string> {
   const raw = ollama_host || DEFAULT_OLLAMA_API_URL;
-  return assertAllowedHttpUrl(raw).href;
+  return (await assertAllowedHttpUrlWithDns(raw)).href;
 }
 
 function isAllowlistError(error: unknown): boolean {
@@ -89,7 +89,7 @@ async function sendOllamaMessage(
     const { ollama_host } = options;
     const payload = buildOllamaPayload(messages, model, options, false);
 
-    const apiUrl = resolveOllamaUrl(ollama_host);
+    const apiUrl = await resolveOllamaUrl(ollama_host);
     // maxRedirects: 0 — after URL allowlist, axios must not follow redirects
     // to a disallowed host (SSRF bypass).
     const response = await axios.post(apiUrl, payload, {
@@ -120,7 +120,7 @@ async function streamOllamaMessage(
     const { ollama_host } = options;
     const payload = buildOllamaPayload(messages, model, options, true);
 
-    const apiUrl = resolveOllamaUrl(ollama_host);
+    const apiUrl = await resolveOllamaUrl(ollama_host);
     const signal =
       options.signal instanceof AbortSignal ? options.signal : undefined;
     const response = await axios.post(apiUrl, payload, {

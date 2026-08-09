@@ -3,7 +3,7 @@ import axios from 'axios';
 import prisma from '../config/prisma';
 import logger from '../logger';
 import {
-  assertAllowedHttpUrl,
+  assertAllowedHttpUrlWithDns,
   UrlNotAllowedError,
 } from '../utils/urlAllowlist';
 import { modelSupportsVision } from '../utils/modelCapabilities';
@@ -193,7 +193,7 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
 
     let origin: string;
     try {
-      origin = assertAllowedHttpUrl(hostUrl).origin;
+      origin = (await assertAllowedHttpUrlWithDns(hostUrl)).origin;
     } catch (err: unknown) {
       if (err instanceof UrlNotAllowedError) {
         res.status(err.statusCode).json({ error: err.message });
