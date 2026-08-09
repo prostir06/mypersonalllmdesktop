@@ -9,6 +9,7 @@ import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstr
 import { toast } from 'react-toastify';
 import { usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { gravatarUrl } from '../utils/gravatar';
 
 const Profile = () => {
   const { setUser } = useAuth();
@@ -55,9 +56,9 @@ const Profile = () => {
     }
   };
 
-  // Генеруємо аватар через Gravatar (за email)
+  // Gravatar: MD5(lowercase trimmed email) — not base64
   const avatarUrl = email
-    ? `https://www.gravatar.com/avatar/${btoa(email.toLowerCase().trim())}?s=120&d=identicon`
+    ? gravatarUrl(email, 120)
     : `https://www.gravatar.com/avatar/?d=identicon&s=120`;
 
   if (loading) {

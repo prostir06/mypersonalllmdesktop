@@ -12,7 +12,7 @@ const { body, validationResult } = require('express-validator');
 const validateSettingsUpdate = [
   body('default_provider')
     .optional()
-    .isIn(['openai', 'ollama', 'chatgpt', 'gpt', 'copilot', 'microsoft', 'google'])
+    .isIn(['openai', 'ollama'])
     .withMessage('Invalid provider'),
   body('default_model')
     .optional()
