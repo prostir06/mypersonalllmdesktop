@@ -1,6 +1,5 @@
 /**
- * @file components/PromptLibraryModal.js
- * Модальне вікно бібліотеки готових системних промптів (ролей AI).
+ * Preset system-prompt roles modal.
  */
 
 import React from 'react';

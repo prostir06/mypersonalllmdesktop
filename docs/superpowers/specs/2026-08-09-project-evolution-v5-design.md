@@ -1,7 +1,7 @@
 # Project Evolution Roadmap v5 — Design
 
 **Date:** 2026-08-09  
-**Status:** Approved for implementation  
+**Status:** Implemented (P15–P17 on `feat/p15-hardening`, 2026-08-09)  
 **Parent:** Supersedes “next” residual themes after P12–P14 delivery (`2026-08-08-project-evolution-v4-design.md`)  
 **Scope:** Full-stack personal LLM control panel (`mypersonalllmdesktop`)  
 **Approach:** User-approved **B** — security slice + early UX hotfix (`max_tokens`), then UX polish (P16), then quality/perf (P17)

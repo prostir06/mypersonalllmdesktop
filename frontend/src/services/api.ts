@@ -257,8 +257,6 @@ export const conversationAPI = {
     params?: ListQueryParams
   ): Promise<AxiosResponse<PaginatedList<Conversation>>> =>
     api.get('/conversations', { params }),
-  getById: (id: string | number): Promise<AxiosResponse<Conversation>> =>
-    api.get(`/conversations/${id}`),
   create: (title: string): Promise<AxiosResponse<Conversation>> =>
     api.post('/conversations', { title }),
   update: (id: string | number, title: string): Promise<AxiosResponse<Conversation>> =>
@@ -294,8 +292,6 @@ export const documentsAPI = {
     params?: ListQueryParams
   ): Promise<AxiosResponse<PaginatedList<DocumentRecord>>> =>
     api.get('/documents', { params }),
-  getById: (id: string | number): Promise<AxiosResponse<DocumentRecord>> =>
-    api.get(`/documents/${id}`),
   upload: (formData: FormData): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -315,5 +311,3 @@ export const settingsAPI = {
   update: (data: SettingsUpdatePayload): Promise<AxiosResponse<UserSettings>> =>
     api.put('/settings', data),
 };
-
-export default api;

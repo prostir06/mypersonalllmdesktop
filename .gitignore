@@ -56,3 +56,10 @@ Thumbs.db
 # Local implementation plans (specs under docs/superpowers/specs are tracked)
 docs/superpowers/plans/
 
+# Electron pack output
+desktop/release/
+**/release/
+
+# Cursor local canvases (if present)
+**/*.canvas.tsx
+
