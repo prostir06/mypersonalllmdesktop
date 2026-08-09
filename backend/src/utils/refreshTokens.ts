@@ -81,10 +81,15 @@ export async function rotateRefreshToken(
     return null;
   }
 
-  await prisma.refreshToken.update({
-    where: { id: existing.id },
+  // Conditional revoke: only one concurrent winner gets count=1
+  const claimed = await prisma.refreshToken.updateMany({
+    where: { id: existing.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+
+  if (claimed.count !== 1) {
+    return null;
+  }
 
   const raw = await issueRefreshToken(existing.userId);
   return { userId: existing.userId, raw };

@@ -56,4 +56,49 @@ describe('rotateRefreshToken reuse detection', () => {
     expect(result).toBeNull();
     expect(mockedPrisma.refreshToken.updateMany).not.toHaveBeenCalled();
   });
+
+  it('rotates only when conditional revoke wins (count=1)', async () => {
+    const raw = 'live-token';
+    mockedPrisma.refreshToken.findUnique.mockResolvedValue({
+      id: 3,
+      userId: 7,
+      tokenHash: hashRefreshToken(raw),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+    mockedPrisma.refreshToken.updateMany.mockResolvedValueOnce({ count: 1 });
+    mockedPrisma.refreshToken.create.mockResolvedValue({
+      id: 4,
+      userId: 7,
+      tokenHash: 'new',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const result = await rotateRefreshToken(raw);
+
+    expect(result).toEqual({ userId: 7, raw: expect.any(String) });
+    expect(mockedPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { id: 3, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(mockedPrisma.refreshToken.update).not.toHaveBeenCalled();
+    expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
+  });
+
+  it('returns null without issuing when concurrent rotate already revoked (count=0)', async () => {
+    const raw = 'raced-token';
+    mockedPrisma.refreshToken.findUnique.mockResolvedValue({
+      id: 3,
+      userId: 7,
+      tokenHash: hashRefreshToken(raw),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+    mockedPrisma.refreshToken.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const result = await rotateRefreshToken(raw);
+
+    expect(result).toBeNull();
+    expect(mockedPrisma.refreshToken.create).not.toHaveBeenCalled();
+  });
 });

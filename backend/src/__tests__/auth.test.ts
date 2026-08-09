@@ -131,7 +131,7 @@ describe('Auth API (Prisma)', () => {
       expiresAt: new Date(Date.now() + 60_000),
       revokedAt: null,
     });
-    mockedPrisma.refreshToken.update.mockResolvedValue({});
+    mockedPrisma.refreshToken.updateMany.mockResolvedValue({ count: 1 });
     mockedPrisma.user.findUnique.mockResolvedValue({ id: 7 });
 
     const res = await request(app)
@@ -140,7 +140,10 @@ describe('Auth API (Prisma)', () => {
 
     expect(res.status).toBe(200);
     expect(typeof res.body.token).toBe('string');
-    expect(mockedPrisma.refreshToken.update).toHaveBeenCalled();
+    expect(mockedPrisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { id: 9, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
     expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
     expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
   });
