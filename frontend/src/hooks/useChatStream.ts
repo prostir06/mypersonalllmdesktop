@@ -26,6 +26,7 @@ export type UseChatStreamArgs = {
   selectedModel: string;
   selectedProvider: string;
   temperature: number;
+  maxTokens?: number;
   selectedDocIds: Array<string | number>;
   attachedImage: AttachedImage;
   setAttachedImage: Dispatch<SetStateAction<AttachedImage>>;
@@ -37,6 +38,7 @@ export function useChatStream({
   selectedModel,
   selectedProvider,
   temperature,
+  maxTokens,
   selectedDocIds,
   attachedImage,
   setAttachedImage,
@@ -86,6 +88,9 @@ export function useChatStream({
 
       const requestOptions = {
         temperature,
+        ...(typeof maxTokens === 'number' && Number.isFinite(maxTokens)
+          ? { max_tokens: maxTokens }
+          : {}),
         documentIds: selectedDocIds,
         ragEnabled: selectedDocIds.length > 0,
         image: attachedImage?.base64 || null,
@@ -224,6 +229,7 @@ export function useChatStream({
       selectedProvider,
       setAttachedImage,
       temperature,
+      maxTokens,
       queryClient,
     ]
   );

@@ -111,4 +111,25 @@ describe('useChatStream', () => {
       expect(result.current.error).toMatch(/provider boom/);
     });
   });
+
+  it('includes max_tokens in stream options when provided', async () => {
+    chatAPI.streamMessage.mockResolvedValue(undefined);
+
+    const { result } = renderHook(
+      () => useChatStream(baseArgs({ maxTokens: 1500 })),
+      { wrapper }
+    );
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages);
+    });
+
+    expect(chatAPI.streamMessage).toHaveBeenCalled();
+    const opts = chatAPI.streamMessage.mock.calls[0][4];
+    expect(opts.max_tokens).toBe(1500);
+  });
 });

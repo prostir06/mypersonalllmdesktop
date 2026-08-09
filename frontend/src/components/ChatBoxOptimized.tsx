@@ -55,6 +55,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   const [selectedModel, setSelectedModel] = useState('');
   const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(2000);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(
     null
@@ -123,6 +124,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     selectedModel: activeModel,
     selectedProvider,
     temperature,
+    maxTokens,
     selectedDocIds,
     attachedImage,
     setAttachedImage,
@@ -161,6 +163,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       setSelectedModel(settings.default_model || '');
       if (settings.temperature !== undefined) {
         setTemperature(parseFloat(String(settings.temperature)));
+      }
+      if (settings.max_tokens !== undefined) {
+        const n = parseInt(String(settings.max_tokens), 10);
+        if (Number.isFinite(n) && n > 0) setMaxTokens(n);
       }
     }
   }
