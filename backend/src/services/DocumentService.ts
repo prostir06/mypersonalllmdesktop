@@ -8,6 +8,7 @@ import {
   resolveDocumentKind,
 } from '../utils/fileMagic';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
+import { enqueueDocumentJob } from '../utils/documentJobQueue';
 
 type FileInfo = {
   originalname: string;
@@ -26,10 +27,10 @@ type DocumentRow = {
   createdAt: Date;
 };
 
-type EnqueueFn = (job: () => void) => void;
+type EnqueueFn = (job: () => void | Promise<void>) => void;
 
-function defaultEnqueue(job: () => void): void {
-  setImmediate(job);
+function defaultEnqueue(job: () => void | Promise<void>): void {
+  enqueueDocumentJob(job);
 }
 
 function toPublicDocument(row: DocumentRow, chunksCount?: number) {
@@ -135,11 +136,13 @@ class DocumentService {
       },
     });
 
-    enqueue(() => {
-      void this.finalizeUpload(doc.id, userId, fileInfo).catch((error: unknown) => {
+    enqueue(async () => {
+      try {
+        await this.finalizeUpload(doc.id, userId, fileInfo);
+      } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error(`Background document processing failed id=${doc.id}: ${message}`);
-      });
+      }
     });
 
     return { document: toPublicDocument(doc) };
