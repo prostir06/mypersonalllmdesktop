@@ -22,4 +22,21 @@ describe('packRelevantChunks', () => {
     expect(packRelevantChunks([])).toEqual([]);
     expect(packRelevantChunks(null as any)).toEqual([]);
   });
+
+  it('accepts similarity returned as string (Postgres numeric)', () => {
+    expect(
+      packRelevantChunks(
+        [
+          {
+            content: 'doc body',
+            filename: 'Контекст.txt',
+            similarity: '1.0' as unknown as number,
+          },
+        ],
+        { minSimilarity: 0 }
+      )
+    ).toEqual([
+      { content: 'doc body', filename: 'Контекст.txt', similarity: 1 },
+    ]);
+  });
 });

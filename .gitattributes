@@ -1,0 +1,3 @@
+# Keep shell entrypoints LF so Docker/Alpine `sh` can run them from bind-mounts.
+*.sh text eol=lf
+backend/docker-entrypoint.sh text eol=lf

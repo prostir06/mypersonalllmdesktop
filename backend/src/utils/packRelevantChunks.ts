@@ -24,8 +24,14 @@ export function packRelevantChunks(
 
   if (!Array.isArray(chunks) || chunks.length === 0) return [];
 
-  const filtered = chunks.filter(
-    (c) => typeof c?.similarity === 'number' && c.similarity >= minSimilarity
+  // Prisma/$queryRaw may return numeric similarity as string — coerce before filter.
+  const normalized = chunks.map((c) => ({
+    ...c,
+    similarity: Number(c?.similarity),
+  }));
+
+  const filtered = normalized.filter(
+    (c) => Number.isFinite(c.similarity) && c.similarity >= minSimilarity
   );
 
   const ordered = [...filtered].sort((a, b) => b.similarity - a.similarity);
