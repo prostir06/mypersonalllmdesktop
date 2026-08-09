@@ -3,6 +3,7 @@
  */
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -39,6 +40,7 @@ export function useChatDocuments() {
   );
   const [showDocModal, setShowDocModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const statusByIdRef = useRef<Map<string | number, string>>(new Map());
 
   const documentsQuery = useInfiniteQuery({
     queryKey: queryKeys.documents,
@@ -61,6 +63,24 @@ export function useChatDocuments() {
     [documentsQuery.data]
   );
 
+  useEffect(() => {
+    for (const doc of userDocuments) {
+      const status = String(doc.status || 'ready');
+      const prev = statusByIdRef.current.get(doc.id);
+      if (prev === 'pending' && status === 'ready') {
+        toast.success(`Файл "${doc.filename || doc.id}" готовий до RAG`);
+        setSelectedDocIds((ids) =>
+          ids.includes(doc.id) ? ids : [...ids, doc.id]
+        );
+      } else if (prev === 'pending' && status === 'failed') {
+        toast.error(
+          `Індексація "${doc.filename || doc.id}" не вдалася. Видаліть файл і спробуйте знову.`
+        );
+      }
+      statusByIdRef.current.set(doc.id, status);
+    }
+  }, [userDocuments]);
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -73,8 +93,15 @@ export function useChatDocuments() {
         `📄 Файл "${data.fileName}" прийнято. Індексація виконується у фоні…`
       );
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
-      if (data.document?.id && data.document.status !== 'failed') {
+      // Select only when already ready; pending waits for poll toast above.
+      if (data.document?.id && data.document.status === 'ready') {
         setSelectedDocIds((prev) => [...prev, data.document.id]);
+      }
+      if (data.document?.id) {
+        statusByIdRef.current.set(
+          data.document.id,
+          String(data.document.status || 'pending')
+        );
       }
     },
     onError: (err: unknown) => {
@@ -93,6 +120,7 @@ export function useChatDocuments() {
     },
     onSuccess: (docId) => {
       setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
+      statusByIdRef.current.delete(docId);
       queryClient.invalidateQueries({ queryKey: queryKeys.documents });
       toast.info('Файл видалено.');
     },

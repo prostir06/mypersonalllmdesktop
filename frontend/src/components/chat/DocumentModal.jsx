@@ -72,7 +72,7 @@ const DocumentModal = React.memo(({
                 status === 'pending'
                   ? 'індексація…'
                   : status === 'failed'
-                    ? 'помилка'
+                    ? 'помилка індексації — видаліть і спробуйте знову'
                     : null;
               return (
                 <ListGroup.Item

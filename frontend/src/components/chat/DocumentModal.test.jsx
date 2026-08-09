@@ -62,6 +62,36 @@ describe('DocumentModal', () => {
     expect(screen.getByLabelText('pending.txt')).toBeDisabled();
   });
 
+  it('shows failed indexing hint', () => {
+    render(
+      <DocumentModal
+        show
+        onHide={vi.fn()}
+        userDocuments={[
+          {
+            id: 3,
+            filename: 'bad.txt',
+            chunks_count: 0,
+            file_size: 10,
+            status: 'failed',
+          },
+        ]}
+        selectedDocIds={[]}
+        onToggleDoc={vi.fn()}
+        onDeleteDoc={vi.fn()}
+        onUploadClick={vi.fn()}
+        uploadingDoc={false}
+        fileInputRef={{ current: null }}
+        onFileChange={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText(/помилка індексації — видаліть і спробуйте знову/i)
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('bad.txt')).toBeDisabled();
+  });
+
   it('calls onLoadMore when Показати ще is clicked', async () => {
     const onLoadMore = vi.fn();
     const user = userEvent.setup();
