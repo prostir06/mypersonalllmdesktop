@@ -72,7 +72,7 @@ app.use('/api/chat/stream', chatLimiter);
 
 // Logging middleware
 app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.url}`);
+  logger.info(`${req.method} ${req.url} requestId=${req.id || '-'}`);
   next();
 });
 
@@ -132,7 +132,10 @@ app.get('/api/health', async (req, res) => {
 
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
+  res.status(404).json({
+    error: 'Endpoint not found',
+    requestId: req.id,
+  });
 });
 
 // Centralized Error Handling Middleware

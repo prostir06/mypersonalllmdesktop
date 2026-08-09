@@ -9,8 +9,9 @@ import {
   bindClientAbortSignal,
   isAbortError,
 } from '../utils/requestAbort';
+import { jsonError } from '../utils/httpJson';
 
-type AuthRequest = Request & { userId?: number };
+type AuthRequest = Request & { userId?: number; id?: string };
 
 function isChatError(error: unknown): error is Error & { statusCode: number } {
   return (
@@ -34,14 +35,15 @@ function writeSse(res: Response, payload: unknown): void {
 
 function validateChatMessage(
   message: unknown,
+  req: AuthRequest,
   res: Response
 ): message is string {
   if (!message || !String(message).trim()) {
-    res.status(400).json({ error: 'Message is required' });
+    jsonError(res, req, 400, 'Message is required');
     return false;
   }
   if (String(message).length > 4000) {
-    res.status(400).json({ error: 'Message too long (max 4000 characters)' });
+    jsonError(res, req, 400, 'Message too long (max 4000 characters)');
     return false;
   }
   return true;
@@ -53,11 +55,16 @@ function isProduction(): boolean {
 
 /** Public JSON body — never leak internals in production. */
 function publicErrorJson(
+  req: AuthRequest,
   publicError: string,
   details: string
-): { error: string; details?: string } {
-  if (isProduction()) return { error: publicError };
-  return { error: publicError, details };
+): { error: string; requestId?: string; details?: string } {
+  const base: { error: string; requestId?: string; details?: string } = {
+    error: publicError,
+    requestId: req.id,
+  };
+  if (!isProduction()) base.details = details;
+  return base;
 }
 
 function publicStreamErrorText(details: string): string {
@@ -72,7 +79,7 @@ export async function sendMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
 
-    if (!validateChatMessage(message, res)) return;
+    if (!validateChatMessage(message, req, res)) return;
 
     // Never let clients enable tools on /send (parity with /stream).
     const safeOptions = { ...options, enableTools: false };
@@ -88,14 +95,14 @@ export async function sendMessage(
     res.json(result);
   } catch (error: unknown) {
     if (isChatError(error)) {
-      res.status(error.statusCode).json({ error: error.message });
+      jsonError(res, req, error.statusCode, error.message);
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Error in sendMessage: ${message}`);
+    logger.error(`Error in sendMessage: ${message} requestId=${req.id || '-'}`);
     res
       .status(500)
-      .json(publicErrorJson('Failed to send message', message));
+      .json(publicErrorJson(req, 'Failed to send message', message));
   }
 }
 
@@ -108,7 +115,7 @@ export async function streamMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
 
-    if (!validateChatMessage(message, res)) return;
+    if (!validateChatMessage(message, req, res)) return;
 
     // Tools disabled on SSE path (interactive tools need a non-stream round-trip)
     const streamOptions = {
@@ -151,15 +158,15 @@ export async function streamMessage(
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Error in streamMessage: ${message}`);
+    logger.error(`Error in streamMessage: ${message} requestId=${req.id || '-'}`);
     if (isChatError(error) && !res.headersSent) {
-      res.status(error.statusCode).json({ error: error.message });
+      jsonError(res, req, error.statusCode, error.message);
       return;
     }
     if (!res.headersSent) {
       res
         .status(500)
-        .json(publicErrorJson('Failed to stream message', message));
+        .json(publicErrorJson(req, 'Failed to stream message', message));
     } else {
       writeSse(res, { type: 'error', error: publicStreamErrorText(message) });
       res.end();
@@ -186,15 +193,15 @@ export async function getHistory(
     res.json(result);
   } catch (error: unknown) {
     if (isChatError(error)) {
-      res.status(error.statusCode).json({ error: error.message });
+      jsonError(res, req, error.statusCode, error.message);
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Error in getHistory: ${message}`);
+    logger.error(`Error in getHistory: ${message} requestId=${req.id || '-'}`);
     res
       .status(500)
       .json(
-        publicErrorJson('Failed to fetch conversation history', message)
+        publicErrorJson(req, 'Failed to fetch conversation history', message)
       );
   }
 }
@@ -205,9 +212,12 @@ export async function searchMessages(
 ): Promise<void> {
   const { q, conversationId } = req.query;
   if (!q || String(q).trim().length < 2) {
-    res
-      .status(400)
-      .json({ error: 'Пошуковий запит має бути не менше 2 символів' });
+    jsonError(
+      res,
+      req,
+      400,
+      'Пошуковий запит має бути не менше 2 символів'
+    );
     return;
   }
 
@@ -220,11 +230,11 @@ export async function searchMessages(
     res.json(result);
   } catch (error: unknown) {
     if (isChatError(error)) {
-      res.status(error.statusCode).json({ error: error.message });
+      jsonError(res, req, error.statusCode, error.message);
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`GET /chat/search error: ${message}`);
-    res.status(500).json({ error: 'Помилка пошуку' });
+    logger.error(`GET /chat/search error: ${message} requestId=${req.id || '-'}`);
+    jsonError(res, req, 500, 'Помилка пошуку');
   }
 }

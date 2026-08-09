@@ -48,5 +48,7 @@ describe('API Integration & Health Tests', () => {
     const res = await request(app).get('/api/unknown-endpoint');
     expect(res.statusCode).toEqual(404);
     expect(res.body).toHaveProperty('error', 'Endpoint not found');
+    expect(res.body).toHaveProperty('requestId');
+    expect(res.headers['x-request-id']).toBe(res.body.requestId);
   });
 });
