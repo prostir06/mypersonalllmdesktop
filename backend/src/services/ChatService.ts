@@ -8,6 +8,7 @@ import EmbeddingService = require('./EmbeddingService');
 import ProviderFactory = require('./providerFactory');
 import { buildMessageFtsQuery } from '../utils/messageFts';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
+import { assertChatImage } from '../utils/chatImage';
 
 class ChatError extends Error {
   statusCode: number;
@@ -215,13 +216,25 @@ class ChatService {
     );
 
     const userMessageObj: ChatMessage = options.image
-      ? {
-          role: 'user',
-          content: [
-            { type: 'text', text: input.message },
-            { type: 'image_url', image_url: { url: options.image } },
-          ],
-        }
+      ? (() => {
+          try {
+            assertChatImage(options.image);
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            throw new ChatError(400, message);
+          }
+          return {
+            role: 'user' as const,
+            content: [
+              { type: 'text' as const, text: input.message },
+              {
+                type: 'image_url' as const,
+                image_url: { url: options.image as string },
+              },
+            ],
+          };
+        })()
       : { role: 'user', content: input.message };
 
     if (options.image) delete options.image;
