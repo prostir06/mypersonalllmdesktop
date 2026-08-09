@@ -7,6 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { URL } from 'url';
 import type { AddressInfo } from 'net';
+import { UI_CSP } from './security';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -80,7 +81,11 @@ export function startUiServer(opts: {
       return;
     }
 
-    res.writeHead(200, { 'Content-Type': contentType(filePath) });
+    res.writeHead(200, {
+      'Content-Type': contentType(filePath),
+      'Content-Security-Policy': UI_CSP,
+      'X-Content-Type-Options': 'nosniff',
+    });
     if (method === 'HEAD') {
       res.end();
       return;

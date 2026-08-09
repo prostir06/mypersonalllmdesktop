@@ -4,6 +4,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
+import { isAllowedAppOrigin } from './security';
 import { startUiServer, type UiServer } from './uiServer';
 import {
   assertUiRootExists,
@@ -21,6 +22,8 @@ function preloadPath(): string {
 }
 
 async function createWindow(): Promise<void> {
+  const allowedOrigins = new Set<string>();
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 840,
@@ -49,8 +52,15 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isAllowedAppOrigin(url, allowedOrigins)) return;
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+
   if (isDev) {
     const viteUrl = process.env.VITE_DEV_SERVER || 'http://localhost:3000';
+    allowedOrigins.add(new URL(viteUrl).origin);
     await mainWindow.loadURL(viteUrl);
     return;
   }
@@ -65,7 +75,9 @@ async function createWindow(): Promise<void> {
     const uiRoot = assertUiRootExists(rawRoot);
 
     uiServer = await startUiServer({ uiRoot, backendOrigin, port });
-    await mainWindow.loadURL(`http://127.0.0.1:${uiServer.port}`);
+    const uiOrigin = `http://127.0.0.1:${uiServer.port}`;
+    allowedOrigins.add(uiOrigin);
+    await mainWindow.loadURL(uiOrigin);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Failed to bind static UI + /api proxy:', message);
