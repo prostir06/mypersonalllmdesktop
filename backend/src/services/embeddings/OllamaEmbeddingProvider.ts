@@ -1,6 +1,7 @@
 import axios from 'axios';
 import logger from '../../logger';
 import { resolveOllamaEmbeddingsUrl } from '../../utils/ollamaEmbeddingsUrl';
+import { UrlNotAllowedError } from '../../utils/urlAllowlist';
 import { OLLAMA_EMBED_MODEL } from './types';
 
 function truncateText(text: string): string {
@@ -35,6 +36,8 @@ export class OllamaEmbeddingProvider {
       }
       return embedding;
     } catch (error: unknown) {
+      // SSRF / allowlist failures must not become soft nulls.
+      if (error instanceof UrlNotAllowedError) throw error;
       const err = error as {
         response?: { data?: { error?: string } };
         message?: string;

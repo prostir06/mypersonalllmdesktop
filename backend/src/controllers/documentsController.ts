@@ -4,6 +4,7 @@ import logger from '../logger';
 import { decodeMulterFilename } from '../utils/multerFilename';
 import { parseListPagination } from '../utils/listPagination';
 import { jsonError } from '../utils/httpJson';
+import { UrlNotAllowedError } from '../utils/urlAllowlist';
 
 type UploadedFile = {
   originalname: string;
@@ -201,10 +202,16 @@ export async function reindexDocument(
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/${req.params.id}/reindex error: ${message}`);
 
+    if (error instanceof UrlNotAllowedError) {
+      jsonError(res, req, 400, message);
+      return;
+    }
+
+    // Only known client/config conflicts → 409; avoid broad "embeddings" match.
     if (
       message.includes('провайдера embeddings') ||
-      message.includes('фрагментів') ||
-      message.includes('embeddings')
+      message.includes('фрагментів для переіндексації') ||
+      message.includes('Не вдалося згенерувати embeddings')
     ) {
       jsonError(res, req, 409, message);
       return;

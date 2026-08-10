@@ -64,7 +64,12 @@ const mockedPrisma = prisma as unknown as {
     deleteMany: jest.Mock;
     count: jest.Mock;
   };
-  documentChunk: { create: jest.Mock; createMany: jest.Mock };
+  documentChunk: {
+    create: jest.Mock;
+    createMany: jest.Mock;
+    findMany: jest.Mock;
+    count: jest.Mock;
+  };
   $executeRawUnsafe: jest.Mock;
   $transaction: jest.Mock;
 };
@@ -309,6 +314,91 @@ describe('DocumentService (Prisma)', () => {
         }),
       });
       expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('rethrows original error when mark-failed update also fails', async () => {
+      mockedPrisma.document.update.mockRejectedValue(new Error('db write failed'));
+
+      await expect(
+        DocumentService.finalizeUpload(
+          3,
+          1,
+          {
+            originalname: 'empty.txt',
+            mimetype: 'text/plain',
+            size: 0,
+          },
+          Buffer.from('', 'utf-8')
+        )
+      ).rejects.toThrow(/витягти текст/i);
+    });
+  });
+
+  describe('reindexEmbeddings', () => {
+    it('returns null when document missing or not ready', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue(null);
+      await expect(DocumentService.reindexEmbeddings(9, 1)).resolves.toBeNull();
+    });
+
+    it('throws when no embedding provider available', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue({
+        id: 1,
+        userId: 1,
+        status: 'ready',
+      });
+      mockedResolveCtx.mockResolvedValueOnce({ provider: 'none' });
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      await expect(DocumentService.reindexEmbeddings(1, 1)).rejects.toThrow(
+        /провайдера embeddings/i
+      );
+    });
+
+    it('updates chunk embeddings and document metadata', async () => {
+      mockedPrisma.document.findFirst
+        .mockResolvedValueOnce({
+          id: 5,
+          userId: 1,
+          status: 'ready',
+          filename: 'a.txt',
+          fileType: 'text/plain',
+          fileSize: 3,
+          embeddingsCount: 0,
+          embeddingProvider: null,
+          createdAt: new Date(),
+        })
+        .mockResolvedValueOnce({
+          id: 5,
+          userId: 1,
+          status: 'ready',
+          filename: 'a.txt',
+          fileType: 'text/plain',
+          fileSize: 3,
+          embeddingsCount: 1,
+          embeddingProvider: 'openai',
+          createdAt: new Date(),
+          _count: { chunks: 1 },
+        });
+      mockedPrisma.documentChunk.findMany.mockResolvedValue([
+        { id: 10, content: 'hello' },
+      ]);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateBatchEmbeddings.mockResolvedValue([[0.1, 0.2]]);
+      mockedPrisma.$executeRawUnsafe.mockResolvedValue(1);
+      mockedPrisma.document.update.mockResolvedValue({});
+
+      const result = await DocumentService.reindexEmbeddings(5, 1);
+
+      expect(result?.embeddingsCount).toBe(1);
+      expect(result?.document.embedding_provider).toBe('openai');
+      expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
+      expect(mockedPrisma.document.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: {
+          embeddingsCount: 1,
+          embeddingProvider: 'openai',
+        },
+      });
     });
   });
 

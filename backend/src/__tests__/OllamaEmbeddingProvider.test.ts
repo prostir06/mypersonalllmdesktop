@@ -57,4 +57,13 @@ describe('OllamaEmbeddingProvider', () => {
       )
     ).resolves.toBeNull();
   });
+
+  it('rethrows UrlNotAllowedError instead of returning null', async () => {
+    await expect(
+      OllamaEmbeddingProvider.generateEmbedding(
+        'x',
+        'http://169.254.169.254/v1/chat/completions'
+      )
+    ).rejects.toThrow(UrlNotAllowedError);
+  });
 });

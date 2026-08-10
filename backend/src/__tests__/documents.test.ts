@@ -226,6 +226,15 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.status).toBe(409);
   });
 
+  it('POST /:id/reindex returns 500 for unexpected errors', async () => {
+    mockedService.reindexEmbeddings.mockRejectedValue(
+      new Error('connection reset while writing embeddings')
+    );
+    const res = await request(app).post('/api/documents/11/reindex');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/переіндексувати/i);
+  });
+
   it('POST /upload in production omits internal error details', async () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';

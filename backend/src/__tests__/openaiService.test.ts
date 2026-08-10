@@ -116,6 +116,49 @@ describe('openaiService (SDK)', () => {
       ).toBe(true);
     });
 
+    it('surfaces invalid tool JSON instead of running tool with empty args', async () => {
+      mockCreate
+        .mockResolvedValueOnce({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: 'call_bad',
+                    type: 'function',
+                    function: {
+                      name: 'calculate',
+                      arguments: '{not-json',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: {},
+          model: 'gpt-3.5-turbo',
+        })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: 'sorry', role: 'assistant' } }],
+          usage: { total_tokens: 2 },
+          model: 'gpt-3.5-turbo',
+        });
+
+      const result = await sendOpenAIMessage(
+        [{ role: 'user', content: 'calc' }],
+        'gpt-3.5-turbo',
+        { enableTools: true }
+      );
+
+      expect(result.content).toBe('sorry');
+      const toolMsg = mockCreate.mock.calls[1][0].messages.find(
+        (m: { role: string }) => m.role === 'tool'
+      );
+      expect(toolMsg.content).toMatch(/Error parsing tool arguments/i);
+    });
+
     it('throws generic error on failure', async () => {
       mockCreate.mockRejectedValue(new Error('sk-secret-leak'));
       await expect(

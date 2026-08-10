@@ -121,17 +121,27 @@ async function sendOpenAIMessage(
 
       for (const toolCall of choice.message.tool_calls) {
         if (toolCall.type !== 'function') continue;
-        let args: { expression?: string } = {};
+        let toolContent: string;
         try {
-          args = JSON.parse(toolCall.function.arguments || '{}');
+          const args = JSON.parse(toolCall.function.arguments || '{}') as {
+            expression?: string;
+          };
+          toolContent = executeTool(toolCall.function.name, args);
         } catch (parseError: unknown) {
-          logger.error(`Помилка парсингу аргументів інструмента: ${parseError}`);
+          const parseMsg =
+            parseError instanceof Error
+              ? parseError.message
+              : String(parseError);
+          logger.error(
+            `Помилка парсингу аргументів інструмента: ${parseMsg}`
+          );
+          // Surface parse failure to the model instead of running the tool with {}.
+          toolContent = `Error parsing tool arguments: ${parseMsg}`;
         }
-        const result = executeTool(toolCall.function.name, args);
         workingMessages.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          content: result,
+          content: toolContent,
         });
       }
 

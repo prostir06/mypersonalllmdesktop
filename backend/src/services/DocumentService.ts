@@ -210,6 +210,7 @@ class DocumentService {
           tempPath
         );
       } catch (error: unknown) {
+        // Fire-and-forget: finalizeUpload already marks status=failed before rethrow.
         const message = error instanceof Error ? error.message : String(error);
         logger.error(`Background document processing failed id=${doc.id}: ${message}`);
       }
@@ -317,13 +318,22 @@ class DocumentService {
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      await prisma.document.update({
-        where: { id: docId },
-        data: {
-          status: 'failed',
-          failureReason: truncateFailureReason(message),
-        },
-      });
+      // Mark failed for UI/retry; never let this secondary write hide the original error.
+      try {
+        await prisma.document.update({
+          where: { id: docId },
+          data: {
+            status: 'failed',
+            failureReason: truncateFailureReason(message),
+          },
+        });
+      } catch (markErr: unknown) {
+        const markMsg =
+          markErr instanceof Error ? markErr.message : String(markErr);
+        logger.error(
+          `finalizeUpload: failed to mark document ${docId} as failed: ${markMsg}`
+        );
+      }
       throw error;
     } finally {
       if (succeeded && tempPath) {
