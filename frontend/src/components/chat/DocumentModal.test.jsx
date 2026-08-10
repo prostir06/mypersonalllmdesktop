@@ -1,32 +1,52 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DocumentModal from './DocumentModal';
 
+vi.mock('../../services/api', () => ({
+  documentsAPI: {
+    getChunks: vi.fn().mockResolvedValue({
+      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1 },
+    }),
+  },
+}));
+
 describe('DocumentModal', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   const docs = [
     {
       id: 1,
       filename: 'notes.pdf',
       chunks_count: 3,
       file_size: 2048,
+      status: 'ready',
+      has_embeddings: true,
     },
   ];
+
+  const baseProps = {
+    show: true,
+    onHide: vi.fn(),
+    selectedDocIds: [],
+    onToggleDoc: vi.fn(),
+    onDeleteDoc: vi.fn(),
+    onRetryDoc: vi.fn(),
+    onUploadClick: vi.fn(),
+    uploadingDoc: false,
+    fileInputRef: { current: null },
+    onFileChange: vi.fn(),
+  };
 
   it('disables upload and list actions while uploading', () => {
     render(
       <DocumentModal
-        show
-        onHide={vi.fn()}
+        {...baseProps}
         userDocuments={docs}
-        selectedDocIds={[]}
-        onToggleDoc={vi.fn()}
-        onDeleteDoc={vi.fn()}
-        onUploadClick={vi.fn()}
         uploadingDoc
-        fileInputRef={{ current: null }}
-        onFileChange={vi.fn()}
       />
     );
 
@@ -37,8 +57,7 @@ describe('DocumentModal', () => {
   it('shows pending status and disables checkbox until ready', () => {
     render(
       <DocumentModal
-        show
-        onHide={vi.fn()}
+        {...baseProps}
         userDocuments={[
           {
             id: 2,
@@ -48,13 +67,6 @@ describe('DocumentModal', () => {
             status: 'pending',
           },
         ]}
-        selectedDocIds={[]}
-        onToggleDoc={vi.fn()}
-        onDeleteDoc={vi.fn()}
-        onUploadClick={vi.fn()}
-        uploadingDoc={false}
-        fileInputRef={{ current: null }}
-        onFileChange={vi.fn()}
       />
     );
 
@@ -62,11 +74,10 @@ describe('DocumentModal', () => {
     expect(screen.getByLabelText('pending.txt')).toBeDisabled();
   });
 
-  it('shows failed indexing hint', () => {
+  it('shows failed status with retry button', () => {
     render(
       <DocumentModal
-        show
-        onHide={vi.fn()}
+        {...baseProps}
         userDocuments={[
           {
             id: 3,
@@ -74,22 +85,29 @@ describe('DocumentModal', () => {
             chunks_count: 0,
             file_size: 10,
             status: 'failed',
+            failure_reason: 'PDF corrupt',
           },
         ]}
-        selectedDocIds={[]}
-        onToggleDoc={vi.fn()}
-        onDeleteDoc={vi.fn()}
-        onUploadClick={vi.fn()}
-        uploadingDoc={false}
-        fileInputRef={{ current: null }}
-        onFileChange={vi.fn()}
       />
     );
 
+    expect(screen.getByText(/PDF corrupt/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/помилка індексації — видаліть і спробуйте знову/i)
+      screen.getByRole('button', { name: /Повторити індексацію/i })
     ).toBeInTheDocument();
     expect(screen.getByLabelText('bad.txt')).toBeDisabled();
+  });
+
+  it('shows RAG fallback badge when no OpenAI key', () => {
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={docs}
+        hasOpenaiApiKey={false}
+      />
+    );
+
+    expect(screen.getAllByText(/RAG: fallback/i).length).toBeGreaterThan(0);
   });
 
   it('calls onLoadMore when Показати ще is clicked', async () => {
@@ -97,16 +115,8 @@ describe('DocumentModal', () => {
     const user = userEvent.setup();
     render(
       <DocumentModal
-        show
-        onHide={vi.fn()}
+        {...baseProps}
         userDocuments={docs}
-        selectedDocIds={[]}
-        onToggleDoc={vi.fn()}
-        onDeleteDoc={vi.fn()}
-        onUploadClick={vi.fn()}
-        uploadingDoc={false}
-        fileInputRef={{ current: null }}
-        onFileChange={vi.fn()}
         hasMore
         onLoadMore={onLoadMore}
         loadingMore={false}

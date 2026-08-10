@@ -15,6 +15,7 @@ import type {
   Conversation,
   ConversationExportResponse,
   DocumentDeleteResponse,
+  DocumentChunkRecord,
   DocumentRecord,
   DocumentUploadResponse,
   ListQueryParams,
@@ -298,6 +299,13 @@ export const documentsAPI = {
     }),
   delete: (id: string | number): Promise<AxiosResponse<DocumentDeleteResponse>> =>
     api.delete(`/documents/${id}`),
+  getChunks: (
+    id: string | number,
+    params?: ListQueryParams
+  ): Promise<AxiosResponse<PaginatedList<DocumentChunkRecord>>> =>
+    api.get(`/documents/${id}/chunks`, { params }),
+  retry: (id: string | number): Promise<AxiosResponse<DocumentUploadResponse>> =>
+    api.post(`/documents/${id}/retry`),
 };
 
 export const usersAPI = {

@@ -304,6 +304,12 @@ const Settings: React.FC = () => {
           >
             Ключ OpenAI
           </h6>
+          {!hasOpenaiKey && (
+            <Alert variant="warning" className="small py-2">
+              RAG: fallback (без embeddings) — семантичний пошук по документах
+              недоступний без валідного OpenAI API key.
+            </Alert>
+          )}
           <Form.Group className="mb-2">
             <Form.Label htmlFor="openai-api-key" className="small fw-semibold">
               API ключ (зберігається зашифрованим)

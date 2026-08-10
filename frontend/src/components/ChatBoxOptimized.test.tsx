@@ -58,6 +58,8 @@ vi.mock('../hooks/useChatDocuments', () => ({
     handleFileUpload: vi.fn(),
     handleToggleDoc: vi.fn(),
     handleDeleteDoc: vi.fn(),
+    handleRetryDoc: vi.fn(),
+    retryingDocId: null,
     hasMoreDocuments: false,
     loadMoreDocuments: vi.fn(),
     loadingMoreDocuments: false,

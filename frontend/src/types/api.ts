@@ -147,7 +147,15 @@ export interface DocumentRecord {
   status?: 'pending' | 'ready' | 'failed' | string;
   chunks_count?: number;
   file_size?: number;
+  failure_reason?: string;
+  has_embeddings?: boolean;
+  embeddings_count?: number;
   [key: string]: unknown;
+}
+
+export interface DocumentChunkRecord {
+  chunk_index: number;
+  content: string;
 }
 
 export interface DocumentUploadResponse {

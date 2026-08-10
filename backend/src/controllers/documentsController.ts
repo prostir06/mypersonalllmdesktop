@@ -139,3 +139,73 @@ export async function deleteDocument(
     jsonError(res, req, 500, 'Не вдалося видалити документ');
   }
 }
+
+export async function getDocumentChunks(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!/^\d+$/.test(String(req.params.id))) {
+      jsonError(res, req, 400, 'Некоректний ідентифікатор документа');
+      return;
+    }
+
+    const { limit, offset } = parseListPagination(req.query, { limit: 5 });
+    const result = await DocumentService.getChunks(
+      Number(req.params.id),
+      req.userId!,
+      limit,
+      offset
+    );
+
+    if (!result) {
+      jsonError(res, req, 404, 'Документ не знайдено');
+      return;
+    }
+
+    res.json(result);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`GET /documents/${req.params.id}/chunks error: ${message}`);
+    jsonError(res, req, 500, 'Не вдалося отримати фрагменти документа');
+  }
+}
+
+export async function retryDocument(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!/^\d+$/.test(String(req.params.id))) {
+      jsonError(res, req, 400, 'Некоректний ідентифікатор документа');
+      return;
+    }
+
+    const result = await DocumentService.retryIndexing(
+      Number(req.params.id),
+      req.userId!
+    );
+
+    if (!result) {
+      jsonError(res, req, 404, 'Документ не знайдено або не у статусі failed');
+      return;
+    }
+
+    res.status(202).json({
+      document: result.document,
+      status: 'pending',
+      message: 'Повторну індексацію поставлено в чергу',
+      requestId: req.id,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`POST /documents/${req.params.id}/retry error: ${message}`);
+
+    if (message.includes('повторної індексації')) {
+      jsonError(res, req, 409, message);
+      return;
+    }
+
+    jsonError(res, req, 500, 'Не вдалося повторити індексацію');
+  }
+}

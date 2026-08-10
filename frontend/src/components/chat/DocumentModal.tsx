@@ -1,9 +1,15 @@
 /**
  * RAG documents manager modal.
  */
-import React, { type ChangeEvent, type RefObject } from 'react';
-import { Modal, Button, Form, ListGroup, Spinner } from 'react-bootstrap';
-import type { DocumentRecord } from '../../types/api';
+import React, {
+  type ChangeEvent,
+  type RefObject,
+  useCallback,
+  useState,
+} from 'react';
+import { Modal, Button, Form, ListGroup, Spinner, Badge, Collapse } from 'react-bootstrap';
+import { documentsAPI } from '../../services/api';
+import type { DocumentChunkRecord, DocumentRecord } from '../../types/api';
 
 export type DocumentModalProps = {
   show: boolean;
@@ -12,14 +18,86 @@ export type DocumentModalProps = {
   selectedDocIds: Array<string | number>;
   onToggleDoc: (docId: string | number, checked: boolean) => void;
   onDeleteDoc: (docId: string | number) => void;
+  onRetryDoc: (docId: string | number) => void;
   onUploadClick: () => void;
   uploadingDoc: boolean;
+  retryingDocId?: string | number | null;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
+  hasOpenaiApiKey?: boolean;
 };
+
+function RagModeBadge({ hasOpenaiApiKey }: { hasOpenaiApiKey?: boolean }) {
+  if (hasOpenaiApiKey) {
+    return (
+      <Badge bg="success" className="ms-2">
+        RAG: embeddings
+      </Badge>
+    );
+  }
+  return (
+    <Badge bg="warning" text="dark" className="ms-2">
+      RAG: fallback (без embeddings)
+    </Badge>
+  );
+}
+
+function ChunkPreview({ docId }: { docId: string | number }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [chunks, setChunks] = useState<DocumentChunkRecord[]>([]);
+  const [error, setError] = useState('');
+
+  const loadChunks = useCallback(async () => {
+    if (chunks.length > 0) {
+      setOpen((v) => !v);
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const res = await documentsAPI.getChunks(docId, { limit: 3, offset: 0 });
+      setChunks(res.data.items);
+      setOpen(true);
+    } catch {
+      setError('Не вдалося завантажити фрагменти');
+    } finally {
+      setLoading(false);
+    }
+  }, [chunks.length, docId]);
+
+  return (
+    <div className="mt-1">
+      <Button
+        variant="link"
+        size="sm"
+        className="p-0 text-info"
+        disabled={loading}
+        onClick={() => void loadChunks()}
+      >
+        {loading ? 'Завантаження…' : open ? 'Сховати фрагменти' : 'Переглянути фрагменти'}
+      </Button>
+      {error && <div className="text-danger small">{error}</div>}
+      <Collapse in={open}>
+        <div className="mt-1">
+          {chunks.map((chunk) => (
+            <pre
+              key={chunk.chunk_index}
+              className="small text-muted mb-1 p-2 rounded border border-secondary"
+              style={{ whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}
+            >
+              #{chunk.chunk_index + 1}: {chunk.content.slice(0, 280)}
+              {chunk.content.length > 280 ? '…' : ''}
+            </pre>
+          ))}
+        </div>
+      </Collapse>
+    </div>
+  );
+}
 
 const DocumentModal = React.memo(function DocumentModal({
   show,
@@ -28,25 +106,36 @@ const DocumentModal = React.memo(function DocumentModal({
   selectedDocIds,
   onToggleDoc,
   onDeleteDoc,
+  onRetryDoc,
   onUploadClick,
   uploadingDoc,
+  retryingDocId,
   fileInputRef,
   onFileChange,
   hasMore,
   onLoadMore,
   loadingMore,
+  hasOpenaiApiKey,
 }: DocumentModalProps) {
   return (
     <Modal show={show} onHide={onHide} centered className="glass-modal">
       <Modal.Header closeButton className="border-secondary bg-dark text-light">
         <Modal.Title className="fs-5 fw-bold">
           📎 Менеджер RAG документів
+          <RagModeBadge hasOpenaiApiKey={hasOpenaiApiKey} />
         </Modal.Title>
       </Modal.Header>
       <Modal.Body className="bg-dark text-light">
         <p className="text-muted small">
           Завантажте PDF, DOCX або TXT файли. Обрані документи додаватимуть свій
           вміст до контексту AI.
+          {!hasOpenaiApiKey && (
+            <>
+              {' '}
+              Без OpenAI API key пошук працює у режимі fallback — перші фрагменти
+              замість семантичного відбору.
+            </>
+          )}
         </p>
 
         <div className="mb-3">
@@ -89,18 +178,20 @@ const DocumentModal = React.memo(function DocumentModal({
               const isSelected = selectedDocIds.includes(doc.id);
               const status = doc.status || 'ready';
               const isReady = status === 'ready';
+              const isFailed = status === 'failed';
+              const isRetrying = retryingDocId === doc.id;
               const statusLabel =
                 status === 'pending'
                   ? 'індексація…'
-                  : status === 'failed'
-                    ? 'помилка індексації — видаліть і спробуйте знову'
+                  : isFailed
+                    ? 'помилка індексації'
                     : null;
               return (
                 <ListGroup.Item
                   key={doc.id}
-                  className="bg-dark text-light border-secondary d-flex justify-content-between align-items-center"
+                  className="bg-dark text-light border-secondary d-flex justify-content-between align-items-start"
                 >
-                  <div>
+                  <div className="flex-grow-1 pe-2">
                     <Form.Check
                       type="checkbox"
                       id={`doc-${doc.id}`}
@@ -113,13 +204,35 @@ const DocumentModal = React.memo(function DocumentModal({
                       {statusLabel ? `${statusLabel} | ` : ''}
                       {doc.chunks_count ?? 0} фрагментів |{' '}
                       {((doc.file_size || 0) / 1024).toFixed(1)} KB
+                      {isReady && doc.has_embeddings === false && ' | без embeddings'}
                     </small>
+                    {isFailed && doc.failure_reason && (
+                      <div className="text-danger small mt-1">{doc.failure_reason}</div>
+                    )}
+                    {isReady && (doc.chunks_count ?? 0) > 0 && (
+                      <ChunkPreview docId={doc.id} />
+                    )}
+                    {isFailed && (
+                      <Button
+                        variant="outline-warning"
+                        size="sm"
+                        className="mt-2"
+                        disabled={uploadingDoc || isRetrying}
+                        onClick={() => onRetryDoc(doc.id)}
+                      >
+                        {isRetrying ? (
+                          <Spinner size="sm" animation="border" />
+                        ) : (
+                          'Повторити індексацію'
+                        )}
+                      </Button>
+                    )}
                   </div>
 
                   <Button
                     variant="outline-danger"
                     size="sm"
-                    disabled={uploadingDoc}
+                    disabled={uploadingDoc || isRetrying}
                     onClick={() => onDeleteDoc(doc.id)}
                   >
                     🗑

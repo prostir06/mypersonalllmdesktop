@@ -93,13 +93,16 @@ model LlmModel {
 }
 
 model Document {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  filename  String   @db.VarChar(255)
-  fileType  String   @map("file_type") @db.VarChar(50)
-  fileSize  Int      @map("file_size")
-  status    String   @default("ready") @db.VarChar(20)
-  createdAt DateTime @default(now()) @map("created_at")
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  filename         String   @db.VarChar(255)
+  fileType         String   @map("file_type") @db.VarChar(50)
+  fileSize         Int      @map("file_size")
+  status           String   @default("ready") @db.VarChar(20)
+  failureReason    String?  @map("failure_reason") @db.VarChar(500)
+  stagingPath      String?  @map("staging_path") @db.VarChar(512)
+  embeddingsCount  Int      @default(0) @map("embeddings_count")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   chunks DocumentChunk[]

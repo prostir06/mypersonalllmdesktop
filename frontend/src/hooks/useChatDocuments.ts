@@ -46,6 +46,9 @@ export function useChatDocuments() {
     []
   );
   const [showDocModal, setShowDocModal] = useState(false);
+  const [retryingDocId, setRetryingDocId] = useState<string | number | null>(
+    null
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const statusByIdRef = useRef<Map<string | number, string>>(new Map());
 
@@ -76,12 +79,18 @@ export function useChatDocuments() {
       const prev = statusByIdRef.current.get(doc.id);
       if (prev === 'pending' && status === 'ready') {
         toast.success(`Файл "${doc.filename || doc.id}" готовий до RAG`);
+        if (doc.has_embeddings === false) {
+          toast.warn(
+            'Документ проіндексовано без embeddings — RAG використовує fallback-відбір фрагментів'
+          );
+        }
         setSelectedDocIds((ids) =>
           ids.includes(doc.id) ? ids : [...ids, doc.id]
         );
       } else if (prev === 'pending' && status === 'failed') {
         toast.error(
-          `Індексація "${doc.filename || doc.id}" не вдалася. Видаліть файл і спробуйте знову.`
+          doc.failure_reason ||
+            `Індексація "${doc.filename || doc.id}" не вдалася. Спробуйте повторити або завантажте знову.`
         );
       }
       statusByIdRef.current.set(doc.id, status);
@@ -136,6 +145,31 @@ export function useChatDocuments() {
     },
   });
 
+  const retryMutation = useMutation({
+    mutationFn: async (docId: string | number) => {
+      setRetryingDocId(docId);
+      const res = await documentsAPI.retry(docId);
+      return { docId, ...res.data };
+    },
+    onSuccess: (data) => {
+      toast.info('Повторну індексацію поставлено в чергу…');
+      if (data.document?.id) {
+        statusByIdRef.current.set(
+          data.document.id,
+          String(data.document.status || 'pending')
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+    },
+    onError: (err: unknown) => {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Не вдалося повторити індексацію');
+    },
+    onSettled: () => {
+      setRetryingDocId(null);
+    },
+  });
+
   const handleFileUpload = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -161,16 +195,25 @@ export function useChatDocuments() {
     [deleteMutation]
   );
 
+  const handleRetryDoc = useCallback(
+    async (docId: string | number) => {
+      await retryMutation.mutateAsync(docId);
+    },
+    [retryMutation]
+  );
+
   return {
     userDocuments,
     selectedDocIds,
     showDocModal,
     setShowDocModal,
     uploadingDoc: uploadMutation.isPending,
+    retryingDocId,
     fileInputRef,
     handleFileUpload,
     handleToggleDoc,
     handleDeleteDoc,
+    handleRetryDoc,
     hasMoreDocuments: Boolean(documentsQuery.hasNextPage),
     loadMoreDocuments: () => documentsQuery.fetchNextPage(),
     loadingMoreDocuments: documentsQuery.isFetchingNextPage,

@@ -14,6 +14,8 @@ jest.mock('../services/DocumentService', () => ({
     uploadAndProcess: jest.fn(),
     getByUser: jest.fn(),
     getById: jest.fn(),
+    getChunks: jest.fn(),
+    retryIndexing: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -36,6 +38,8 @@ const mockedService = DocumentService as unknown as {
   uploadAndProcess: jest.Mock;
   getByUser: jest.Mock;
   getById: jest.Mock;
+  getChunks: jest.Mock;
+  retryIndexing: jest.Mock;
   delete: jest.Mock;
 };
 
@@ -146,6 +150,50 @@ describe('Documents API (Prisma routes)', () => {
     mockedService.getById.mockResolvedValue(null);
     const res = await request(app).get('/api/documents/99');
     expect(res.status).toBe(404);
+  });
+
+  it('GET /:id/chunks returns paginated chunks', async () => {
+    mockedService.getChunks.mockResolvedValue({
+      items: [{ chunk_index: 0, content: 'hello' }],
+      total: 1,
+      limit: 5,
+      offset: 0,
+    });
+
+    const res = await request(app).get('/api/documents/11/chunks');
+    expect(res.status).toBe(200);
+    expect(res.body.items[0].content).toBe('hello');
+    expect(mockedService.getChunks).toHaveBeenCalledWith(11, 1, 5, 0);
+  });
+
+  it('GET /:id/chunks returns 404 when missing', async () => {
+    mockedService.getChunks.mockResolvedValue(null);
+    const res = await request(app).get('/api/documents/99/chunks');
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /:id/retry returns 202 pending', async () => {
+    mockedService.retryIndexing.mockResolvedValue({
+      document: {
+        id: 11,
+        user_id: 1,
+        filename: 'note.txt',
+        status: 'pending',
+      },
+    });
+
+    const res = await request(app).post('/api/documents/11/retry');
+    expect(res.status).toBe(202);
+    expect(res.body.status).toBe('pending');
+    expect(mockedService.retryIndexing).toHaveBeenCalledWith(11, 1);
+  });
+
+  it('POST /:id/retry returns 409 when staging file gone', async () => {
+    mockedService.retryIndexing.mockRejectedValue(
+      new Error('Файл недоступний для повторної індексації — завантажте документ знову')
+    );
+    const res = await request(app).post('/api/documents/11/retry');
+    expect(res.status).toBe(409);
   });
 
   it('POST /upload in production omits internal error details', async () => {

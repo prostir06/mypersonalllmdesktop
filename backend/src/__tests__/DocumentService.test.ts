@@ -24,6 +24,8 @@ jest.mock('../config/prisma', () => ({
     documentChunk: {
       create: jest.fn(),
       createMany: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     $executeRawUnsafe: jest.fn(),
     $transaction: jest.fn(),
@@ -154,6 +156,7 @@ describe('DocumentService (Prisma)', () => {
           userId: 1,
           filename: 'test.txt',
           status: 'pending',
+          stagingPath: expect.any(String),
         }),
       });
       expect(queued).toHaveLength(1);
@@ -196,6 +199,7 @@ describe('DocumentService (Prisma)', () => {
         fileType: 'text/plain',
         fileSize: 100,
         status: 'ready',
+        embeddingsCount: 1,
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
       });
 
@@ -216,7 +220,12 @@ describe('DocumentService (Prisma)', () => {
       expect(mockedPrisma.$executeRawUnsafe).toHaveBeenCalled();
       expect(mockedPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 42 },
-        data: { status: 'ready' },
+        data: expect.objectContaining({
+          status: 'ready',
+          failureReason: null,
+          stagingPath: null,
+          embeddingsCount: 1,
+        }),
       });
     });
 
@@ -249,7 +258,10 @@ describe('DocumentService (Prisma)', () => {
       });
       expect(mockedPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 7 },
-        data: { status: 'ready' },
+        data: expect.objectContaining({
+          status: 'ready',
+          embeddingsCount: 0,
+        }),
       });
     });
 
@@ -279,7 +291,10 @@ describe('DocumentService (Prisma)', () => {
 
       expect(mockedPrisma.document.update).toHaveBeenCalledWith({
         where: { id: 3 },
-        data: { status: 'failed' },
+        data: expect.objectContaining({
+          status: 'failed',
+          failureReason: expect.any(String),
+        }),
       });
       expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
     });
@@ -322,6 +337,7 @@ describe('DocumentService (Prisma)', () => {
 
   describe('delete', () => {
     it('returns true when count > 0', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue({ stagingPath: null });
       mockedPrisma.document.deleteMany.mockResolvedValue({ count: 1 });
       expect(await DocumentService.delete(1, 1)).toBe(true);
       expect(mockedPrisma.document.deleteMany).toHaveBeenCalledWith({
@@ -330,6 +346,7 @@ describe('DocumentService (Prisma)', () => {
     });
 
     it('returns false when count is 0', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue({ stagingPath: null });
       mockedPrisma.document.deleteMany.mockResolvedValue({ count: 0 });
       expect(await DocumentService.delete(99, 1)).toBe(false);
     });

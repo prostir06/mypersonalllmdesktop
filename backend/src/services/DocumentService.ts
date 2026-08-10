@@ -27,6 +27,8 @@ type DocumentRow = {
   fileType: string;
   fileSize: number;
   status?: string;
+  failureReason?: string | null;
+  embeddingsCount?: number;
   createdAt: Date;
 };
 
@@ -58,6 +60,11 @@ async function deleteTempUpload(tempPath: string | null): Promise<void> {
   }
 }
 
+function truncateFailureReason(message: string): string {
+  if (message.length <= 500) return message;
+  return `${message.slice(0, 497)}...`;
+}
+
 type FileMeta = Pick<FileInfo, 'originalname' | 'mimetype' | 'size'>;
 type UploadSource = Buffer | string;
 
@@ -66,6 +73,7 @@ function defaultEnqueue(job: () => void | Promise<void>): void {
 }
 
 function toPublicDocument(row: DocumentRow, chunksCount?: number) {
+  const embeddingsCount = row.embeddingsCount ?? 0;
   const base = {
     id: row.id,
     user_id: row.userId,
@@ -73,6 +81,9 @@ function toPublicDocument(row: DocumentRow, chunksCount?: number) {
     file_type: row.fileType,
     file_size: row.fileSize,
     status: row.status || 'ready',
+    failure_reason: row.failureReason ?? undefined,
+    has_embeddings: embeddingsCount > 0,
+    embeddings_count: embeddingsCount,
     created_at: row.createdAt,
   };
 
@@ -166,6 +177,7 @@ class DocumentService {
         fileType: mimetype,
         fileSize: size,
         status: 'pending',
+        stagingPath: tempPath,
       },
     });
 
@@ -195,6 +207,7 @@ class DocumentService {
   ) {
     const { originalname, mimetype } = meta;
     const tempPath = typeof source === 'string' ? source : null;
+    let succeeded = false;
 
     try {
       const buffer =
@@ -216,7 +229,8 @@ class DocumentService {
         );
       }
 
-      const hasAnyEmbedding = embeddings.some(Boolean);
+      const embeddingCount = embeddings.filter(Boolean).length;
+      const hasAnyEmbedding = embeddingCount > 0;
 
       const doc = await prisma.$transaction(async (tx) => {
         if (!hasAnyEmbedding) {
@@ -250,12 +264,19 @@ class DocumentService {
 
         return tx.document.update({
           where: { id: docId },
-          data: { status: 'ready' },
+          data: {
+            status: 'ready',
+            failureReason: null,
+            stagingPath: null,
+            embeddingsCount: embeddingCount,
+          },
         });
       });
 
+      succeeded = true;
+
       logger.info(
-        `Document uploaded & chunked: ${originalname} (id=${docId}, ${chunks.length} chunks, embeddings=${embeddings.filter(Boolean).length})`
+        `Document uploaded & chunked: ${originalname} (id=${docId}, ${chunks.length} chunks, embeddings=${embeddingCount})`
       );
 
       if (!EmbeddingService.isAvailable(openaiKey)) {
@@ -265,18 +286,108 @@ class DocumentService {
       }
 
       return {
-        document: toPublicDocument(doc),
+        document: toPublicDocument(doc, chunks.length),
         chunksCount: chunks.length,
+        embeddingsCount: embeddingCount,
       };
     } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       await prisma.document.update({
         where: { id: docId },
-        data: { status: 'failed' },
+        data: {
+          status: 'failed',
+          failureReason: truncateFailureReason(message),
+        },
       });
       throw error;
     } finally {
-      await deleteTempUpload(tempPath);
+      if (succeeded && tempPath) {
+        await deleteTempUpload(tempPath);
+      }
     }
+  }
+
+  /** Re-queue indexing for a failed document when staging file still exists. */
+  static async retryIndexing(
+    docId: number,
+    userId: number,
+    enqueue: EnqueueFn = defaultEnqueue
+  ) {
+    const doc = await prisma.document.findFirst({
+      where: { id: docId, userId, status: 'failed' },
+    });
+    if (!doc) return null;
+
+    if (!doc.stagingPath) {
+      throw new Error(
+        'Файл недоступний для повторної індексації — завантажте документ знову'
+      );
+    }
+
+    try {
+      await fs.access(doc.stagingPath);
+    } catch {
+      throw new Error(
+        'Файл недоступний для повторної індексації — завантажте документ знову'
+      );
+    }
+
+    const updated = await prisma.document.update({
+      where: { id: docId },
+      data: { status: 'pending', failureReason: null },
+    });
+
+    const meta = {
+      originalname: doc.filename,
+      mimetype: doc.fileType,
+      size: doc.fileSize,
+    };
+
+    enqueue(async () => {
+      try {
+        await this.finalizeUpload(docId, userId, meta, doc.stagingPath!);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(`Background document retry failed id=${docId}: ${message}`);
+      }
+    });
+
+    return { document: toPublicDocument(updated) };
+  }
+
+  static async getChunks(
+    docId: number,
+    userId: number,
+    limit = 5,
+    offset = 0
+  ) {
+    const doc = await prisma.document.findFirst({
+      where: { id: docId, userId },
+      select: { id: true },
+    });
+    if (!doc) return null;
+
+    const where = { documentId: docId };
+    const [rows, total] = await Promise.all([
+      prisma.documentChunk.findMany({
+        where,
+        orderBy: { chunkIndex: 'asc' },
+        take: limit,
+        skip: offset,
+        select: { chunkIndex: true, content: true },
+      }),
+      prisma.documentChunk.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        chunk_index: row.chunkIndex,
+        content: row.content,
+      })),
+      total,
+      limit,
+      offset,
+    };
   }
 
   /** Sync helper (tests / legacy): accept then await finalize. */
@@ -333,9 +444,19 @@ class DocumentService {
   }
 
   static async delete(docId: number, userId: number): Promise<boolean> {
+    const row = await prisma.document.findFirst({
+      where: { id: docId, userId },
+      select: { stagingPath: true },
+    });
+    if (!row) return false;
+
     const result = await prisma.document.deleteMany({
       where: { id: docId, userId },
     });
+
+    if (result.count > 0 && row.stagingPath) {
+      await deleteTempUpload(row.stagingPath);
+    }
 
     return result.count > 0;
   }
