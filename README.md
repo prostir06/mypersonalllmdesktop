@@ -145,6 +145,7 @@ JWT_REFRESH_EXPIRE=30d
 ENCRYPTION_KEY=   # required in production (compose prod + entrypoint)
 OPENAI_API_KEY=your_openai_api_key_here
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
+# DB_POOL_MAX=10   # Prisma pg pool (default 10)
 CORS_ORIGIN=http://localhost:3000
 ```
 
@@ -197,7 +198,28 @@ npm start        # node dist/server.js
 cd frontend
 npm start        # vite
 npm run build    # production build
+npm run build:analyze   # build + build/stats.html (rollup visualizer)
 npm run serve    # preview build
+```
+
+#### Bundle budget (production, gzip)
+
+Measured after `manualChunks` split (Dashboard/Settings/Profile lazy-loaded):
+
+| Chunk | ~gzip | Notes |
+|-------|-------|-------|
+| `bootstrap-ui` (JS+CSS) | ~92 KB | global Bootstrap + react-bootstrap; trim deferred |
+| `axios` | ~17 KB | API client |
+| `query` | ~9 KB | React Query |
+| `router` | ~8 KB | react-router |
+| `index` (shell) | ~7 KB | auth shell, Login/Register |
+| `Dashboard` (route) | ~12 KB | + lazy `markdown` (~35 KB) + `syntax-highlighter` (~22 KB) on first chat open |
+
+**Tradeoff:** full `bootstrap.min.css` (~31 KB gzip) stays in entry for simplicity. Code-splitting keeps markdown/highlighter off login/settings routes.
+
+```bash
+cd frontend && npm run build:analyze
+# open frontend/build/stats.html
 ```
 
 ## Notes

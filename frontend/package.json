@@ -17,6 +17,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
     "serve": "vite preview",
     "test": "vitest run",
     "lint": "eslint ."
@@ -36,6 +37,7 @@
     "jsdom": "^30.0.1",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.66.0",
+    "rollup-plugin-visualizer": "^6.0.3",
     "vite": "^8.1.5",
     "vitest": "^3.2.7"
   }
