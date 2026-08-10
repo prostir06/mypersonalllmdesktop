@@ -5,6 +5,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { isAllowedAppOrigin } from './security';
+import { registerIpcHandlers, setBackendOrigin } from './ipc';
 import { startUiServer, type UiServer } from './uiServer';
 import {
   assertUiRootExists,
@@ -60,6 +61,7 @@ async function createWindow(): Promise<void> {
 
   if (isDev) {
     const viteUrl = process.env.VITE_DEV_SERVER || 'http://localhost:3000';
+    setBackendOrigin(resolveBackendOrigin());
     allowedOrigins.add(new URL(viteUrl).origin);
     await mainWindow.loadURL(viteUrl);
     return;
@@ -67,6 +69,7 @@ async function createWindow(): Promise<void> {
 
   try {
     const backendOrigin = resolveBackendOrigin();
+    setBackendOrigin(backendOrigin);
     const port = uiPort();
     // Packaged: resources/ui. Local start: Vite outDir frontend/build.
     const rawRoot = app.isPackaged
@@ -86,6 +89,7 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(() => {
+  registerIpcHandlers();
   void createWindow().catch((err) => {
     console.error('Failed to start Electron UI:', err);
     app.quit();

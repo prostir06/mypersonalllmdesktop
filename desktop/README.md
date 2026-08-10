@@ -59,9 +59,21 @@ cd ../desktop && npm run dist
 
 Artifacts: `desktop/release/`.
 
-CI also runs `npm run pack:ci` (`electron-builder --dir --linux`) after a frontend build — pack-only smoke, no GUI assert.
+CI: `test-desktop` runs Linux pack smoke; `build-desktop-win` uploads Windows installer artifacts (no publish).
+
+## E2E smoke (optional)
+
+Playwright smoke against Docker stack (`register → dashboard → send message`):
+
+```bash
+docker compose up -d --build
+cd e2e && npm ci && npx playwright install chromium && npm test
+```
+
+GitHub Actions: `.github/workflows/e2e-smoke.yml` (manual + nightly).
 
 ## Security
 
 - `contextIsolation`, no `nodeIntegration`, `sandbox`
+- Preload IPC: `window.electron.getBackendUrl()`, `window.electron.openExternal(url)` (http/https/mailto only)
 - Proxy target restricted to loopback (or allowlist)

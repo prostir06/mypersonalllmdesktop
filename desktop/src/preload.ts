@@ -1,4 +1,11 @@
 /**
- * Electron preload — contextIsolation on; no Node APIs exposed in v1.
+ * Electron preload — minimal validated bridge for renderer.
  */
-export {};
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('electron', {
+  getBackendUrl: (): Promise<string> =>
+    ipcRenderer.invoke('electron:getBackendUrl'),
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke('electron:openExternal', url),
+});

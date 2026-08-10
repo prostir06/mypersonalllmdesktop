@@ -159,6 +159,53 @@ jobs:
         run: test -d release && ls -la release
         working-directory: desktop
 
+  build-desktop-win:
+    name: Desktop Windows Artifact
+    runs-on: windows-latest
+    needs: [build-frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            desktop/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --legacy-peer-deps
+        working-directory: frontend
+
+      - name: Build frontend UI (Electron extraResources)
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_URL: /api
+
+      - name: Install desktop dependencies
+        run: npm ci
+        working-directory: desktop
+
+      - name: Desktop unit tests
+        run: npm test
+        working-directory: desktop
+
+      - name: Build Windows installer
+        run: npm run dist
+        working-directory: desktop
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: desktop/release/
+          if-no-files-found: error
+
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest

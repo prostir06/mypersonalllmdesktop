@@ -1,0 +1,71 @@
+name: E2E Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Start Docker stack
+        run: |
+          cp .env.example .env
+          docker compose up -d --build
+        env:
+          ALLOW_REGISTRATION: 'true'
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5000/api/health; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Backend health check failed"
+          docker compose logs backend
+          exit 1
+
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Frontend not ready"
+          docker compose logs frontend
+          exit 1
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run smoke tests
+        working-directory: e2e
+        env:
+          E2E_BASE_URL: http://localhost:3000
+        run: npm test
+
+      - name: Docker logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

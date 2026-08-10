@@ -16,6 +16,20 @@ export function isAllowedAppOrigin(
   }
 }
 
+/** External links opened from renderer via IPC (http/https/mailto only). */
+export function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'http:' ||
+      parsed.protocol === 'https:' ||
+      parsed.protocol === 'mailto:'
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Baseline CSP for packaged static UI (API is same-origin via /api proxy). */
 export const UI_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gravatar.com; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isAllowedAppOrigin, UI_CSP } from './security';
+import { isAllowedAppOrigin, isSafeExternalUrl, UI_CSP } from './security';
 
 describe('isAllowedAppOrigin', () => {
   const allowed = ['http://127.0.0.1:4173', 'http://localhost:3000'];
@@ -21,5 +21,19 @@ describe('UI_CSP', () => {
     assert.match(UI_CSP, /default-src 'self'/);
     assert.match(UI_CSP, /https:\/\/www\.gravatar\.com/);
     assert.match(UI_CSP, /frame-ancestors 'none'/);
+  });
+});
+
+describe('isSafeExternalUrl', () => {
+  it('allows http(s) and mailto', () => {
+    assert.equal(isSafeExternalUrl('https://example.com/docs'), true);
+    assert.equal(isSafeExternalUrl('http://127.0.0.1:5000/api/health'), true);
+    assert.equal(isSafeExternalUrl('mailto:support@example.com'), true);
+  });
+
+  it('rejects javascript and malformed URLs', () => {
+    assert.equal(isSafeExternalUrl('javascript:alert(1)'), false);
+    assert.equal(isSafeExternalUrl('file:///etc/passwd'), false);
+    assert.equal(isSafeExternalUrl('not-a-url'), false);
   });
 });
