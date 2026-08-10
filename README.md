@@ -9,6 +9,7 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 - Settings (system prompt / roles, model params)
 - JWT authentication
 - Document upload for RAG (PDF, DOCX, TXT, MD)
+- Semantic RAG: OpenAI embeddings or local Ollama (`nomic-embed-text`)
 - Docker Compose for local stack (pgvector + Prisma migrate)
 
 ## Project structure
@@ -145,6 +146,8 @@ JWT_REFRESH_EXPIRE=30d
 ENCRYPTION_KEY=   # required in production (compose prod + entrypoint)
 OPENAI_API_KEY=your_openai_api_key_here
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
+# OLLAMA_EMBED_MODEL=nomic-embed-text
+# EMBEDDING_DIMENSIONS=768
 # DB_POOL_MAX=10   # Prisma pg pool (default 10)
 CORS_ORIGIN=http://localhost:3000
 ```
@@ -175,6 +178,10 @@ VITE_API_URL=/api
 ### Documents (RAG)
 - `POST /api/documents/upload`
 - `GET /api/documents`
+- `GET /api/documents/:id`
+- `GET /api/documents/:id/chunks`
+- `POST /api/documents/:id/retry`
+- `POST /api/documents/:id/reindex`
 - `DELETE /api/documents/:id`
 
 ### Models / Settings / Users

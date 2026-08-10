@@ -4,11 +4,12 @@ Workspace for a personal LLM assistant control panel.
 
 ## Stack
 
-- **backend/** — Express API (JS entry + TypeScript modules via `ts-node`), Prisma, PostgreSQL
-- **frontend/** — React 18 + Vite + TypeScript/JSX + Bootstrap 5
+- **backend/** — Express API (mostly TypeScript; `server.js` / `logger.js` entry), Prisma, PostgreSQL/pgvector
+- **frontend/** — React 18 + Vite + TypeScript + Bootstrap 5
+- **desktop/** — Electron shell (optional)
 - **docker-compose.yml** — Postgres + backend + frontend
 
-Providers: OpenAI API, Ollama. Auth: JWT.
+Providers: OpenAI API, Ollama (chat + optional local embeddings). Auth: JWT + refresh cookies.
 
 ## Ports
 
