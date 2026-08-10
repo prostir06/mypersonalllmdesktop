@@ -1,17 +1,23 @@
 /**
  * Message search across conversations.
  */
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { Form, Button, Spinner, ListGroup } from 'react-bootstrap';
+import type { AxiosError } from 'axios';
 import { chatAPI } from '../services/api';
+import type { ChatSearchHit } from '../types/api';
 
-const MessageSearch = ({ onSelectConversation }) => {
+export type MessageSearchProps = {
+  onSelectConversation: (conversationId: string | number) => void;
+};
+
+const MessageSearch: React.FC<MessageSearchProps> = ({ onSelectConversation }) => {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<ChatSearchHit[]>([]);
   const [error, setError] = useState('');
 
-  const runSearch = async (e) => {
+  const runSearch = async (e?: FormEvent) => {
     e?.preventDefault();
     const query = q.trim();
     if (query.length < 2) {
@@ -23,8 +29,9 @@ const MessageSearch = ({ onSelectConversation }) => {
     try {
       const res = await chatAPI.search(query);
       setResults(res.data.results || []);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Помилка пошуку');
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      setError(ax.response?.data?.error || 'Помилка пошуку');
       setResults([]);
     } finally {
       setLoading(false);
@@ -52,9 +59,7 @@ const MessageSearch = ({ onSelectConversation }) => {
           {loading ? <Spinner size="sm" animation="border" /> : '🔍'}
         </Button>
       </Form>
-      {error && (
-        <small className="text-danger d-block mt-1">{error}</small>
-      )}
+      {error && <small className="text-danger d-block mt-1">{error}</small>}
       {results.length > 0 && (
         <ListGroup
           variant="flush"

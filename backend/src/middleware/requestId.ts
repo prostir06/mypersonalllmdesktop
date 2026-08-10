@@ -1,12 +1,10 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
+import { Request, Response, NextFunction } from 'express';
 
 /**
  * Attach a request id (from X-Request-Id or generated UUID) and echo it on the response.
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
  */
-function requestId(req, res, next) {
+function requestId(req: Request, res: Response, next: NextFunction): void {
   const incoming = req.header('x-request-id');
   const id =
     incoming && typeof incoming === 'string' && incoming.trim()
@@ -17,4 +15,4 @@ function requestId(req, res, next) {
   next();
 }
 
-module.exports = requestId;
+export = requestId;

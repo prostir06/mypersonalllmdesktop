@@ -1,17 +1,15 @@
 /**
- * @file pages/Profile.js
  * Сторінка профілю поточного користувача.
- * Дозволяє переглядати та оновлювати ім'я та email.
  */
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type FormEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import { usersAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { gravatarUrl } from '../utils/gravatar';
 
-const Profile = () => {
+const Profile: React.FC = () => {
   const { setUser } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -20,7 +18,7 @@ const Profile = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadProfile();
+    void loadProfile();
   }, []);
 
   const loadProfile = async () => {
@@ -31,14 +29,14 @@ const Profile = () => {
       setName(data.name || '');
       setEmail(data.email || '');
       setUser(data);
-    } catch (_err) {
+    } catch {
       setError('Не вдалося завантажити профіль');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async (e) => {
+  const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
     setSaving(true);
@@ -47,8 +45,9 @@ const Profile = () => {
       const response = await usersAPI.updateMe({ name, email });
       setUser(response.data);
       toast.success('Профіль оновлено! 👤');
-    } catch (err) {
-      const msg = err.response?.data?.error || 'Помилка при збереженні';
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      const msg = ax.response?.data?.error || 'Помилка при збереженні';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -56,10 +55,9 @@ const Profile = () => {
     }
   };
 
-  // Gravatar: MD5(lowercase trimmed email) — not base64
   const avatarUrl = email
     ? gravatarUrl(email, 120)
-    : `https://www.gravatar.com/avatar/?d=identicon&s=120`;
+    : 'https://www.gravatar.com/avatar/?d=identicon&s=120';
 
   if (loading) {
     return (
@@ -94,7 +92,10 @@ const Profile = () => {
       </div>
 
       <div className="glass-panel p-4">
-        <h6 className="fw-semibold mb-3 text-muted text-uppercase" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+        <h6
+          className="fw-semibold mb-3 text-muted text-uppercase"
+          style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+        >
           ✏️ Редагування профілю
         </h6>
 
@@ -102,7 +103,9 @@ const Profile = () => {
           <Row className="g-3">
             <Col md={6}>
               <Form.Group>
-                <Form.Label htmlFor="profile-name" className="small fw-semibold">Ім'я</Form.Label>
+                <Form.Label htmlFor="profile-name" className="small fw-semibold">
+                  Ім&apos;я
+                </Form.Label>
                 <Form.Control
                   id="profile-name"
                   type="text"
@@ -118,7 +121,9 @@ const Profile = () => {
 
             <Col md={6}>
               <Form.Group>
-                <Form.Label htmlFor="profile-email" className="small fw-semibold">Email</Form.Label>
+                <Form.Label htmlFor="profile-email" className="small fw-semibold">
+                  Email
+                </Form.Label>
                 <Form.Control
                   id="profile-email"
                   type="email"
@@ -138,10 +143,13 @@ const Profile = () => {
               className="btn-accent px-4 py-2 d-flex align-items-center gap-2"
               disabled={saving}
             >
-              {saving
-                ? <><Spinner size="sm" animation="border" /> Збереження...</>
-                : '💾 Зберегти профіль'
-              }
+              {saving ? (
+                <>
+                  <Spinner size="sm" animation="border" /> Збереження...
+                </>
+              ) : (
+                '💾 Зберегти профіль'
+              )}
             </Button>
           </div>
         </Form>

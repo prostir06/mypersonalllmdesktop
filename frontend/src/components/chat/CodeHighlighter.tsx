@@ -32,7 +32,17 @@ SyntaxHighlighter.registerLanguage('tsx', tsx);
 SyntaxHighlighter.registerLanguage('typescript', typescript);
 SyntaxHighlighter.registerLanguage('ts', typescript);
 
-export default function CodeHighlighter({ language, children, ...props }) {
+export type CodeHighlighterProps = {
+  language?: string;
+  children: string;
+  [key: string]: unknown;
+};
+
+export default function CodeHighlighter({
+  language,
+  children,
+  ...props
+}: CodeHighlighterProps) {
   return (
     <SyntaxHighlighter
       style={oneDark}

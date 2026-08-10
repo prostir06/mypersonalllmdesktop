@@ -1,9 +1,10 @@
 /**
  * Settings catalog table + create/edit form for user-owned LLM models.
  */
-import React, { useState } from 'react';
+import React, { useState, type FormEvent } from 'react';
 import { Button, Form, Spinner, Table } from 'react-bootstrap';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
 import {
   isSystemModel,
   useCreateModel,
@@ -11,8 +12,18 @@ import {
   useModels,
   useUpdateModel,
 } from '../../hooks/useModels';
+import type { ModelRecord } from '../../types/api';
 
-const emptyForm = {
+type CatalogForm = {
+  name: string;
+  modelId: string;
+  provider: string;
+  description: string;
+  temperature: number;
+  maxTokens: number;
+};
+
+const emptyForm: CatalogForm = {
   name: '',
   modelId: '',
   provider: 'openai',
@@ -27,8 +38,8 @@ export default function ModelCatalog() {
   const updateMutation = useUpdateModel();
   const deleteMutation = useDeleteModel();
 
-  const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState<CatalogForm>(emptyForm);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
   const [showForm, setShowForm] = useState(false);
 
   const busy =
@@ -48,7 +59,7 @@ export default function ModelCatalog() {
     setShowForm(true);
   };
 
-  const startEdit = (m) => {
+  const startEdit = (m: ModelRecord) => {
     setEditingId(m.id);
     setForm({
       name: m.name || '',
@@ -61,7 +72,7 @@ export default function ModelCatalog() {
     setShowForm(true);
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.modelId.trim()) {
       toast.error('Назва та model_id обовʼязкові');
@@ -93,23 +104,21 @@ export default function ModelCatalog() {
         toast.success('Модель додано');
       }
       resetForm();
-    } catch (err) {
-      toast.error(
-        err?.response?.data?.error || 'Не вдалося зберегти модель'
-      );
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Не вдалося зберегти модель');
     }
   };
 
-  const handleDelete = async (m) => {
+  const handleDelete = async (m: ModelRecord) => {
     if (!window.confirm(`Видалити модель «${m.name}»?`)) return;
     try {
       await deleteMutation.mutateAsync(m.id);
       toast.info('Модель видалено');
       if (editingId === m.id) resetForm();
-    } catch (err) {
-      toast.error(
-        err?.response?.data?.error || 'Не вдалося видалити модель'
-      );
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Не вдалося видалити модель');
     }
   };
 
@@ -163,9 +172,7 @@ export default function ModelCatalog() {
                 <td>
                   {m.name}
                   {system && (
-                    <span className="badge text-bg-secondary ms-2">
-                      системна
-                    </span>
+                    <span className="badge text-bg-secondary ms-2">системна</span>
                   )}
                 </td>
                 <td>
@@ -190,7 +197,7 @@ export default function ModelCatalog() {
                         variant="link"
                         size="sm"
                         className="text-danger p-0"
-                        onClick={() => handleDelete(m)}
+                        onClick={() => void handleDelete(m)}
                         aria-label={`Видалити ${m.name}`}
                         disabled={busy}
                       >
@@ -206,7 +213,10 @@ export default function ModelCatalog() {
       </Table>
 
       {showForm && (
-        <Form onSubmit={handleSubmit} className="border border-secondary rounded p-3">
+        <Form
+          onSubmit={handleSubmit}
+          className="border border-secondary rounded p-3"
+        >
           <h6 className="small fw-semibold mb-3">
             {editingId != null ? 'Редагувати модель' : 'Нова модель'}
           </h6>
