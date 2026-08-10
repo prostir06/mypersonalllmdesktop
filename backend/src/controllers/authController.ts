@@ -13,6 +13,9 @@ import {
   setRefreshCookie,
 } from '../utils/refreshTokens';
 import { isRegistrationAllowed } from '../utils/registrationGate';
+import { jsonError, jsonValidationErrors } from '../utils/httpJson';
+
+type AuthRequest = Request & { id?: string };
 
 class JwtSecretMissingError extends Error {
   constructor() {
@@ -59,15 +62,15 @@ async function getDummyHash(): Promise<string> {
   }
 }
 
-export async function register(req: Request, res: Response): Promise<void> {
+export async function register(req: AuthRequest, res: Response): Promise<void> {
   if (!isRegistrationAllowed()) {
-    res.status(403).json({ error: 'Реєстрація нових користувачів вимкнена' });
+    jsonError(res, req, 403, 'Реєстрація нових користувачів вимкнена');
     return;
   }
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
+    jsonValidationErrors(res, req, errors.array());
     return;
   }
 
@@ -80,7 +83,7 @@ export async function register(req: Request, res: Response): Promise<void> {
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      res.status(400).json({ error: 'Користувач з таким email вже існує' });
+      jsonError(res, req, 400, 'Користувач з таким email вже існує');
       return;
     }
 
@@ -97,17 +100,17 @@ export async function register(req: Request, res: Response): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/register error: ${message}`);
     if (error instanceof JwtSecretMissingError) {
-      res.status(500).json({ error: 'Помилка конфігурації сервера' });
+      jsonError(res, req, 500, 'Помилка конфігурації сервера');
       return;
     }
-    res.status(500).json({ error: 'Помилка сервера при реєстрації' });
+    jsonError(res, req, 500, 'Помилка сервера при реєстрації');
   }
 }
 
-export async function login(req: Request, res: Response): Promise<void> {
+export async function login(req: AuthRequest, res: Response): Promise<void> {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
+    jsonValidationErrors(res, req, errors.array());
     return;
   }
 
@@ -119,7 +122,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     const isPasswordValid = await bcrypt.compare(password, hash);
 
     if (!user || !isPasswordValid) {
-      res.status(400).json({ error: 'Невірний email або пароль' });
+      jsonError(res, req, 400, 'Невірний email або пароль');
       return;
     }
 
@@ -130,18 +133,18 @@ export async function login(req: Request, res: Response): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/login error: ${message}`);
     if (error instanceof JwtSecretMissingError) {
-      res.status(500).json({ error: 'Помилка конфігурації сервера' });
+      jsonError(res, req, 500, 'Помилка конфігурації сервера');
       return;
     }
-    res.status(500).json({ error: 'Помилка сервера при вході' });
+    jsonError(res, req, 500, 'Помилка сервера при вході');
   }
 }
 
-export async function refresh(req: Request, res: Response): Promise<void> {
+export async function refresh(req: AuthRequest, res: Response): Promise<void> {
   try {
     const raw = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (!raw) {
-      res.status(401).json({ error: 'Токен відсутній' });
+      jsonError(res, req, 401, 'Токен відсутній');
       return;
     }
 
@@ -151,7 +154,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     const rotated = await rotateRefreshToken(raw);
     if (!rotated) {
       clearRefreshCookie(res);
-      res.status(401).json({ error: 'Невалідний токен' });
+      jsonError(res, req, 401, 'Невалідний токен');
       return;
     }
 
@@ -161,7 +164,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     });
     if (!user) {
       clearRefreshCookie(res);
-      res.status(401).json({ error: 'Користувача не знайдено' });
+      jsonError(res, req, 401, 'Користувача не знайдено');
       return;
     }
 
@@ -172,14 +175,14 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/refresh error: ${message}`);
     if (error instanceof JwtSecretMissingError) {
-      res.status(500).json({ error: 'Помилка конфігурації сервера' });
+      jsonError(res, req, 500, 'Помилка конфігурації сервера');
       return;
     }
-    res.status(401).json({ error: 'Невалідний токен' });
+    jsonError(res, req, 401, 'Невалідний токен');
   }
 }
 
-export async function logout(req: Request, res: Response): Promise<void> {
+export async function logout(req: AuthRequest, res: Response): Promise<void> {
   try {
     const raw = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (raw) {

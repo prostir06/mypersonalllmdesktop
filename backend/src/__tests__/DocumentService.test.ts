@@ -206,8 +206,8 @@ describe('DocumentService (Prisma)', () => {
           originalname: 'test.txt',
           mimetype: 'text/plain',
           size: 100,
-          buffer: Buffer.from('Текст для тестування', 'utf-8'),
-        }
+        },
+        Buffer.from('Текст для тестування', 'utf-8')
       );
 
       expect(result.chunksCount).toBe(1);
@@ -233,12 +233,16 @@ describe('DocumentService (Prisma)', () => {
         createdAt: new Date(),
       });
 
-      await DocumentService.finalizeUpload(7, 1, {
-        originalname: 'a.txt',
-        mimetype: 'text/plain',
-        size: 3,
-        buffer: Buffer.from('abc', 'utf-8'),
-      });
+      await DocumentService.finalizeUpload(
+        7,
+        1,
+        {
+          originalname: 'a.txt',
+          mimetype: 'text/plain',
+          size: 3,
+        },
+        Buffer.from('abc', 'utf-8')
+      );
 
       expect(mockedPrisma.documentChunk.createMany).toHaveBeenCalledWith({
         data: [{ documentId: 7, chunkIndex: 0, content: 'abc' }],
@@ -261,12 +265,16 @@ describe('DocumentService (Prisma)', () => {
       });
 
       await expect(
-        DocumentService.finalizeUpload(3, 1, {
-          originalname: 'empty.txt',
-          mimetype: 'text/plain',
-          size: 0,
-          buffer: Buffer.from('', 'utf-8'),
-        })
+        DocumentService.finalizeUpload(
+          3,
+          1,
+          {
+            originalname: 'empty.txt',
+            mimetype: 'text/plain',
+            size: 0,
+          },
+          Buffer.from('', 'utf-8')
+        )
       ).rejects.toThrow(/витягти текст/i);
 
       expect(mockedPrisma.document.update).toHaveBeenCalledWith({

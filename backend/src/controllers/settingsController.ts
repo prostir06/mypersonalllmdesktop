@@ -6,8 +6,9 @@ import {
   encryptSecret,
   EncryptionConfigError,
 } from '../utils/secretCrypto';
+import { jsonError } from '../utils/httpJson';
 
-type SettingsRequest = Request & { userId?: number };
+type SettingsRequest = Request & { userId?: number; id?: string };
 
 const FALLBACK_OLLAMA =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -130,7 +131,7 @@ export async function getSettings(req: SettingsRequest, res: Response): Promise<
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`Error in GET /settings: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch settings' });
+    jsonError(res, req, 500, 'Failed to fetch settings');
   }
 }
 
@@ -140,7 +141,7 @@ export async function updateSettings(
   next: NextFunction
 ): Promise<void> {
   if (!req.userId) {
-    res.status(401).json({ error: 'No token, authorization denied' });
+    jsonError(res, req, 401, 'No token, authorization denied');
     return;
   }
 
@@ -197,14 +198,14 @@ export async function updateSettings(
     } else if (typeof openai_api_key === 'string' && openai_api_key.trim()) {
       const trimmed = openai_api_key.trim();
       if (trimmed === KEY_PLACEHOLDER) {
-        res.status(400).json({ error: 'Invalid OpenAI API key' });
+        jsonError(res, req, 400, 'Invalid OpenAI API key');
         return;
       }
       try {
         data.openaiApiKeyEnc = encryptSecret(trimmed, req.userId);
       } catch (err: unknown) {
         if (err instanceof EncryptionConfigError) {
-          res.status(503).json({ error: 'Помилка конфігурації шифрування' });
+          jsonError(res, req, 503, 'Помилка конфігурації шифрування');
           return;
         }
         throw err;

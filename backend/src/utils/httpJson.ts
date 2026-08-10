@@ -3,7 +3,7 @@
  */
 import type { Request, Response } from 'express';
 
-type ReqWithId = Request & { id?: string };
+export type ReqWithId = Request & { id?: string };
 
 export function jsonError(
   res: Response,
@@ -16,5 +16,16 @@ export function jsonError(
     error,
     requestId: req.id,
     ...extra,
+  });
+}
+
+export function jsonValidationErrors(
+  res: Response,
+  req: ReqWithId,
+  errors: unknown[]
+): Response {
+  return res.status(400).json({
+    errors,
+    requestId: req.id,
   });
 }

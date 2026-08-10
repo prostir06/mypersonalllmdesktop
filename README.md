@@ -112,6 +112,12 @@ docker compose up -d --build
 
 Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend container.
 
+### Docker troubleshooting
+
+- **Entrypoint `set: illegal option -`:** bind-mounted `docker-entrypoint.sh` with Windows CRLF line endings. Fix: ensure LF (`.gitattributes` sets `*.sh eol=lf`) or rebuild without bind-mount (`docker-compose.prod.yml`).
+- **Upload / Prisma field errors after code update:** stale generated client in the container volume. Run `docker compose exec backend npx prisma generate --config prisma/prisma.config.ts` and restart the backend.
+- **RAG embeddings:** document upload works without OpenAI key, but semantic search needs a valid key in settings or `OPENAI_API_KEY`. Without it, chunk selection falls back to non-vector heuristics.
+
 ## Auth
 
 No default users. Register via `POST /api/auth/register` or the UI when allowed.
@@ -202,4 +208,4 @@ npm run serve    # preview build
 
 ## License
 
-MIT (add a `LICENSE` file if you redistribute publicly).
+MIT — see [LICENSE](LICENSE).

@@ -7,8 +7,9 @@ import {
   UrlNotAllowedError,
 } from '../utils/urlAllowlist';
 import { modelSupportsVision } from '../utils/modelCapabilities';
+import { jsonError } from '../utils/httpJson';
 
-type AuthRequest = Request & { userId?: number };
+type AuthRequest = Request & { userId?: number; id?: string };
 
 type LlmModelRow = {
   id: number;
@@ -63,7 +64,7 @@ export async function listModels(req: AuthRequest, res: Response): Promise<void>
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /models error: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch models' });
+    jsonError(res, req, 500, 'Failed to fetch models');
   }
 }
 
@@ -83,7 +84,7 @@ export async function createModel(req: AuthRequest, res: Response): Promise<void
     typeof body.modelId !== 'string' ||
     !body.modelId.trim()
   ) {
-    res.status(400).json({ error: 'name and modelId are required' });
+    jsonError(res, req, 400, 'name and modelId are required');
     return;
   }
 
@@ -103,14 +104,14 @@ export async function createModel(req: AuthRequest, res: Response): Promise<void
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /models error: ${message}`);
-    res.status(500).json({ error: 'Failed to create model' });
+    jsonError(res, req, 500, 'Failed to create model');
   }
 }
 
 export async function updateModel(req: AuthRequest, res: Response): Promise<void> {
   const id = parseModelId(String(req.params.modelId));
   if (id == null) {
-    res.status(404).json({ error: 'Model not found' });
+    jsonError(res, req, 404, 'Model not found');
     return;
   }
 
@@ -127,7 +128,7 @@ export async function updateModel(req: AuthRequest, res: Response): Promise<void
       where: { id, userId: req.userId! },
     });
     if (!existing) {
-      res.status(404).json({ error: 'Model not found' });
+      jsonError(res, req, 404, 'Model not found');
       return;
     }
 
@@ -145,14 +146,14 @@ export async function updateModel(req: AuthRequest, res: Response): Promise<void
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`PUT /models/${req.params.modelId} error: ${message}`);
-    res.status(500).json({ error: 'Failed to update model' });
+    jsonError(res, req, 500, 'Failed to update model');
   }
 }
 
 export async function deleteModel(req: AuthRequest, res: Response): Promise<void> {
   const id = parseModelId(String(req.params.modelId));
   if (id == null) {
-    res.status(404).json({ error: 'Model not found' });
+    jsonError(res, req, 404, 'Model not found');
     return;
   }
 
@@ -161,14 +162,14 @@ export async function deleteModel(req: AuthRequest, res: Response): Promise<void
       where: { id, userId: req.userId! },
     });
     if (result.count === 0) {
-      res.status(404).json({ error: 'Model not found' });
+      jsonError(res, req, 404, 'Model not found');
       return;
     }
     res.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`DELETE /models/${req.params.modelId} error: ${message}`);
-    res.status(500).json({ error: 'Failed to delete model' });
+    jsonError(res, req, 500, 'Failed to delete model');
   }
 }
 
@@ -176,13 +177,13 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
   const { provider, host } = req.query as { provider?: string; host?: string };
 
   if (!provider) {
-    res.status(400).json({ error: 'provider is required' });
+    jsonError(res, req, 400, 'provider is required');
     return;
   }
 
   try {
     if ((provider || '').toLowerCase() !== 'ollama') {
-      res.status(400).json({ error: 'Unsupported provider for remote discovery' });
+      jsonError(res, req, 400, 'Unsupported provider for remote discovery');
       return;
     }
 
@@ -196,7 +197,7 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
       origin = (await assertAllowedHttpUrlWithDns(hostUrl)).origin;
     } catch (err: unknown) {
       if (err instanceof UrlNotAllowedError) {
-        res.status(err.statusCode).json({ error: err.message });
+        jsonError(res, req, err.statusCode, err.message);
         return;
       }
       throw err;
@@ -238,7 +239,7 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
     }
 
     if (!models) {
-      res.status(502).json({ error: 'Could not fetch models from Ollama host' });
+      jsonError(res, req, 502, 'Could not fetch models from Ollama host');
       return;
     }
 
@@ -246,6 +247,6 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /models/remote error: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch remote models' });
+    jsonError(res, req, 500, 'Failed to fetch remote models');
   }
 }

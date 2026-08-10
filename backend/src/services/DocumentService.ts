@@ -1,5 +1,8 @@
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
+const fs = require('fs/promises');
+const path = require('path');
+const { randomUUID } = require('crypto');
 import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
@@ -28,6 +31,35 @@ type DocumentRow = {
 };
 
 type EnqueueFn = (job: () => void | Promise<void>) => void;
+
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+
+async function ensureUploadsDir(): Promise<void> {
+  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+}
+
+async function writeTempUpload(buffer: Buffer): Promise<string> {
+  await ensureUploadsDir();
+  const tempPath = path.join(UPLOADS_DIR, `pending-${randomUUID()}`);
+  await fs.writeFile(tempPath, buffer);
+  return tempPath;
+}
+
+async function deleteTempUpload(tempPath: string | null): Promise<void> {
+  if (!tempPath) return;
+  try {
+    await fs.unlink(tempPath);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code !== 'ENOENT') {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`Failed to delete temp upload ${tempPath}: ${message}`);
+    }
+  }
+}
+
+type FileMeta = Pick<FileInfo, 'originalname' | 'mimetype' | 'size'>;
+type UploadSource = Buffer | string;
 
 function defaultEnqueue(job: () => void | Promise<void>): void {
   enqueueDocumentJob(job);
@@ -124,7 +156,8 @@ class DocumentService {
     enqueue: EnqueueFn = defaultEnqueue
   ) {
     this.assertWithinSizeLimit(fileInfo);
-    const { originalname, mimetype, size } = fileInfo;
+    const { originalname, mimetype, size, buffer } = fileInfo;
+    const tempPath = await writeTempUpload(buffer);
 
     const doc = await prisma.document.create({
       data: {
@@ -138,7 +171,12 @@ class DocumentService {
 
     enqueue(async () => {
       try {
-        await this.finalizeUpload(doc.id, userId, fileInfo);
+        await this.finalizeUpload(
+          doc.id,
+          userId,
+          { originalname, mimetype, size },
+          tempPath
+        );
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error(`Background document processing failed id=${doc.id}: ${message}`);
@@ -149,10 +187,18 @@ class DocumentService {
   }
 
   /** Parse, chunk, embed an already-created pending document. */
-  static async finalizeUpload(docId: number, userId: number, fileInfo: FileInfo) {
-    const { originalname, mimetype, buffer } = fileInfo;
+  static async finalizeUpload(
+    docId: number,
+    userId: number,
+    meta: FileMeta,
+    source: UploadSource
+  ) {
+    const { originalname, mimetype } = meta;
+    const tempPath = typeof source === 'string' ? source : null;
 
     try {
+      const buffer =
+        typeof source === 'string' ? await fs.readFile(source) : source;
       const extractedText = await this.extractText(buffer, mimetype, originalname);
 
       if (!extractedText || extractedText.trim().length === 0) {
@@ -228,6 +274,8 @@ class DocumentService {
         data: { status: 'failed' },
       });
       throw error;
+    } finally {
+      await deleteTempUpload(tempPath);
     }
   }
 
@@ -246,7 +294,12 @@ class DocumentService {
       },
     });
 
-    return this.finalizeUpload(doc.id, userId, fileInfo);
+    return this.finalizeUpload(
+      doc.id,
+      userId,
+      { originalname, mimetype, size },
+      fileInfo.buffer
+    );
   }
 
   static async getByUser(userId: number, limit = 50, offset = 0) {

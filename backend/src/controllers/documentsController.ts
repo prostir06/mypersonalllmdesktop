@@ -3,6 +3,7 @@ import DocumentService from '../services/DocumentService';
 import logger from '../logger';
 import { decodeMulterFilename } from '../utils/multerFilename';
 import { parseListPagination } from '../utils/listPagination';
+import { jsonError } from '../utils/httpJson';
 
 type UploadedFile = {
   originalname: string;
@@ -13,6 +14,7 @@ type UploadedFile = {
 
 type AuthRequest = Request & {
   userId?: number;
+  id?: string;
   file?: UploadedFile;
 };
 
@@ -20,17 +22,13 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-/**
- * Build upload error JSON for clients.
- * Production: public message only (no paths / stack / internals).
- * Other envs: append details to speed up local debugging.
- */
 function publicUploadError(
+  req: AuthRequest,
   publicError: string,
   details: string
-): { error: string } {
-  if (isProduction()) return { error: publicError };
-  return { error: `${publicError}: ${details}` };
+): string {
+  if (isProduction()) return publicError;
+  return `${publicError}: ${details}`;
 }
 
 export async function uploadDocument(
@@ -38,7 +36,7 @@ export async function uploadDocument(
   res: Response
 ): Promise<void> {
   if (!req.file) {
-    res.status(400).json({ error: 'Будь ласка, виберіть файл для завантаження' });
+    jsonError(res, req, 400, 'Будь ласка, виберіть файл для завантаження');
     return;
   }
 
@@ -52,17 +50,23 @@ export async function uploadDocument(
       document: result.document,
       status: 'pending',
       message: 'Файл прийнято. Індексація виконується у фоні',
+      requestId: req.id,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/upload error: ${message}`);
 
     if (message.includes('ліміт розміру')) {
-      res.status(400).json({ error: message });
+      jsonError(res, req, 400, message);
       return;
     }
 
-    res.status(500).json(publicUploadError('Помилка обробки файлу', message));
+    jsonError(
+      res,
+      req,
+      500,
+      publicUploadError(req, 'Помилка обробки файлу', message)
+    );
   }
 }
 
@@ -77,7 +81,7 @@ export async function listDocuments(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /documents error: ${message}`);
-    res.status(500).json({ error: 'Не вдалося отримати список документів' });
+    jsonError(res, req, 500, 'Не вдалося отримати список документів');
   }
 }
 
@@ -87,13 +91,13 @@ export async function getDocument(
 ): Promise<void> {
   try {
     if (!/^\d+$/.test(String(req.params.id))) {
-      res.status(400).json({ error: 'Некоректний ідентифікатор документа' });
+      jsonError(res, req, 400, 'Некоректний ідентифікатор документа');
       return;
     }
 
     const doc = await DocumentService.getById(Number(req.params.id), req.userId!);
     if (!doc) {
-      res.status(404).json({ error: 'Документ не знайдено' });
+      jsonError(res, req, 404, 'Документ не знайдено');
       return;
     }
 
@@ -101,7 +105,7 @@ export async function getDocument(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /documents/${req.params.id} error: ${message}`);
-    res.status(500).json({ error: 'Не вдалося отримати документ' });
+    jsonError(res, req, 500, 'Не вдалося отримати документ');
   }
 }
 
@@ -111,7 +115,7 @@ export async function deleteDocument(
 ): Promise<void> {
   try {
     if (!/^\d+$/.test(String(req.params.id))) {
-      res.status(400).json({ error: 'Некоректний ідентифікатор документа' });
+      jsonError(res, req, 400, 'Некоректний ідентифікатор документа');
       return;
     }
 
@@ -119,9 +123,12 @@ export async function deleteDocument(
     const deleted = await DocumentService.delete(docId, req.userId!);
 
     if (!deleted) {
-      res
-        .status(404)
-        .json({ error: 'Документ не знайдено або у вас немає прав на його видалення' });
+      jsonError(
+        res,
+        req,
+        404,
+        'Документ не знайдено або у вас немає прав на його видалення'
+      );
       return;
     }
 
@@ -129,6 +136,6 @@ export async function deleteDocument(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`DELETE /documents/${req.params.id} error: ${message}`);
-    res.status(500).json({ error: 'Не вдалося видалити документ' });
+    jsonError(res, req, 500, 'Не вдалося видалити документ');
   }
 }

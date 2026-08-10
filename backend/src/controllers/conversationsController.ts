@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../logger';
 import { parseListPagination } from '../utils/listPagination';
+import { jsonError } from '../utils/httpJson';
 
-type AuthRequest = Request & { userId?: number };
+type AuthRequest = Request & { userId?: number; id?: string };
 
 type ConversationRow = {
   id: number;
@@ -85,7 +86,7 @@ export async function listConversations(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /conversations error: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch conversations' });
+    jsonError(res, req, 500, 'Failed to fetch conversations');
   }
 }
 
@@ -95,7 +96,7 @@ export async function getConversation(
 ): Promise<void> {
   const id = parseConversationId(String(req.params.conversationId));
   if (id == null) {
-    res.status(404).json({ error: 'Conversation not found' });
+    jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
@@ -104,14 +105,14 @@ export async function getConversation(
       where: { id, userId: req.userId! },
     });
     if (!row) {
-      res.status(404).json({ error: 'Conversation not found' });
+      jsonError(res, req, 404, 'Conversation not found');
       return;
     }
     res.json(toPublicConversation(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /conversations/${req.params.conversationId} error: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch conversation' });
+    jsonError(res, req, 500, 'Failed to fetch conversation');
   }
 }
 
@@ -129,7 +130,7 @@ export async function createConversation(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /conversations error: ${message}`);
-    res.status(500).json({ error: 'Failed to create conversation' });
+    jsonError(res, req, 500, 'Failed to create conversation');
   }
 }
 
@@ -139,7 +140,7 @@ export async function updateConversation(
 ): Promise<void> {
   const id = parseConversationId(String(req.params.conversationId));
   if (id == null) {
-    res.status(404).json({ error: 'Conversation not found' });
+    jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
@@ -150,7 +151,7 @@ export async function updateConversation(
       where: { id, userId: req.userId! },
     });
     if (!existing) {
-      res.status(404).json({ error: 'Conversation not found' });
+      jsonError(res, req, 404, 'Conversation not found');
       return;
     }
 
@@ -162,7 +163,7 @@ export async function updateConversation(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`PUT /conversations/${req.params.conversationId} error: ${message}`);
-    res.status(500).json({ error: 'Failed to update conversation' });
+    jsonError(res, req, 500, 'Failed to update conversation');
   }
 }
 
@@ -172,7 +173,7 @@ export async function deleteConversation(
 ): Promise<void> {
   const id = parseConversationId(String(req.params.conversationId));
   if (id == null) {
-    res.status(404).json({ error: 'Conversation not found' });
+    jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
@@ -181,14 +182,14 @@ export async function deleteConversation(
       where: { id, userId: req.userId! },
     });
     if (result.count === 0) {
-      res.status(404).json({ error: 'Conversation not found' });
+      jsonError(res, req, 404, 'Conversation not found');
       return;
     }
     res.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`DELETE /conversations/${req.params.conversationId} error: ${message}`);
-    res.status(500).json({ error: 'Failed to delete conversation' });
+    jsonError(res, req, 500, 'Failed to delete conversation');
   }
 }
 
@@ -198,7 +199,7 @@ export async function exportConversation(
 ): Promise<void> {
   const id = parseConversationId(String(req.params.conversationId));
   if (id == null) {
-    res.status(404).json({ error: 'Conversation not found' });
+    jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
@@ -210,7 +211,7 @@ export async function exportConversation(
       where: { id, userId: req.userId! },
     });
     if (!conversation) {
-      res.status(404).json({ error: 'Conversation not found' });
+      jsonError(res, req, 404, 'Conversation not found');
       return;
     }
 
@@ -263,6 +264,6 @@ export async function exportConversation(
     logger.error(
       `GET /conversations/${req.params.conversationId}/export error: ${message}`
     );
-    res.status(500).json({ error: 'Failed to export conversation' });
+    jsonError(res, req, 500, 'Failed to export conversation');
   }
 }

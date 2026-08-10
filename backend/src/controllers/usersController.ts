@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../logger';
+import { jsonError } from '../utils/httpJson';
 
-type AuthRequest = Request & { userId?: number };
+type AuthRequest = Request & { userId?: number; id?: string };
 
 export function toPublicUser(row: {
   id: number;
@@ -41,14 +42,14 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
       select: { id: true, name: true, email: true, createdAt: true },
     });
     if (!row) {
-      res.status(404).json({ error: 'User not found' });
+      jsonError(res, req, 404, 'User not found');
       return;
     }
     res.json(toPublicUser(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /users/me error: ${message}`);
-    res.status(500).json({ error: 'Failed to fetch user' });
+    jsonError(res, req, 500, 'Failed to fetch user');
   }
 }
 
@@ -58,11 +59,11 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<void> {
   const email = typeof body.email === 'string' ? body.email.trim() : '';
 
   if (!name) {
-    res.status(400).json({ error: 'Name is required' });
+    jsonError(res, req, 400, 'Name is required');
     return;
   }
   if (!email || !isValidEmail(email)) {
-    res.status(400).json({ error: 'Valid email is required' });
+    jsonError(res, req, 400, 'Valid email is required');
     return;
   }
 
@@ -76,16 +77,15 @@ export async function updateMe(req: AuthRequest, res: Response): Promise<void> {
   } catch (error: unknown) {
     const err = error as { code?: string; message?: string };
     if (err?.code === 'P2002') {
-      res.status(409).json({ error: 'Email already in use' });
+      jsonError(res, req, 409, 'Email already in use');
       return;
     }
-    // Prisma P2025 = record not found on update
     if (err?.code === 'P2025') {
-      res.status(404).json({ error: 'User not found' });
+      jsonError(res, req, 404, 'User not found');
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`PUT /users/me error: ${message}`);
-    res.status(500).json({ error: 'Failed to update user' });
+    jsonError(res, req, 500, 'Failed to update user');
   }
 }
