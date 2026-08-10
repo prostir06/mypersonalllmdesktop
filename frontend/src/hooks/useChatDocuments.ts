@@ -49,6 +49,9 @@ export function useChatDocuments() {
   const [retryingDocId, setRetryingDocId] = useState<string | number | null>(
     null
   );
+  const [reindexingDocId, setReindexingDocId] = useState<string | number | null>(
+    null
+  );
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const statusByIdRef = useRef<Map<string | number, string>>(new Map());
 
@@ -81,7 +84,7 @@ export function useChatDocuments() {
         toast.success(`Файл "${doc.filename || doc.id}" готовий до RAG`);
         if (doc.has_embeddings === false) {
           toast.warn(
-            'Документ проіндексовано без embeddings — RAG використовує fallback-відбір фрагментів'
+            'Документ проіндексовано без embeddings — натисніть «Переіндексувати» або перезавантажте файл'
           );
         }
         setSelectedDocIds((ids) =>
@@ -170,6 +173,31 @@ export function useChatDocuments() {
     },
   });
 
+  const reindexMutation = useMutation({
+    mutationFn: async (docId: string | number) => {
+      setReindexingDocId(docId);
+      const res = await documentsAPI.reindex(docId);
+      return { docId, ...res.data };
+    },
+    onSuccess: (data) => {
+      toast.success('Embeddings оновлено');
+      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      if (data.document?.id) {
+        statusByIdRef.current.set(
+          data.document.id,
+          String(data.document.status || 'ready')
+        );
+      }
+    },
+    onError: (err: unknown) => {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Не вдалося переіндексувати документ');
+    },
+    onSettled: () => {
+      setReindexingDocId(null);
+    },
+  });
+
   const handleFileUpload = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -202,6 +230,13 @@ export function useChatDocuments() {
     [retryMutation]
   );
 
+  const handleReindexDoc = useCallback(
+    async (docId: string | number) => {
+      await reindexMutation.mutateAsync(docId);
+    },
+    [reindexMutation]
+  );
+
   return {
     userDocuments,
     selectedDocIds,
@@ -209,11 +244,13 @@ export function useChatDocuments() {
     setShowDocModal,
     uploadingDoc: uploadMutation.isPending,
     retryingDocId,
+    reindexingDocId,
     fileInputRef,
     handleFileUpload,
     handleToggleDoc,
     handleDeleteDoc,
     handleRetryDoc,
+    handleReindexDoc,
     hasMoreDocuments: Boolean(documentsQuery.hasNextPage),
     loadMoreDocuments: () => documentsQuery.fetchNextPage(),
     loadingMoreDocuments: documentsQuery.isFetchingNextPage,

@@ -35,6 +35,7 @@ describe('DocumentModal', () => {
     onToggleDoc: vi.fn(),
     onDeleteDoc: vi.fn(),
     onRetryDoc: vi.fn(),
+    onReindexDoc: vi.fn(),
     onUploadClick: vi.fn(),
     uploadingDoc: false,
     fileInputRef: { current: null },
@@ -98,16 +99,36 @@ describe('DocumentModal', () => {
     expect(screen.getByLabelText('bad.txt')).toBeDisabled();
   });
 
-  it('shows RAG fallback badge when no OpenAI key', () => {
+  it('shows RAG fallback badge when mode is fallback', () => {
     render(
       <DocumentModal
         {...baseProps}
         userDocuments={docs}
-        hasOpenaiApiKey={false}
+        ragEmbeddingMode="fallback"
       />
     );
 
     expect(screen.getAllByText(/RAG: fallback/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows reindex button when needs_reindex', () => {
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={[
+          {
+            ...docs[0],
+            needs_reindex: true,
+            has_embeddings: false,
+          },
+        ]}
+        ragEmbeddingMode="ollama"
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Переіндексувати/i })
+    ).toBeInTheDocument();
   });
 
   it('calls onLoadMore when Показати ще is clicked', async () => {

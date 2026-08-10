@@ -34,48 +34,62 @@ describe('EmbeddingService (Prisma)', () => {
   });
 
   describe('isAvailable', () => {
-    it('returns true when OPENAI_API_KEY is set', () => {
-      process.env.OPENAI_API_KEY = 'test-key';
-      expect(EmbeddingService.isAvailable()).toBe(true);
+    it('returns true when openai context has key', () => {
+      expect(
+        EmbeddingService.isAvailable({ provider: 'openai', openaiKey: 'test-key' })
+      ).toBe(true);
     });
 
-    it('returns false when key missing or placeholder', () => {
-      delete process.env.OPENAI_API_KEY;
-      expect(EmbeddingService.isAvailable()).toBe(false);
-      process.env.OPENAI_API_KEY = 'your_openai_api_key_here';
-      expect(EmbeddingService.isAvailable()).toBe(false);
+    it('returns true when ollama context has host', () => {
+      expect(
+        EmbeddingService.isAvailable({
+          provider: 'ollama',
+          ollamaHost: 'http://127.0.0.1:11434/v1/chat/completions',
+        })
+      ).toBe(true);
+    });
+
+    it('returns false when provider none', () => {
+      expect(EmbeddingService.isAvailable({ provider: 'none' })).toBe(false);
     });
   });
 
   describe('generateEmbedding', () => {
+    const openaiCtx = { provider: 'openai' as const, openaiKey: 'test-key' };
+
     it('returns null when unavailable', async () => {
-      delete process.env.OPENAI_API_KEY;
-      await expect(EmbeddingService.generateEmbedding('x')).resolves.toBeNull();
+      await expect(
+        EmbeddingService.generateEmbedding('x', { provider: 'none' })
+      ).resolves.toBeNull();
       expect(logger.warn).toHaveBeenCalled();
     });
 
     it('returns vector and truncates long input', async () => {
-      process.env.OPENAI_API_KEY = 'test-key';
       mockedAxios.post = jest.fn().mockResolvedValue({
         data: { data: [{ embedding: [0.1, 0.2] }] },
       });
       const long = 'A'.repeat(8000);
-      const result = await EmbeddingService.generateEmbedding(long);
+      const result = await EmbeddingService.generateEmbedding(long, openaiCtx);
       expect(result).toEqual([0.1, 0.2]);
-      expect(mockedAxios.post.mock.calls[0][1].input.length).toBeLessThanOrEqual(6000);
+      expect(mockedAxios.post.mock.calls[0][1].input.length).toBeLessThanOrEqual(
+        6000
+      );
+      expect(mockedAxios.post.mock.calls[0][1].dimensions).toBe(768);
     });
 
     it('returns null when OpenAI request fails', async () => {
-      process.env.OPENAI_API_KEY = 'test-key';
       mockedAxios.post = jest.fn().mockRejectedValue(new Error('network'));
-      await expect(EmbeddingService.generateEmbedding('hi')).resolves.toBeNull();
+      await expect(
+        EmbeddingService.generateEmbedding('hi', openaiCtx)
+      ).resolves.toBeNull();
       expect(logger.error).toHaveBeenCalled();
     });
   });
 
   describe('generateBatchEmbeddings', () => {
+    const openaiCtx = { provider: 'openai' as const, openaiKey: 'test-key' };
+
     it('preserves order by index', async () => {
-      process.env.OPENAI_API_KEY = 'test-key';
       mockedAxios.post = jest.fn().mockResolvedValue({
         data: {
           data: [
@@ -85,20 +99,18 @@ describe('EmbeddingService (Prisma)', () => {
         },
       });
       await expect(
-        EmbeddingService.generateBatchEmbeddings(['first', 'second'])
+        EmbeddingService.generateBatchEmbeddings(['first', 'second'], openaiCtx)
       ).resolves.toEqual([[0.1], [0.2]]);
     });
 
     it('returns nulls when batch request fails', async () => {
-      process.env.OPENAI_API_KEY = 'test-key';
       mockedAxios.post = jest.fn().mockRejectedValue(new Error('timeout'));
       await expect(
-        EmbeddingService.generateBatchEmbeddings(['a', 'b'])
+        EmbeddingService.generateBatchEmbeddings(['a', 'b'], openaiCtx)
       ).resolves.toEqual([null, null]);
     });
 
     it('splits large inputs into multiple OpenAI requests', async () => {
-      process.env.OPENAI_API_KEY = 'test-key';
       const texts = Array.from({ length: 101 }, (_, i) => `t${i}`);
       mockedAxios.post = jest.fn().mockImplementation((_url, body) => {
         const data = body.input.map((_t: string, index: number) => ({
@@ -108,7 +120,10 @@ describe('EmbeddingService (Prisma)', () => {
         return Promise.resolve({ data: { data } });
       });
 
-      const result = await EmbeddingService.generateBatchEmbeddings(texts);
+      const result = await EmbeddingService.generateBatchEmbeddings(
+        texts,
+        openaiCtx
+      );
       expect(mockedAxios.post).toHaveBeenCalledTimes(2);
       expect(mockedAxios.post.mock.calls[0][1].input).toHaveLength(100);
       expect(mockedAxios.post.mock.calls[1][1].input).toHaveLength(1);
@@ -241,7 +256,27 @@ describe('EmbeddingService (Prisma)', () => {
     });
 
     it('signature has no pool argument', () => {
-      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(5);
+      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(6);
+    });
+
+    it('filters by embedding_provider in vector query', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          { content: 'scoped', filename: 'a.txt', similarity: 0.8 },
+        ]);
+
+      await EmbeddingService.findRelevantChunks(
+        [0.1],
+        9,
+        [],
+        2,
+        {},
+        'ollama'
+      );
+      const vectorCall = mockedPrisma.$queryRawUnsafe.mock.calls[1];
+      expect(vectorCall[0]).toContain('embedding_provider');
+      expect(vectorCall).toContainEqual('ollama');
     });
   });
 });

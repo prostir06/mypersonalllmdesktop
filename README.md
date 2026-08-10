@@ -116,7 +116,7 @@ Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend con
 
 - **Entrypoint `set: illegal option -`:** bind-mounted `docker-entrypoint.sh` with Windows CRLF line endings. Fix: ensure LF (`.gitattributes` sets `*.sh eol=lf`) or rebuild without bind-mount (`docker-compose.prod.yml`).
 - **Upload / Prisma field errors after code update:** stale generated client in the container volume. Run `docker compose exec backend npx prisma generate --config prisma/prisma.config.ts` and restart the backend.
-- **RAG embeddings:** document upload works without OpenAI key, but semantic search needs a valid key in settings or `OPENAI_API_KEY`. Without it, chunk selection falls back to non-vector heuristics.
+- **RAG embeddings:** auto mode — OpenAI key (settings/env) uses OpenAI embeddings (768 dim); else if provider is Ollama, local `nomic-embed-text` via Ollama `/api/embeddings`. Without either, fallback chunk selection. Pull model: `ollama pull nomic-embed-text`. Re-index existing docs via «Переіндексувати» in RAG manager.
 
 ## Auth
 

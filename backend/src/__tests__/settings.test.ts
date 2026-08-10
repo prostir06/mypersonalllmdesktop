@@ -25,6 +25,10 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
+  resolveEmbeddingContext: jest.fn().mockResolvedValue({ provider: 'none' }),
+}));
+
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
 
 import prisma from '../config/prisma';
@@ -57,6 +61,7 @@ describe('Settings API (Prisma)', () => {
       default_provider: 'openai',
       system_prompt: '',
       has_openai_api_key: false,
+      rag_embedding_mode: 'fallback',
     });
     expect(res.body).toHaveProperty('default_ollama_host');
     expect(res.body).not.toHaveProperty('defaultModel');
@@ -91,6 +96,7 @@ describe('Settings API (Prisma)', () => {
       default_ollama_host: 'http://ollama.local/v1',
       system_prompt: 'Be concise',
       has_openai_api_key: false,
+      rag_embedding_mode: 'fallback',
     });
     expect(mockedPrisma.userSettings.findUnique).toHaveBeenCalledWith({
       where: { userId: 9 },

@@ -1,20 +1,18 @@
 /**
- * OpenAI embeddings + pgvector / fallback chunk retrieval for RAG.
- * findRelevantChunks never takes a pg Pool — all SQL goes through Prisma.
+ * Embedding orchestration: provider selection + pgvector / fallback retrieval.
  */
-import axios from 'axios';
 import prisma from '../config/prisma';
 import logger from '../logger';
 import {
   packRelevantChunks,
   type PackRagOptions,
 } from '../utils/packRelevantChunks';
-
-const OPENAI_EMBEDDING_URL = 'https://api.openai.com/v1/embeddings';
-const EMBEDDING_MODEL = 'text-embedding-3-small';
-const EMBEDDING_DIMENSIONS = 1536;
-/** OpenAI allows up to 2048 inputs; keep batches smaller for token/latency safety. */
-const EMBEDDING_BATCH_SIZE = 100;
+import { OpenAiEmbeddingProvider } from './embeddings/OpenAiEmbeddingProvider';
+import { OllamaEmbeddingProvider } from './embeddings/OllamaEmbeddingProvider';
+import type {
+  EmbeddingContext,
+  EmbeddingProviderName,
+} from './embeddings/types';
 
 type RelevantChunk = {
   content: string;
@@ -49,138 +47,52 @@ async function hasEmbeddingColumn(): Promise<boolean> {
 }
 
 class EmbeddingService {
-  /** Test helper — clear process-local schema probe cache. */
   static resetEmbeddingColumnCache(): void {
     embeddingColumnCache = null;
   }
 
-  static resolveKey(apiKey?: string | null): string | null {
-    if (apiKey && apiKey !== 'your_openai_api_key_here') return apiKey;
-    if (
-      process.env.OPENAI_API_KEY &&
-      process.env.OPENAI_API_KEY !== 'your_openai_api_key_here'
-    ) {
-      return process.env.OPENAI_API_KEY;
-    }
-    return null;
-  }
-
-  static isAvailable(apiKey?: string | null): boolean {
-    return Boolean(this.resolveKey(apiKey));
+  static isAvailable(ctx: EmbeddingContext): boolean {
+    if (ctx.provider === 'openai') return Boolean(ctx.openaiKey);
+    if (ctx.provider === 'ollama') return Boolean(ctx.ollamaHost);
+    return false;
   }
 
   static async generateEmbedding(
     text: string,
-    apiKey?: string | null
+    ctx: EmbeddingContext
   ): Promise<number[] | null> {
-    const key = this.resolveKey(apiKey);
-    if (!key) {
-      logger.warn(
-        'EmbeddingService: OPENAI_API_KEY not configured. Skipping embedding generation.'
-      );
-      return null;
+    if (ctx.provider === 'openai' && ctx.openaiKey) {
+      return OpenAiEmbeddingProvider.generateEmbedding(text, ctx.openaiKey);
     }
-
-    try {
-      const cleanText = text.replace(/\n/g, ' ').trim();
-      const truncated =
-        cleanText.length > 6000 ? cleanText.substring(0, 6000) : cleanText;
-
-      const response = await axios.post(
-        OPENAI_EMBEDDING_URL,
-        {
-          model: EMBEDDING_MODEL,
-          input: truncated,
-          dimensions: EMBEDDING_DIMENSIONS,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${key}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-        }
-      );
-
-      return response.data.data[0].embedding as number[];
-    } catch (error: unknown) {
-      const err = error as {
-        response?: { data?: { error?: { message?: string } } };
-        message?: string;
-      };
-      logger.error(
-        `EmbeddingService.generateEmbedding error: ${
-          err.response?.data?.error?.message || err.message
-        }`
-      );
-      return null;
+    if (ctx.provider === 'ollama' && ctx.ollamaHost) {
+      return OllamaEmbeddingProvider.generateEmbedding(text, ctx.ollamaHost);
     }
+    logger.warn(
+      'EmbeddingService: no embedding provider configured. Skipping embedding generation.'
+    );
+    return null;
   }
 
   static async generateBatchEmbeddings(
     texts: string[],
-    apiKey?: string | null
+    ctx: EmbeddingContext
   ): Promise<(number[] | null)[]> {
-    const key = this.resolveKey(apiKey);
-    if (!key) {
-      logger.warn(
-        'EmbeddingService: OPENAI_API_KEY not configured. Skipping batch embedding.'
+    if (ctx.provider === 'openai' && ctx.openaiKey) {
+      return OpenAiEmbeddingProvider.generateBatchEmbeddings(
+        texts,
+        ctx.openaiKey
       );
-      return texts.map(() => null);
     }
-
-    if (texts.length === 0) return [];
-
-    const cleanTexts = texts.map((t) => {
-      const clean = t.replace(/\n/g, ' ').trim();
-      return clean.length > 6000 ? clean.substring(0, 6000) : clean;
-    });
-
-    const embeddings: (number[] | null)[] = new Array(texts.length).fill(null);
-
-    try {
-      for (let offset = 0; offset < cleanTexts.length; offset += EMBEDDING_BATCH_SIZE) {
-        const batch = cleanTexts.slice(offset, offset + EMBEDDING_BATCH_SIZE);
-        const response = await axios.post(
-          OPENAI_EMBEDDING_URL,
-          {
-            model: EMBEDDING_MODEL,
-            input: batch,
-            dimensions: EMBEDDING_DIMENSIONS,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${key}`,
-              'Content-Type': 'application/json',
-            },
-            timeout: 60000,
-          }
-        );
-
-        for (const item of response.data.data as Array<{
-          index: number;
-          embedding: number[];
-        }>) {
-          embeddings[offset + item.index] = item.embedding;
-        }
-      }
-
-      logger.info(
-        `EmbeddingService: Generated ${embeddings.filter(Boolean).length}/${texts.length} embeddings`
+    if (ctx.provider === 'ollama' && ctx.ollamaHost) {
+      return OllamaEmbeddingProvider.generateBatchEmbeddings(
+        texts,
+        ctx.ollamaHost
       );
-      return embeddings;
-    } catch (error: unknown) {
-      const err = error as {
-        response?: { data?: { error?: { message?: string } } };
-        message?: string;
-      };
-      logger.error(
-        `EmbeddingService.generateBatchEmbeddings error: ${
-          err.response?.data?.error?.message || err.message
-        }`
-      );
-      return texts.map(() => null);
     }
+    logger.warn(
+      'EmbeddingService: no embedding provider configured. Skipping batch embedding.'
+    );
+    return texts.map(() => null);
   }
 
   static async findRelevantChunks(
@@ -188,7 +100,8 @@ class EmbeddingService {
     userId: number,
     documentIds: number[] = [],
     limit = 5,
-    packOptions: PackRagOptions = {}
+    packOptions: PackRagOptions = {},
+    embeddingProvider?: EmbeddingProviderName | null
   ): Promise<RelevantChunk[]> {
     try {
       const hasPgVector = await hasEmbeddingColumn();
@@ -206,12 +119,16 @@ class EmbeddingService {
             AND d.status = 'ready'
         `;
 
+        if (embeddingProvider && embeddingProvider !== 'none') {
+          params.push(embeddingProvider);
+          query += ` AND d.embedding_provider = $${params.length}`;
+        }
+
         if (documentIds.length > 0) {
           params.push(documentIds);
           query += ` AND d.id = ANY($${params.length}::int[])`;
         }
 
-        // Fetch extra candidates so similarity/budget packing still has room.
         params.push(Math.max(limit * 3, limit));
         query += ` ORDER BY dc.embedding <=> $1::vector LIMIT $${params.length}`;
 
@@ -223,7 +140,7 @@ class EmbeddingService {
         const packed = packRelevantChunks(rows, packOptions).slice(0, limit);
         if (packed.length > 0) {
           logger.info(
-            `EmbeddingService: Found ${packed.length} relevant chunks via vector search`
+            `EmbeddingService: Found ${packed.length} relevant chunks via vector search (${embeddingProvider || 'any'})`
           );
           return packed;
         }

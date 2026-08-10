@@ -8,6 +8,7 @@ import {
   deleteDocument,
   getDocumentChunks,
   retryDocument,
+  reindexDocument,
 } from '../controllers/documentsController';
 import { getMaxUploadBytes } from '../utils/fileMagic';
 
@@ -46,6 +47,7 @@ const upload = multer({
 router.post('/upload', auth, upload.single('file'), uploadDocument);
 router.get('/', auth, listDocuments);
 router.get('/:id/chunks', auth, getDocumentChunks);
+router.post('/:id/reindex', auth, reindexDocument);
 router.post('/:id/retry', auth, retryDocument);
 router.get('/:id', auth, getDocument);
 router.delete('/:id', auth, deleteDocument);

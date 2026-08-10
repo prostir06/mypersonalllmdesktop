@@ -150,6 +150,8 @@ export interface DocumentRecord {
   failure_reason?: string;
   has_embeddings?: boolean;
   embeddings_count?: number;
+  embedding_provider?: 'openai' | 'ollama' | null;
+  needs_reindex?: boolean;
   [key: string]: unknown;
 }
 
@@ -178,6 +180,7 @@ export interface UserSettings {
   default_ollama_host?: string;
   system_prompt?: string;
   has_openai_api_key?: boolean;
+  rag_embedding_mode?: 'openai' | 'ollama' | 'fallback';
   [key: string]: unknown;
 }
 

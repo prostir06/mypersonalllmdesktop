@@ -101,8 +101,9 @@ model Document {
   status           String   @default("ready") @db.VarChar(20)
   failureReason    String?  @map("failure_reason") @db.VarChar(500)
   stagingPath      String?  @map("staging_path") @db.VarChar(512)
-  embeddingsCount  Int      @default(0) @map("embeddings_count")
-  createdAt        DateTime @default(now()) @map("created_at")
+  embeddingsCount   Int      @default(0) @map("embeddings_count")
+  embeddingProvider String?  @map("embedding_provider") @db.VarChar(20)
+  createdAt         DateTime @default(now()) @map("created_at")
 
   user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   chunks DocumentChunk[]
@@ -117,7 +118,7 @@ model DocumentChunk {
   chunkIndex Int                         @map("chunk_index")
   content    String                      @db.Text
   createdAt  DateTime                    @default(now()) @map("created_at")
-  embedding  Unsupported("vector(1536)")?
+  embedding  Unsupported("vector(768)")?
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 

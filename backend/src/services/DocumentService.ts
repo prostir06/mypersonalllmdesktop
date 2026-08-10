@@ -6,11 +6,12 @@ const { randomUUID } = require('crypto');
 import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
+import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
+import type { EmbeddingContext, EmbeddingProviderName } from './embeddings/types';
 import {
   getMaxUploadBytes,
   resolveDocumentKind,
 } from '../utils/fileMagic';
-import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
 import { enqueueDocumentJob } from '../utils/documentJobQueue';
 
 type FileInfo = {
@@ -29,6 +30,7 @@ type DocumentRow = {
   status?: string;
   failureReason?: string | null;
   embeddingsCount?: number;
+  embeddingProvider?: string | null;
   createdAt: Date;
 };
 
@@ -72,7 +74,21 @@ function defaultEnqueue(job: () => void | Promise<void>): void {
   enqueueDocumentJob(job);
 }
 
-function toPublicDocument(row: DocumentRow, chunksCount?: number) {
+function computeNeedsReindex(
+  row: DocumentRow,
+  currentProvider: EmbeddingProviderName
+): boolean {
+  const count = row.embeddingsCount ?? 0;
+  if (currentProvider === 'none') return count === 0;
+  if (count === 0) return true;
+  return row.embeddingProvider !== currentProvider;
+}
+
+function toPublicDocument(
+  row: DocumentRow,
+  chunksCount?: number,
+  embedCtx?: EmbeddingContext
+) {
   const embeddingsCount = row.embeddingsCount ?? 0;
   const base = {
     id: row.id,
@@ -84,6 +100,10 @@ function toPublicDocument(row: DocumentRow, chunksCount?: number) {
     failure_reason: row.failureReason ?? undefined,
     has_embeddings: embeddingsCount > 0,
     embeddings_count: embeddingsCount,
+    embedding_provider: row.embeddingProvider ?? null,
+    needs_reindex: embedCtx
+      ? computeNeedsReindex(row, embedCtx.provider)
+      : undefined,
     created_at: row.createdAt,
   };
 
@@ -219,18 +239,22 @@ class DocumentService {
       }
 
       const chunks = this.chunkText(extractedText);
+      const embedCtx = await resolveEmbeddingContext(userId);
       let embeddings: Array<number[] | null> = [];
-      const openaiKey = await resolveOpenAiApiKey(userId);
 
-      if (EmbeddingService.isAvailable(openaiKey)) {
+      if (EmbeddingService.isAvailable(embedCtx)) {
         embeddings = await EmbeddingService.generateBatchEmbeddings(
           chunks,
-          openaiKey
+          embedCtx
         );
       }
 
       const embeddingCount = embeddings.filter(Boolean).length;
       const hasAnyEmbedding = embeddingCount > 0;
+      const embeddingProvider =
+        hasAnyEmbedding && embedCtx.provider !== 'none'
+          ? embedCtx.provider
+          : null;
 
       const doc = await prisma.$transaction(async (tx) => {
         if (!hasAnyEmbedding) {
@@ -269,6 +293,7 @@ class DocumentService {
             failureReason: null,
             stagingPath: null,
             embeddingsCount: embeddingCount,
+            embeddingProvider,
           },
         });
       });
@@ -276,17 +301,17 @@ class DocumentService {
       succeeded = true;
 
       logger.info(
-        `Document uploaded & chunked: ${originalname} (id=${docId}, ${chunks.length} chunks, embeddings=${embeddingCount})`
+        `Document uploaded & chunked: ${originalname} (id=${docId}, ${chunks.length} chunks, embeddings=${embeddingCount}, provider=${embeddingProvider || 'none'})`
       );
 
-      if (!EmbeddingService.isAvailable(openaiKey)) {
+      if (!EmbeddingService.isAvailable(embedCtx)) {
         logger.warn(
-          'Embeddings not generated: OPENAI_API_KEY not configured. RAG will use fallback chunk selection.'
+          'Embeddings not generated: no OpenAI key and Ollama provider not configured. RAG will use fallback chunk selection.'
         );
       }
 
       return {
-        document: toPublicDocument(doc, chunks.length),
+        document: toPublicDocument(doc, chunks.length, embedCtx),
         chunksCount: chunks.length,
         embeddingsCount: embeddingCount,
       };
@@ -355,6 +380,78 @@ class DocumentService {
     return { document: toPublicDocument(updated) };
   }
 
+  /** Re-embed existing chunks (e.g. after enabling Ollama embeddings). */
+  static async reindexEmbeddings(docId: number, userId: number) {
+    const doc = await prisma.document.findFirst({
+      where: { id: docId, userId, status: 'ready' },
+    });
+    if (!doc) return null;
+
+    const embedCtx = await resolveEmbeddingContext(userId);
+    if (!EmbeddingService.isAvailable(embedCtx)) {
+      throw new Error('Немає доступного провайдера embeddings');
+    }
+
+    const chunks = await prisma.documentChunk.findMany({
+      where: { documentId: docId },
+      orderBy: { chunkIndex: 'asc' },
+      select: { id: true, content: true },
+    });
+
+    if (chunks.length === 0) {
+      throw new Error('Документ не містить фрагментів для переіндексації');
+    }
+
+    const texts = chunks.map((c) => c.content);
+    const embeddings = await EmbeddingService.generateBatchEmbeddings(
+      texts,
+      embedCtx
+    );
+    const embeddingCount = embeddings.filter(Boolean).length;
+
+    if (embeddingCount === 0) {
+      throw new Error(
+        'Не вдалося згенерувати embeddings. Переконайтеся, що Ollama запущено та модель nomic-embed-text завантажена.'
+      );
+    }
+
+    const embeddingProvider =
+      embedCtx.provider !== 'none' ? embedCtx.provider : null;
+
+    await prisma.$transaction(async (tx) => {
+      for (let i = 0; i < chunks.length; i++) {
+        const embedding = embeddings[i];
+        if (embedding) {
+          await tx.$executeRawUnsafe(
+            `UPDATE document_chunks SET embedding = $1::vector WHERE id = $2`,
+            `[${embedding.join(',')}]`,
+            chunks[i].id
+          );
+        } else {
+          await tx.$executeRawUnsafe(
+            `UPDATE document_chunks SET embedding = NULL WHERE id = $1`,
+            chunks[i].id
+          );
+        }
+      }
+
+      await tx.document.update({
+        where: { id: docId },
+        data: { embeddingsCount: embeddingCount, embeddingProvider },
+      });
+    });
+
+    const updated = await prisma.document.findFirst({
+      where: { id: docId },
+      include: { _count: { select: { chunks: true } } },
+    });
+
+    return {
+      document: toPublicDocument(updated!, updated!._count.chunks, embedCtx),
+      embeddingsCount: embeddingCount,
+    };
+  }
+
   static async getChunks(
     docId: number,
     userId: number,
@@ -414,6 +511,7 @@ class DocumentService {
   }
 
   static async getByUser(userId: number, limit = 50, offset = 0) {
+    const embedCtx = await resolveEmbeddingContext(userId);
     const where = { userId };
     const [rows, total] = await Promise.all([
       prisma.document.findMany({
@@ -427,7 +525,7 @@ class DocumentService {
     ]);
 
     return {
-      items: rows.map((row) => toPublicDocument(row, row._count.chunks)),
+      items: rows.map((row) => toPublicDocument(row, row._count.chunks, embedCtx)),
       total,
       limit,
       offset,
@@ -435,12 +533,13 @@ class DocumentService {
   }
 
   static async getById(docId: number, userId: number) {
+    const embedCtx = await resolveEmbeddingContext(userId);
     const row = await prisma.document.findFirst({
       where: { id: docId, userId },
       include: { _count: { select: { chunks: true } } },
     });
     if (!row) return null;
-    return toPublicDocument(row, row._count.chunks);
+    return toPublicDocument(row, row._count.chunks, embedCtx);
   }
 
   static async delete(docId: number, userId: number): Promise<boolean> {

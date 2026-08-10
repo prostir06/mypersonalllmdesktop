@@ -306,6 +306,8 @@ export const documentsAPI = {
     api.get(`/documents/${id}/chunks`, { params }),
   retry: (id: string | number): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post(`/documents/${id}/retry`),
+  reindex: (id: string | number): Promise<AxiosResponse<DocumentUploadResponse>> =>
+    api.post(`/documents/${id}/reindex`),
 };
 
 export const usersAPI = {

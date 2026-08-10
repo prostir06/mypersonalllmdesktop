@@ -304,10 +304,20 @@ const Settings: React.FC = () => {
           >
             Ключ OpenAI
           </h6>
-          {!hasOpenaiKey && (
+          {!hasOpenaiKey && settingsData?.rag_embedding_mode === 'fallback' && (
             <Alert variant="warning" className="small py-2">
-              RAG: fallback (без embeddings) — семантичний пошук по документах
-              недоступний без валідного OpenAI API key.
+              RAG: fallback — семантичний пошук недоступний. Увімкніть провайдер
+              Ollama (без OpenAI key) або додайте OpenAI API key.
+            </Alert>
+          )}
+          {settingsData?.rag_embedding_mode === 'ollama' && (
+            <Alert variant="success" className="small py-2">
+              RAG: семантичний пошук через Ollama (nomic-embed-text).
+            </Alert>
+          )}
+          {settingsData?.rag_embedding_mode === 'openai' && hasOpenaiKey && (
+            <Alert variant="success" className="small py-2">
+              RAG: семантичний пошук через OpenAI embeddings.
             </Alert>
           )}
           <Form.Group className="mb-2">

@@ -19,22 +19,35 @@ export type DocumentModalProps = {
   onToggleDoc: (docId: string | number, checked: boolean) => void;
   onDeleteDoc: (docId: string | number) => void;
   onRetryDoc: (docId: string | number) => void;
+  onReindexDoc: (docId: string | number) => void;
   onUploadClick: () => void;
   uploadingDoc: boolean;
   retryingDocId?: string | number | null;
+  reindexingDocId?: string | number | null;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
-  hasOpenaiApiKey?: boolean;
+  ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
 };
 
-function RagModeBadge({ hasOpenaiApiKey }: { hasOpenaiApiKey?: boolean }) {
-  if (hasOpenaiApiKey) {
+function RagModeBadge({
+  ragEmbeddingMode = 'fallback',
+}: {
+  ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
+}) {
+  if (ragEmbeddingMode === 'openai') {
     return (
       <Badge bg="success" className="ms-2">
-        RAG: embeddings
+        RAG: semantic (OpenAI)
+      </Badge>
+    );
+  }
+  if (ragEmbeddingMode === 'ollama') {
+    return (
+      <Badge bg="success" className="ms-2">
+        RAG: semantic (Ollama)
       </Badge>
     );
   }
@@ -107,33 +120,41 @@ const DocumentModal = React.memo(function DocumentModal({
   onToggleDoc,
   onDeleteDoc,
   onRetryDoc,
+  onReindexDoc,
   onUploadClick,
   uploadingDoc,
   retryingDocId,
+  reindexingDocId,
   fileInputRef,
   onFileChange,
   hasMore,
   onLoadMore,
   loadingMore,
-  hasOpenaiApiKey,
+  ragEmbeddingMode = 'fallback',
 }: DocumentModalProps) {
   return (
     <Modal show={show} onHide={onHide} centered className="glass-modal">
       <Modal.Header closeButton className="border-secondary bg-dark text-light">
         <Modal.Title className="fs-5 fw-bold">
           📎 Менеджер RAG документів
-          <RagModeBadge hasOpenaiApiKey={hasOpenaiApiKey} />
+          <RagModeBadge ragEmbeddingMode={ragEmbeddingMode} />
         </Modal.Title>
       </Modal.Header>
       <Modal.Body className="bg-dark text-light">
         <p className="text-muted small">
           Завантажте PDF, DOCX або TXT файли. Обрані документи додаватимуть свій
           вміст до контексту AI.
-          {!hasOpenaiApiKey && (
+          {ragEmbeddingMode === 'fallback' && (
             <>
               {' '}
-              Без OpenAI API key пошук працює у режимі fallback — перші фрагменти
-              замість семантичного відбору.
+              Семантичний пошук недоступний — увімкніть Ollama (провайдер) або
+              додайте OpenAI key.
+            </>
+          )}
+          {ragEmbeddingMode === 'ollama' && (
+            <>
+              {' '}
+              Embeddings через Ollama (nomic-embed-text).
             </>
           )}
         </p>
@@ -180,6 +201,8 @@ const DocumentModal = React.memo(function DocumentModal({
               const isReady = status === 'ready';
               const isFailed = status === 'failed';
               const isRetrying = retryingDocId === doc.id;
+              const isReindexing = reindexingDocId === doc.id;
+              const isBusy = isRetrying || isReindexing;
               const statusLabel =
                 status === 'pending'
                   ? 'індексація…'
@@ -205,6 +228,7 @@ const DocumentModal = React.memo(function DocumentModal({
                       {doc.chunks_count ?? 0} фрагментів |{' '}
                       {((doc.file_size || 0) / 1024).toFixed(1)} KB
                       {isReady && doc.has_embeddings === false && ' | без embeddings'}
+                      {isReady && doc.embedding_provider && ` | ${doc.embedding_provider}`}
                     </small>
                     {isFailed && doc.failure_reason && (
                       <div className="text-danger small mt-1">{doc.failure_reason}</div>
@@ -212,12 +236,27 @@ const DocumentModal = React.memo(function DocumentModal({
                     {isReady && (doc.chunks_count ?? 0) > 0 && (
                       <ChunkPreview docId={doc.id} />
                     )}
+                    {isReady && doc.needs_reindex && (
+                      <Button
+                        variant="outline-info"
+                        size="sm"
+                        className="mt-2 me-2"
+                        disabled={uploadingDoc || isBusy}
+                        onClick={() => onReindexDoc(doc.id)}
+                      >
+                        {isReindexing ? (
+                          <Spinner size="sm" animation="border" />
+                        ) : (
+                          'Переіндексувати'
+                        )}
+                      </Button>
+                    )}
                     {isFailed && (
                       <Button
                         variant="outline-warning"
                         size="sm"
                         className="mt-2"
-                        disabled={uploadingDoc || isRetrying}
+                        disabled={uploadingDoc || isBusy}
                         onClick={() => onRetryDoc(doc.id)}
                       >
                         {isRetrying ? (
@@ -232,7 +271,7 @@ const DocumentModal = React.memo(function DocumentModal({
                   <Button
                     variant="outline-danger"
                     size="sm"
-                    disabled={uploadingDoc || isRetrying}
+                    disabled={uploadingDoc || isBusy}
                     onClick={() => onDeleteDoc(doc.id)}
                   >
                     🗑

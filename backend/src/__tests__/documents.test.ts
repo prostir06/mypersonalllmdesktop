@@ -16,6 +16,7 @@ jest.mock('../services/DocumentService', () => ({
     getById: jest.fn(),
     getChunks: jest.fn(),
     retryIndexing: jest.fn(),
+    reindexEmbeddings: jest.fn(),
     delete: jest.fn(),
   },
 }));
@@ -40,6 +41,7 @@ const mockedService = DocumentService as unknown as {
   getById: jest.Mock;
   getChunks: jest.Mock;
   retryIndexing: jest.Mock;
+  reindexEmbeddings: jest.Mock;
   delete: jest.Mock;
 };
 
@@ -193,6 +195,34 @@ describe('Documents API (Prisma routes)', () => {
       new Error('Файл недоступний для повторної індексації — завантажте документ знову')
     );
     const res = await request(app).post('/api/documents/11/retry');
+    expect(res.status).toBe(409);
+  });
+
+  it('POST /:id/reindex returns updated document', async () => {
+    mockedService.reindexEmbeddings.mockResolvedValue({
+      document: {
+        id: 11,
+        user_id: 1,
+        filename: 'note.txt',
+        status: 'ready',
+        embeddings_count: 2,
+        embedding_provider: 'ollama',
+        needs_reindex: false,
+      },
+      embeddingsCount: 2,
+    });
+
+    const res = await request(app).post('/api/documents/11/reindex');
+    expect(res.status).toBe(200);
+    expect(res.body.embeddings_count).toBe(2);
+    expect(mockedService.reindexEmbeddings).toHaveBeenCalledWith(11, 1);
+  });
+
+  it('POST /:id/reindex returns 409 when no provider', async () => {
+    mockedService.reindexEmbeddings.mockRejectedValue(
+      new Error('Немає доступного провайдера embeddings')
+    );
+    const res = await request(app).post('/api/documents/11/reindex');
     expect(res.status).toBe(409);
   });
 

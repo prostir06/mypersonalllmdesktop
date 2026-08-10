@@ -171,6 +171,49 @@ export async function getDocumentChunks(
   }
 }
 
+export async function reindexDocument(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  try {
+    if (!/^\d+$/.test(String(req.params.id))) {
+      jsonError(res, req, 400, 'Некоректний ідентифікатор документа');
+      return;
+    }
+
+    const result = await DocumentService.reindexEmbeddings(
+      Number(req.params.id),
+      req.userId!
+    );
+
+    if (!result) {
+      jsonError(res, req, 404, 'Документ не знайдено або не готовий до переіндексації');
+      return;
+    }
+
+    res.json({
+      document: result.document,
+      embeddings_count: result.embeddingsCount,
+      message: 'Embeddings оновлено',
+      requestId: req.id,
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(`POST /documents/${req.params.id}/reindex error: ${message}`);
+
+    if (
+      message.includes('провайдера embeddings') ||
+      message.includes('фрагментів') ||
+      message.includes('embeddings')
+    ) {
+      jsonError(res, req, 409, message);
+      return;
+    }
+
+    jsonError(res, req, 500, 'Не вдалося переіндексувати документ');
+  }
+}
+
 export async function retryDocument(
   req: AuthRequest,
   res: Response

@@ -70,7 +70,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     handleToggleDoc,
     handleDeleteDoc,
     handleRetryDoc,
+    handleReindexDoc,
     retryingDocId,
+    reindexingDocId,
     hasMoreDocuments,
     loadMoreDocuments,
     loadingMoreDocuments,
@@ -373,7 +375,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onToggleDoc={handleToggleDoc}
         onDeleteDoc={handleDeleteDoc}
         onRetryDoc={handleRetryDoc}
+        onReindexDoc={handleReindexDoc}
         retryingDocId={retryingDocId}
+        reindexingDocId={reindexingDocId}
         onUploadClick={() =>
           fileInputRef.current && fileInputRef.current.click()
         }
@@ -383,7 +387,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         hasMore={hasMoreDocuments}
         onLoadMore={loadMoreDocuments}
         loadingMore={loadingMoreDocuments}
-        hasOpenaiApiKey={Boolean(settings?.has_openai_api_key)}
+        ragEmbeddingMode={
+          settings?.rag_embedding_mode ||
+          (settings?.has_openai_api_key ? 'openai' : 'fallback')
+        }
       />
 
       <PromptLibraryModal

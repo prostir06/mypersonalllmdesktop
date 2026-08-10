@@ -37,6 +37,10 @@ jest.mock('../services/EmbeddingService', () => ({
   generateBatchEmbeddings: jest.fn(),
 }));
 
+jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
+  resolveEmbeddingContext: jest.fn(),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -47,6 +51,7 @@ import { PDFParse } from 'pdf-parse';
 import prisma from '../config/prisma';
 import DocumentService from '../services/DocumentService';
 import EmbeddingService from '../services/EmbeddingService';
+import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 
 const mockedPrisma = prisma as unknown as {
   document: {
@@ -69,9 +74,15 @@ const mockedEmbed = EmbeddingService as unknown as {
   generateBatchEmbeddings: jest.Mock;
 };
 
+const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
+
 describe('DocumentService (Prisma)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedResolveCtx.mockResolvedValue({
+      provider: 'openai',
+      openaiKey: 'sk-test',
+    });
     // Default: $transaction runs callback with prisma-like tx that delegates to same mocks
     mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const tx = {
@@ -225,6 +236,7 @@ describe('DocumentService (Prisma)', () => {
           failureReason: null,
           stagingPath: null,
           embeddingsCount: 1,
+          embeddingProvider: 'openai',
         }),
       });
     });

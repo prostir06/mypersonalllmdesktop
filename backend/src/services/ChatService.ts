@@ -8,6 +8,7 @@ import EmbeddingService = require('./EmbeddingService');
 import ProviderFactory = require('./providerFactory');
 import { buildMessageFtsQuery } from '../utils/messageFts';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
+import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import { assertChatImage } from '../utils/chatImage';
 
 class ChatError extends Error {
@@ -112,23 +113,32 @@ class ChatService {
     if (ragEnabled) {
       try {
         let queryEmbedding: number[] | null = null;
-        const openaiKey = await resolveOpenAiApiKey(userId);
-        if (userMessage && EmbeddingService.isAvailable(openaiKey)) {
+        const embedCtx = await resolveEmbeddingContext(userId);
+        if (userMessage && EmbeddingService.isAvailable(embedCtx)) {
           queryEmbedding = await EmbeddingService.generateEmbedding(
             userMessage,
-            openaiKey
+            embedCtx
           );
         }
+
+        const activeProvider =
+          queryEmbedding && embedCtx.provider !== 'none'
+            ? embedCtx.provider
+            : null;
 
         const relevantChunks = await EmbeddingService.findRelevantChunks(
           queryEmbedding,
           userId,
           documentIds,
-          5
+          5,
+          {},
+          activeProvider
         );
 
         if (relevantChunks.length > 0) {
-          const searchMethod = queryEmbedding ? 'векторний пошук' : 'fallback';
+          const searchMethod = queryEmbedding
+            ? `векторний пошук (${activeProvider})`
+            : 'fallback';
           const ragContextText = [
             `📄 КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ (${searchMethod}):`,
             ...relevantChunks.map((c) => {

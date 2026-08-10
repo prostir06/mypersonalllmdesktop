@@ -7,6 +7,8 @@ import {
   EncryptionConfigError,
 } from '../utils/secretCrypto';
 import { jsonError } from '../utils/httpJson';
+import { embeddingContextToRagMode } from '../services/embeddings/types';
+import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 
 type SettingsRequest = Request & { userId?: number; id?: string };
 
@@ -24,6 +26,7 @@ export function defaultSettings() {
     default_ollama_host: FALLBACK_OLLAMA,
     system_prompt: '',
     has_openai_api_key: false,
+    rag_embedding_mode: 'fallback' as const,
   };
 }
 
@@ -41,6 +44,36 @@ function hasEncKey(row: { openaiApiKeyEnc?: string | null }): boolean {
 }
 
 /** GET public subset — never returns key material */
+export async function toPublicSettingsAsync(row: {
+  defaultModel: string;
+  temperature: unknown;
+  maxTokens: number;
+  defaultProvider: string;
+  defaultOllamaHost: string | null;
+  systemPrompt: string;
+  openaiApiKeyEnc?: string | null;
+  userId?: number;
+}) {
+  const base = {
+    default_model: row.defaultModel,
+    temperature: numTemp(row.temperature),
+    max_tokens: row.maxTokens,
+    default_provider: row.defaultProvider,
+    default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
+    system_prompt: row.systemPrompt ?? '',
+    has_openai_api_key: hasEncKey(row),
+    rag_embedding_mode: 'fallback' as 'openai' | 'ollama' | 'fallback',
+  };
+
+  if (row.userId != null) {
+    const ctx = await resolveEmbeddingContext(row.userId);
+    base.rag_embedding_mode = embeddingContextToRagMode(ctx);
+  }
+
+  return base;
+}
+
+/** Sync subset for PUT responses (rag mode omitted — client refetches GET). */
 export function toPublicSettings(row: {
   defaultModel: string;
   temperature: unknown;
@@ -122,7 +155,7 @@ export async function getSettings(req: SettingsRequest, res: Response): Promise<
         res.json(defaults);
         return;
       }
-      res.json(toPublicSettings(row));
+      res.json(await toPublicSettingsAsync({ ...row, userId: req.userId }));
     } catch (dbError: unknown) {
       const message = dbError instanceof Error ? dbError.message : String(dbError);
       logger.warn(`Settings GET failed, falling back to defaults: ${message}`);

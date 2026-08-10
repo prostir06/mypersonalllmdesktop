@@ -30,6 +30,10 @@ jest.mock('../services/providerFactory', () => ({
   streamMessage: jest.fn(),
 }));
 
+jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
+  resolveEmbeddingContext: jest.fn(),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -40,14 +44,20 @@ import prisma from '../config/prisma';
 import EmbeddingService from '../services/EmbeddingService';
 import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
+import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 
 const mockedPrisma = prisma as any;
 const mockedEmbed = EmbeddingService as any;
 const mockedProvider = ProviderFactory as any;
+const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
 
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedResolveCtx.mockResolvedValue({
+      provider: 'openai',
+      openaiKey: 'sk-test',
+    });
     mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const tx = {
         message: mockedPrisma.message,
@@ -116,9 +126,11 @@ describe('ChatService', () => {
         [0.1],
         1,
         [],
-        5
+        5,
+        {},
+        'openai'
       );
-      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(4);
+      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(6);
       expect(msgs[0].content).toBe('Be helpful');
       expect(msgs[1].content).toContain('КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ');
     });
@@ -161,7 +173,9 @@ describe('ChatService', () => {
         null,
         1,
         [1, 4],
-        5
+        5,
+        {},
+        null
       );
     });
   });
