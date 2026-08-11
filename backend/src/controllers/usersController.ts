@@ -1,9 +1,8 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../logger';
 import { jsonError } from '../utils/httpJson';
-
-type AuthRequest = Request & { userId?: number; id?: string };
+import type { AuthRequest } from '../types/express';
 
 export function toPublicUser(row: {
   id: number;

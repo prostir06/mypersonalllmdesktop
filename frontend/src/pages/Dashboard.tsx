@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import ChatBoxOptimized from '../components/ChatBoxOptimized';
 import MessageSearch from '../components/MessageSearch';
+import ConfirmModal from '../components/ConfirmModal';
 import {
   useAutoSelectConversation,
   useConversations,
@@ -21,6 +22,7 @@ const Dashboard: React.FC = () => {
   const [newConvTitle, setNewConvTitle] = useState('');
   const [renamingId, setRenamingId] = useState<string | number | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | number | null>(null);
 
   const {
     conversations,
@@ -53,20 +55,26 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleDeleteConversation = async (
+  const handleDeleteConversation = (
     convId: string | number,
     e?: MouseEvent
   ) => {
     if (e) e.stopPropagation();
-    if (!window.confirm('Ви впевнені, що хочете видалити цю розмову?')) return;
+    setDeleteTarget(convId);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTarget == null) return;
     try {
-      await deleteConversation.mutateAsync(convId);
-      if (activeConversation === convId) {
-        const remaining = conversations.filter((c) => c.id !== convId);
+      await deleteConversation.mutateAsync(deleteTarget);
+      if (activeConversation === deleteTarget) {
+        const remaining = conversations.filter((c) => c.id !== deleteTarget);
         setActiveConversation(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -121,7 +129,11 @@ const Dashboard: React.FC = () => {
             }}
           />
 
-          <div className="flex-grow-1 overflow-auto pr-1">
+          <div
+            className="flex-grow-1 overflow-auto pr-1"
+            role="listbox"
+            aria-label="Список розмов"
+          >
             {isLoading && conversations.length === 0 ? (
               <div className="text-center p-4">
                 <Spinner animation="border" size="sm" variant="primary" />
@@ -134,10 +146,19 @@ const Dashboard: React.FC = () => {
               conversations.map((conv) => (
                 <div
                   key={conv.id}
+                  role="option"
+                  aria-selected={activeConversation === conv.id}
+                  tabIndex={0}
                   className={`conversation-card ${
                     activeConversation === conv.id ? 'active' : ''
                   }`}
                   onClick={() => setActiveConversation(conv.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveConversation(conv.id);
+                    }
+                  }}
                 >
                   {renamingId === conv.id ? (
                     <Form
@@ -256,6 +277,15 @@ const Dashboard: React.FC = () => {
           </Button>
         </Modal.Footer>
       </Modal>
+
+      <ConfirmModal
+        show={deleteTarget != null}
+        title="Видалення розмови"
+        message="Ви впевнені, що хочете видалити цю розмову?"
+        confirmLabel="Видалити"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </Row>
   );
 };

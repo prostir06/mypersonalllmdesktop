@@ -147,52 +147,28 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     }
   }, []);
 
-  const [settingsSnapshot, setSettingsSnapshot] = useState<
-    UserSettings | undefined
-  >(undefined);
+  const settingsFingerprint = settings
+    ? `${settings.default_provider}|${settings.default_model}|${settings.temperature}|${settings.max_tokens}`
+    : '';
 
-  if (settings !== settingsSnapshot) {
-    setSettingsSnapshot(settings);
-    if (settings) {
-      setSelectedProvider(settings.default_provider || 'openai');
-      setSelectedModel(settings.default_model || '');
-      if (settings.temperature !== undefined) {
-        setTemperature(parseFloat(String(settings.temperature)));
-      }
-      if (settings.max_tokens !== undefined) {
-        const n = parseInt(String(settings.max_tokens), 10);
-        if (Number.isFinite(n) && n > 0) setMaxTokens(n);
-      }
+  useEffect(() => {
+    if (!settings) return;
+    setSelectedProvider(settings.default_provider || 'openai');
+    setSelectedModel(settings.default_model || '');
+    if (settings.temperature !== undefined) {
+      setTemperature(parseFloat(String(settings.temperature)));
     }
-  }
+    if (settings.max_tokens !== undefined) {
+      const n = parseInt(String(settings.max_tokens), 10);
+      if (Number.isFinite(n) && n > 0) setMaxTokens(n);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsFingerprint]);
 
-  // Side-effect only: discover Ollama tags when settings say ollama.
   useEffect(() => {
     if (settings?.default_provider !== 'ollama') return;
-    const host = settings.default_ollama_host;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await modelsAPI.getRemote('ollama', host);
-        if (cancelled) return;
-        const raw = Array.isArray(response.data)
-          ? response.data
-          : response.data?.models || [];
-        const fetched = raw.map((m) => ({
-          value: String(m.id || m.name || ''),
-          label: `${m.name || m.id} (Локальна)`,
-        }));
-        if (fetched.length > 0) setRemoteModels(fetched);
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn('Could not fetch remote Ollama models:', message);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [settings?.default_provider, settings?.default_ollama_host]);
+    void fetchRemoteModels(settings.default_ollama_host);
+  }, [settings?.default_provider, settings?.default_ollama_host, fetchRemoteModels]);
 
   const scrollToBottom = useCallback(() => {
     if (

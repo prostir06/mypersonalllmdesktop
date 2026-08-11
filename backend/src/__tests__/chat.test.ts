@@ -35,7 +35,7 @@ describe('chat routes', () => {
   it('POST /send 400 when message empty', async () => {
     const res = await request(app).post('/api/chat/send').send({ message: '' });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Message is required');
+    expect(res.body.errors).toBeDefined();
   });
 
   it('POST /send 400 when message > 4000', async () => {
@@ -264,15 +264,12 @@ describe('chat routes', () => {
     expect(res.body.error).toBe('Помилка пошуку');
   });
 
-  it('GET /search maps ChatError 400 for invalid conversationId', async () => {
-    const err: any = new Error('Invalid conversationId');
-    err.statusCode = 400;
-    mockedChat.searchMessages.mockRejectedValue(err);
+  it('GET /search returns 400 for invalid conversationId', async () => {
     const res = await request(app)
       .get('/api/chat/search')
       .query({ q: 'ab', conversationId: 'x' });
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Invalid conversationId');
+    expect(res.body.errors).toBeDefined();
   });
 
   it('POST /stream 400 when message empty', async () => {
@@ -286,5 +283,42 @@ describe('chat routes', () => {
     const res = await request(app).get('/api/chat/history/1');
     expect(res.status).toBe(500);
     expect(res.body.error).toBe('Failed to fetch conversation history');
+  });
+
+  it('POST /stream writes SSE frames and closes', async () => {
+    mockedChat.streamMessage.mockImplementation(
+      async (
+        _params: unknown,
+        onToken: (token: string) => void,
+        onInit: (convId: number) => void
+      ) => {
+        onInit(42);
+        onToken('hello');
+        onToken(' world');
+        return { messageId: 1, content: 'hello world' };
+      }
+    );
+
+    const res = await request(app)
+      .post('/api/chat/stream')
+      .send({ message: 'hi', model: 'gpt-4', provider: 'openai' })
+      .expect(200);
+
+    expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+    const lines = res.text.split('\n').filter((l: string) => l.startsWith('data:'));
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('POST /stream returns error JSON on ChatError before SSE headers', async () => {
+    const err: any = new Error('No provider configured');
+    err.statusCode = 403;
+    mockedChat.streamMessage.mockRejectedValue(err);
+
+    const res = await request(app)
+      .post('/api/chat/stream')
+      .send({ message: 'hi', model: 'gpt-4', provider: 'openai' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('No provider configured');
   });
 });

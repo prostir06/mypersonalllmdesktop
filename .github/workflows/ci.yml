@@ -11,6 +11,10 @@ on:
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-backend:
     name: Backend Tests
@@ -65,6 +69,14 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate --config prisma/prisma.config.ts
+        working-directory: backend
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+        working-directory: backend
+
+      - name: Security audit
+        run: npm audit --audit-level=moderate || true
         working-directory: backend
 
       - name: Run backend tests with coverage

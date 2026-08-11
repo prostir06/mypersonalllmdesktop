@@ -33,6 +33,7 @@ jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
+  debug: jest.fn(),
 }));
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
@@ -142,7 +143,7 @@ describe('Models API (Prisma)', () => {
       .send({ name: 'Only name' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/name and modelId/i);
+    expect(res.body.errors).toBeDefined();
     expect(mockedPrisma.llmModel.create).not.toHaveBeenCalled();
   });
 
@@ -158,13 +159,13 @@ describe('Models API (Prisma)', () => {
     expect(mockedPrisma.llmModel.update).not.toHaveBeenCalled();
   });
 
-  it('PUT /:id returns 404 for non-digit id', async () => {
+  it('PUT /:id returns 400 for non-digit id', async () => {
     const res = await request(app)
       .put('/api/models/abc')
       .set('Authorization', `Bearer ${tokenFor(9)}`)
       .send({ name: 'X', description: 'd', temperature: 0.2, maxTokens: 100 });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
     expect(mockedPrisma.llmModel.findFirst).not.toHaveBeenCalled();
   });
 

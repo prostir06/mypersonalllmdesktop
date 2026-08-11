@@ -1,7 +1,6 @@
 import axios from 'axios';
 import logger from '../../logger';
-import { resolveOllamaEmbeddingsUrl } from '../../utils/ollamaEmbeddingsUrl';
-import { EMBEDDING_DIMENSIONS, OLLAMA_EMBED_MODEL } from './types';
+import { EMBEDDING_DIMENSIONS } from './types';
 
 const OPENAI_EMBEDDING_URL = 'https://api.openai.com/v1/embeddings';
 const EMBEDDING_MODEL = 'text-embedding-3-small';

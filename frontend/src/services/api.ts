@@ -168,19 +168,23 @@ export const chatAPI = {
     onInit: StreamInitCallback,
     signal?: AbortSignal
   ): Promise<void> => {
-    const token = getAccessToken();
-    let response: Response;
-    try {
-      response = await fetch(`${API_URL}/chat/stream`, {
+    const doFetch = async (accessToken: string | null): Promise<Response> => {
+      const res = await fetch(`${API_URL}/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({ conversationId, message, model, provider, options }),
         signal,
         credentials: 'include',
       });
+      return res;
+    };
+
+    let response: Response;
+    try {
+      response = await doFetch(getAccessToken());
     } catch (err) {
       if (signal?.aborted || isAbortError(err)) {
         throw isAbortError(err)
@@ -188,6 +192,22 @@ export const chatAPI = {
           : new DOMException('Aborted', 'AbortError');
       }
       throw err;
+    }
+
+    // Token expired — attempt one refresh then retry.
+    if (response.status === 401) {
+      try {
+        const { data } = await axios.post<AuthRefreshResponse>(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
+        setAccessToken(data.token);
+        response = await doFetch(data.token);
+      } catch {
+        setAccessToken(null);
+        throw new Error('Сесія закінчилася. Будь ласка, увійдіть знову.');
+      }
     }
 
     if (!response.ok) {

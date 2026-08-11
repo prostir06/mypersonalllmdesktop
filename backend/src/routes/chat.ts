@@ -6,12 +6,17 @@ import {
   getHistory,
   searchMessages,
 } from '../controllers/chatController';
+import {
+  validateChatSend,
+  validateChatHistory,
+  validateChatSearch,
+} from '../validators/chatValidator';
 
 const router = express.Router();
 
-router.post('/send', auth, sendMessage);
-router.post('/stream', auth, streamMessage);
-router.get('/history/:conversationId', auth, getHistory);
-router.get('/search', auth, searchMessages);
+router.post('/send', auth, validateChatSend, sendMessage);
+router.post('/stream', auth, validateChatSend, streamMessage);
+router.get('/history/:conversationId', auth, validateChatHistory, getHistory);
+router.get('/search', auth, validateChatSearch, searchMessages);
 
 export = router;

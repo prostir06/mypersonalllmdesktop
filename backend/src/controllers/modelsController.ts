@@ -8,8 +8,8 @@ import {
 } from '../utils/urlAllowlist';
 import { modelSupportsVision } from '../utils/modelCapabilities';
 import { jsonError } from '../utils/httpJson';
-
-type AuthRequest = Request & { userId?: number; id?: string };
+import { numTemp } from '../utils/numTemp';
+import type { AuthRequest } from '../types/express';
 
 type LlmModelRow = {
   id: number;
@@ -27,15 +27,6 @@ type LlmModelRow = {
 export function parseModelId(raw: string): number | null {
   if (!/^\d+$/.test(raw)) return null;
   return Number(raw);
-}
-
-function numTemp(value: unknown): number {
-  if (value == null) return 0.7;
-  if (typeof value === 'number') return value;
-  if (typeof value === 'object' && value !== null && 'toString' in value) {
-    return Number((value as { toString: () => string }).toString());
-  }
-  return Number(value);
 }
 
 export function toPublicModel(row: LlmModelRow) {
@@ -233,8 +224,9 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
             break;
           }
         }
-      } catch {
-        // try next candidate
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.debug(`Ollama discovery: ${url} failed: ${msg}`);
       }
     }
 

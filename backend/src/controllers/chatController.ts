@@ -2,7 +2,7 @@
  * Thin HTTP/SSE adapters over ChatService. Rate limits stay in server.js.
  * Controllers catch ChatError → 4xx JSON; unexpected errors → 500 (or SSE error).
  */
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import ChatService = require('../services/ChatService');
 import logger from '../logger';
 import {
@@ -10,8 +10,7 @@ import {
   isAbortError,
 } from '../utils/requestAbort';
 import { jsonError } from '../utils/httpJson';
-
-type AuthRequest = Request & { userId?: number; id?: string };
+import type { AuthRequest } from '../types/express';
 
 function isChatError(error: unknown): error is Error & { statusCode: number } {
   return (

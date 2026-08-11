@@ -1,7 +1,7 @@
 /**
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import React, { useState, useEffect, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Row, Col, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
@@ -40,9 +40,6 @@ const Settings: React.FC = () => {
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'error' | null>(null);
-  const [settingsSnapshot, setSettingsSnapshot] = useState<
-    UserSettings | undefined
-  >(undefined);
 
   const settingsFingerprint = settingsData
     ? [
@@ -56,37 +53,22 @@ const Settings: React.FC = () => {
       ].join('|')
     : '';
 
-  // Hydrate form when server settings fingerprint changes (no effect).
-  if (settingsData && settingsData !== settingsSnapshot) {
-    const prevFp = settingsSnapshot
-      ? [
-          settingsSnapshot.default_provider,
-          settingsSnapshot.default_model,
-          settingsSnapshot.temperature,
-          settingsSnapshot.max_tokens,
-          settingsSnapshot.default_ollama_host,
-          settingsSnapshot.system_prompt,
-          settingsSnapshot.has_openai_api_key,
-        ].join('|')
-      : '';
-    if (settingsFingerprint !== prevFp) {
-      setSettingsSnapshot(settingsData);
-      setProvider(normalizeProvider(settingsData.default_provider));
-      setModel(settingsData.default_model || '');
-      setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
-      setMaxTokens(parseInt(String(settingsData.max_tokens ?? 2000), 10) || 2000);
-      setOllamaHost(
-        settingsData.default_ollama_host ||
-          'http://127.0.0.1:11434/v1/chat/completions'
-      );
-      setSystemPrompt(String(settingsData.system_prompt || ''));
-      setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
-      setOpenaiApiKey('');
-      setClearOpenaiKey(false);
-    } else if (settingsData !== settingsSnapshot) {
-      setSettingsSnapshot(settingsData);
-    }
-  }
+  useEffect(() => {
+    if (!settingsData) return;
+    setProvider(normalizeProvider(settingsData.default_provider));
+    setModel(settingsData.default_model || '');
+    setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
+    setMaxTokens(parseInt(String(settingsData.max_tokens ?? 2000), 10) || 2000);
+    setOllamaHost(
+      settingsData.default_ollama_host ||
+        'http://127.0.0.1:11434/v1/chat/completions'
+    );
+    setSystemPrompt(String(settingsData.system_prompt || ''));
+    setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
+    setOpenaiApiKey('');
+    setClearOpenaiKey(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsFingerprint]);
 
   const catalogOptions = useMemo(
     () => catalogModelsToOptions(catalogModels, provider),

@@ -1,5 +1,6 @@
 import express from 'express';
 import auth from '../middleware/auth';
+import optionalAuth from '../middleware/optionalAuth';
 import {
   validateSettingsUpdate,
   handleValidationErrors,
@@ -8,7 +9,7 @@ import { getSettings, updateSettings } from '../controllers/settingsController';
 
 const router = express.Router();
 
-router.get('/', getSettings);
+router.get('/', optionalAuth, getSettings);
 router.put('/', auth, validateSettingsUpdate, handleValidationErrors, updateSettings);
 
 export = router;

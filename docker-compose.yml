@@ -19,8 +19,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    mem_limit: 512m
+    cpus: 0.5
     networks:
-      - llm-network
+      - db-network
 
   backend:
     build:
@@ -53,7 +55,10 @@ services:
       - ./backend:/app
       - /app/node_modules
     entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
+    mem_limit: 1g
+    cpus: 1.0
     networks:
+      - db-network
       - llm-network
     restart: unless-stopped
 
@@ -68,6 +73,13 @@ services:
       - "3000:80"
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:80/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    mem_limit: 256m
+    cpus: 0.5
     networks:
       - llm-network
     restart: unless-stopped
@@ -76,5 +88,8 @@ volumes:
   postgres_data:
 
 networks:
+  db-network:
+    driver: bridge
+    internal: true
   llm-network:
     driver: bridge

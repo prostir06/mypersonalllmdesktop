@@ -1,5 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { Response } from 'express';
 import prisma from '../config/prisma';
 import logger from '../logger';
 import {
@@ -8,9 +7,11 @@ import {
 } from '../utils/secretCrypto';
 import { jsonError } from '../utils/httpJson';
 import { embeddingContextToRagMode } from '../services/embeddings/types';
-import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
+import { resolveEmbeddingContext, invalidateEmbeddingContextCache } from '../services/embeddings/resolveEmbeddingContext';
+import { numTemp } from '../utils/numTemp';
+import type { AuthRequest } from '../types/express';
 
-type SettingsRequest = Request & { userId?: number; id?: string };
+type SettingsRequest = AuthRequest;
 
 const FALLBACK_OLLAMA =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -28,15 +29,6 @@ export function defaultSettings() {
     has_openai_api_key: false,
     rag_embedding_mode: 'fallback' as const,
   };
-}
-
-function numTemp(value: unknown): number {
-  if (value == null) return 0.7;
-  if (typeof value === 'number') return value;
-  if (typeof value === 'object' && value !== null && 'toString' in value) {
-    return Number((value as { toString: () => string }).toString());
-  }
-  return Number(value);
 }
 
 function hasEncKey(row: { openaiApiKeyEnc?: string | null }): boolean {
@@ -73,27 +65,6 @@ export async function toPublicSettingsAsync(row: {
   return base;
 }
 
-/** Sync subset for PUT responses (rag mode omitted — client refetches GET). */
-export function toPublicSettings(row: {
-  defaultModel: string;
-  temperature: unknown;
-  maxTokens: number;
-  defaultProvider: string;
-  defaultOllamaHost: string | null;
-  systemPrompt: string;
-  openaiApiKeyEnc?: string | null;
-}) {
-  return {
-    default_model: row.defaultModel,
-    temperature: numTemp(row.temperature),
-    max_tokens: row.maxTokens,
-    default_provider: row.defaultProvider,
-    default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
-    system_prompt: row.systemPrompt ?? '',
-    has_openai_api_key: hasEncKey(row),
-  };
-}
-
 /** PUT full row */
 export function toSettingsRow(row: {
   id: number;
@@ -126,21 +97,6 @@ export function toSettingsRow(row: {
 export async function getSettings(req: SettingsRequest, res: Response): Promise<void> {
   const defaults = defaultSettings();
 
-  const token = req.header('Authorization')?.replace('Bearer ', '');
-  if (token) {
-    try {
-      const secret = process.env.JWT_SECRET;
-      if (secret) {
-        const decoded = jwt.verify(token, secret, {
-          algorithms: ['HS256'],
-        }) as { userId: number };
-        req.userId = decoded.userId;
-      }
-    } catch {
-      logger.warn('Invalid token on settings GET, falling back to defaults');
-    }
-  }
-
   try {
     if (!req.userId) {
       res.json(defaults);
@@ -170,8 +126,7 @@ export async function getSettings(req: SettingsRequest, res: Response): Promise<
 
 export async function updateSettings(
   req: SettingsRequest,
-  res: Response,
-  next: NextFunction
+  res: Response
 ): Promise<void> {
   if (!req.userId) {
     jsonError(res, req, 401, 'No token, authorization denied');
@@ -245,6 +200,8 @@ export async function updateSettings(
       }
     }
 
+    invalidateEmbeddingContextCache(req.userId);
+
     const row = await prisma.userSettings.upsert({
       where: { userId: req.userId },
       create: { userId: req.userId, ...data },
@@ -255,6 +212,6 @@ export async function updateSettings(
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`Error in PUT /settings: ${message}`);
-    next(error);
+    jsonError(res, req, 500, 'Failed to update settings');
   }
 }

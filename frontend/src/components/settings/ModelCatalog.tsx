@@ -5,6 +5,7 @@ import React, { useState, type FormEvent } from 'react';
 import { Button, Form, Spinner, Table } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
+import ConfirmModal from '../ConfirmModal';
 import {
   isSystemModel,
   useCreateModel,
@@ -110,15 +111,23 @@ export default function ModelCatalog() {
     }
   };
 
-  const handleDelete = async (m: ModelRecord) => {
-    if (!window.confirm(`Видалити модель «${m.name}»?`)) return;
+  const [deleteTarget, setDeleteTarget] = useState<ModelRecord | null>(null);
+
+  const handleDelete = (m: ModelRecord) => {
+    setDeleteTarget(m);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteMutation.mutateAsync(m.id);
+      await deleteMutation.mutateAsync(deleteTarget.id);
       toast.info('Модель видалено');
-      if (editingId === m.id) resetForm();
+      if (editingId === deleteTarget.id) resetForm();
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;
       toast.error(ax.response?.data?.error || 'Не вдалося видалити модель');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -316,6 +325,14 @@ export default function ModelCatalog() {
           </div>
         </Form>
       )}
+      <ConfirmModal
+        show={deleteTarget != null}
+        title="Видалення моделі"
+        message={`Видалити модель «${deleteTarget?.name}»?`}
+        confirmLabel="Видалити"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

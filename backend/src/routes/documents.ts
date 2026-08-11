@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'path';
+import fs from 'fs';
 const multer = require('multer');
 import auth from '../middleware/auth';
 import {
@@ -14,7 +16,21 @@ import { getMaxUploadBytes } from '../utils/fileMagic';
 
 const router = express.Router();
 
+const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req: unknown, _file: unknown, cb: (err: Error | null, dest: string) => void) => {
+    cb(null, uploadsDir);
+  },
+  filename: (_req: unknown, file: { originalname: string }, cb: (err: Error | null, name: string) => void) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${unique}-${file.originalname}`);
+  },
+});
+
 const upload = multer({
+  storage,
   limits: { fileSize: getMaxUploadBytes() },
   fileFilter: (
     _req: unknown,

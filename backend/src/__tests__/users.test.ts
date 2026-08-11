@@ -121,7 +121,7 @@ describe('Users API (Prisma)', () => {
       .send({ name: '  ', email: 'ada@example.com' });
 
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('errors');
     expect(mockedPrisma.user.update).not.toHaveBeenCalled();
   });
 
@@ -132,7 +132,7 @@ describe('Users API (Prisma)', () => {
       .send({ name: 'Ada', email: 'not-an-email' });
 
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('errors');
     expect(mockedPrisma.user.update).not.toHaveBeenCalled();
   });
 

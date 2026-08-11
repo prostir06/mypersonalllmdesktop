@@ -26,8 +26,9 @@ export type SseHandlers = {
 function safeInvoke(fn: () => void): void {
   try {
     fn();
-  } catch {
-    // Handler bugs must not kill the SSE parse loop
+  } catch (err) {
+    // Handler bugs must not kill the SSE parse loop, but surface them for debugging.
+    console.warn('SSE handler error:', err);
   }
 }
 

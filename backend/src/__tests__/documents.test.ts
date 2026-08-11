@@ -269,4 +269,30 @@ describe('Documents API (Prisma routes)', () => {
       process.env.NODE_ENV = prev;
     }
   });
+
+  it('POST /upload rejects unsupported file type', async () => {
+    const res = await request(app)
+      .post('/api/documents/upload')
+      .attach('file', Buffer.from('hello'), {
+        filename: 'test.exe',
+        contentType: 'application/octet-stream',
+      });
+    // Multer fileFilter error may surface as 400 or 500 depending on error handler
+    expect([400, 500]).toContain(res.status);
+    expect(mockedService.acceptUpload).not.toHaveBeenCalled();
+  });
+
+  it('POST /reindex returns 404 for non-existent document', async () => {
+    mockedService.reindexEmbeddings.mockResolvedValue(null);
+    const res = await request(app).post('/api/documents/999/reindex');
+    expect(res.status).toBe(404);
+  });
+
+  it('POST /reindex returns 409 when no provider available', async () => {
+    mockedService.reindexEmbeddings.mockRejectedValue(
+      new Error('Немає доступного провайдера embeddings')
+    );
+    const res = await request(app).post('/api/documents/1/reindex');
+    expect(res.status).toBe(409);
+  });
 });

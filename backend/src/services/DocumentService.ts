@@ -18,7 +18,8 @@ type FileInfo = {
   originalname: string;
   mimetype: string;
   size: number;
-  buffer: Buffer;
+  buffer?: Buffer;
+  path?: string;
 };
 
 type DocumentRow = {
@@ -173,9 +174,9 @@ class DocumentService {
   }
 
   static assertWithinSizeLimit(fileInfo: FileInfo): void {
-    const { size, buffer } = fileInfo;
+    const { size } = fileInfo;
     const maxBytes = getMaxUploadBytes();
-    if (size > maxBytes || buffer.length > maxBytes) {
+    if (size > maxBytes) {
       throw new Error(`Файл перевищує ліміт розміру (${maxBytes} байт)`);
     }
   }
@@ -187,8 +188,8 @@ class DocumentService {
     enqueue: EnqueueFn = defaultEnqueue
   ) {
     this.assertWithinSizeLimit(fileInfo);
-    const { originalname, mimetype, size, buffer } = fileInfo;
-    const tempPath = await writeTempUpload(buffer);
+    const { originalname, mimetype, size, buffer, path: diskPath } = fileInfo;
+    const tempPath = diskPath ?? await writeTempUpload(buffer!);
 
     const doc = await prisma.document.create({
       data: {
@@ -429,20 +430,36 @@ class DocumentService {
       embedCtx.provider !== 'none' ? embedCtx.provider : null;
 
     await prisma.$transaction(async (tx) => {
+      // Batch UPDATE via VALUES list instead of N individual queries.
+      const withEmbedding: { id: number; vec: string }[] = [];
+      const withoutEmbedding: number[] = [];
       for (let i = 0; i < chunks.length; i++) {
-        const embedding = embeddings[i];
-        if (embedding) {
-          await tx.$executeRawUnsafe(
-            `UPDATE document_chunks SET embedding = $1::vector WHERE id = $2`,
-            `[${embedding.join(',')}]`,
-            chunks[i].id
-          );
+        const emb = embeddings[i];
+        if (emb) {
+          withEmbedding.push({ id: chunks[i].id, vec: `[${emb.join(',')}]` });
         } else {
-          await tx.$executeRawUnsafe(
-            `UPDATE document_chunks SET embedding = NULL WHERE id = $1`,
-            chunks[i].id
-          );
+          withoutEmbedding.push(chunks[i].id);
         }
+      }
+
+      if (withEmbedding.length > 0) {
+        const values = withEmbedding
+          .map((_, idx) => `($${idx * 2 + 1}::int, $${idx * 2 + 2}::vector)`)
+          .join(', ');
+        const params = withEmbedding.flatMap((e) => [e.id, e.vec]);
+        await tx.$executeRawUnsafe(
+          `UPDATE document_chunks AS dc SET embedding = v.emb
+           FROM (VALUES ${values}) AS v(cid, emb)
+           WHERE dc.id = v.cid`,
+          ...params
+        );
+      }
+
+      if (withoutEmbedding.length > 0) {
+        await tx.$executeRawUnsafe(
+          `UPDATE document_chunks SET embedding = NULL WHERE id = ANY($1::int[])`,
+          withoutEmbedding
+        );
       }
 
       await tx.document.update({
@@ -512,11 +529,12 @@ class DocumentService {
       },
     });
 
+    const source: UploadSource = fileInfo.path ?? fileInfo.buffer!;
     return this.finalizeUpload(
       doc.id,
       userId,
       { originalname, mimetype, size },
-      fileInfo.buffer
+      source
     );
   }
 

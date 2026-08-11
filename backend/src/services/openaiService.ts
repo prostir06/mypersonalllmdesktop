@@ -212,6 +212,14 @@ async function streamOpenAIMessage(
           try {
             onChunk(token);
           } catch (cbError: unknown) {
+            if (
+              cbError &&
+              typeof cbError === 'object' &&
+              ((cbError as { name?: string }).name === 'AbortError' ||
+                (cbError as { code?: string }).code === 'ABORT_ERR')
+            ) {
+              throw cbError;
+            }
             logger.error(`Помилка в onChunk коллбеку: ${cbError}`);
           }
         }

@@ -101,4 +101,41 @@ describe('rotateRefreshToken reuse detection', () => {
     expect(result).toBeNull();
     expect(mockedPrisma.refreshToken.create).not.toHaveBeenCalled();
   });
+
+  it('concurrent rotations: only one wins', async () => {
+    const raw = 'concurrent-token-test';
+    const row = {
+      id: 10,
+      userId: 5,
+      tokenHash: hashRefreshToken(raw),
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    };
+
+    // Both calls find the token, but only the first updateMany succeeds.
+    mockedPrisma.refreshToken.findUnique
+      .mockResolvedValueOnce(row)
+      .mockResolvedValueOnce(row);
+    mockedPrisma.refreshToken.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    mockedPrisma.refreshToken.create.mockResolvedValue({
+      id: 11,
+      userId: 5,
+      tokenHash: 'new-hash',
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+    });
+
+    const [r1, r2] = await Promise.all([
+      rotateRefreshToken(raw),
+      rotateRefreshToken(raw),
+    ]);
+
+    const results = [r1, r2];
+    const winners = results.filter(Boolean);
+    const losers = results.filter((r) => r === null);
+    expect(winners.length).toBe(1);
+    expect(losers.length).toBe(1);
+  });
 });

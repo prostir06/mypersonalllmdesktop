@@ -27,6 +27,7 @@ jest.mock('../logger', () => ({
 
 jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
   resolveEmbeddingContext: jest.fn().mockResolvedValue({ provider: 'none' }),
+  invalidateEmbeddingContextCache: jest.fn(),
 }));
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';

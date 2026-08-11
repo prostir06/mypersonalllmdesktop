@@ -6,9 +6,10 @@ const FALLBACK_OLLAMA =
   process.env.OLLAMA_API_URL ||
   'http://127.0.0.1:11434/v1/chat/completions';
 
-export async function resolveEmbeddingContext(
-  userId: number
-): Promise<EmbeddingContext> {
+const CACHE_TTL_MS = 5_000;
+const cache = new Map<number, { ctx: EmbeddingContext; ts: number }>();
+
+async function resolve(userId: number): Promise<EmbeddingContext> {
   const openaiKey = await resolveOpenAiApiKey(userId);
   if (openaiKey) {
     return { provider: 'openai', openaiKey };
@@ -28,4 +29,22 @@ export async function resolveEmbeddingContext(
   }
 
   return { provider: 'none' };
+}
+
+export async function resolveEmbeddingContext(
+  userId: number
+): Promise<EmbeddingContext> {
+  const now = Date.now();
+  const cached = cache.get(userId);
+  if (cached && now - cached.ts < CACHE_TTL_MS) {
+    return cached.ctx;
+  }
+  const ctx = await resolve(userId);
+  cache.set(userId, { ctx, ts: now });
+  return ctx;
+}
+
+/** Invalidate cache for a user (e.g. after settings update). */
+export function invalidateEmbeddingContextCache(userId: number): void {
+  cache.delete(userId);
 }

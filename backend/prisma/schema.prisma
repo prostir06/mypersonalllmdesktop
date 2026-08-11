@@ -122,6 +122,7 @@ model DocumentChunk {
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@unique([documentId, chunkIndex], map: "uq_document_chunks_doc_chunk")
   @@index([documentId], map: "idx_document_chunks_doc_id")
   @@map("document_chunks")
 }

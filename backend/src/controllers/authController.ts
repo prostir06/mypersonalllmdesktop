@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
@@ -14,8 +14,7 @@ import {
 } from '../utils/refreshTokens';
 import { isRegistrationAllowed } from '../utils/registrationGate';
 import { jsonError, jsonValidationErrors } from '../utils/httpJson';
-
-type AuthRequest = Request & { id?: string };
+import type { AuthRequest } from '../types/express';
 
 class JwtSecretMissingError extends Error {
   constructor() {

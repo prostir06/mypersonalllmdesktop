@@ -29,7 +29,8 @@ const Profile: React.FC = () => {
       setName(data.name || '');
       setEmail(data.email || '');
       setUser(data);
-    } catch {
+    } catch (err) {
+      console.error('Profile load error:', err);
       setError('Не вдалося завантажити профіль');
     } finally {
       setLoading(false);

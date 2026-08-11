@@ -1,7 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-type AuthRequest = Request & { userId?: number };
+import type { AuthRequest } from '../types/express';
 
 const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -12,7 +11,7 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!, {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string, {
       algorithms: ['HS256'],
     }) as { userId: number };
     req.userId = decoded.userId;

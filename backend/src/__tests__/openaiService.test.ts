@@ -206,5 +206,45 @@ describe('openaiService (SDK)', () => {
       );
       expect(mockCreate.mock.calls[0][1]).toEqual({ signal: ac.signal });
     });
+
+    it('rethrows AbortError from onChunk callback', async () => {
+      async function* gen() {
+        yield { choices: [{ delta: { content: 'x' } }] };
+      }
+      mockCreate.mockResolvedValueOnce(gen());
+      const abortErr = new DOMException('Aborted', 'AbortError');
+      const onChunk = jest.fn().mockImplementation(() => {
+        throw abortErr;
+      });
+      await expect(
+        streamOpenAIMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gpt-3.5-turbo',
+          {},
+          onChunk
+        )
+      ).rejects.toThrow('Aborted');
+    });
+
+    it('swallows non-abort onChunk errors and continues', async () => {
+      async function* gen() {
+        yield { choices: [{ delta: { content: 'A' } }] };
+        yield { choices: [{ delta: { content: 'B' } }] };
+      }
+      mockCreate.mockResolvedValueOnce(gen());
+      let callCount = 0;
+      const onChunk = jest.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) throw new Error('UI crash');
+      });
+      const result = await streamOpenAIMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gpt-3.5-turbo',
+        {},
+        onChunk
+      );
+      expect(result.content).toBe('AB');
+      expect(onChunk).toHaveBeenCalledTimes(2);
+    });
   });
 });

@@ -13,6 +13,11 @@ const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET is not set. Server cannot start without it.');
+  process.exit(1);
+}
+
 const logger = require('./logger');
 const errorHandler = require('./middleware/errorHandler');
 

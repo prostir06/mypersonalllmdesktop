@@ -7,15 +7,19 @@ import {
   deleteModel,
   listRemoteModels,
 } from '../controllers/modelsController';
+import {
+  validateModelCreate,
+  validateModelUpdate,
+  validateModelId,
+} from '../validators/modelsValidator';
 
 const router = express.Router();
 
-// /remote BEFORE /:modelId
 router.get('/remote', auth, listRemoteModels);
 
 router.get('/', auth, listModels);
-router.post('/', auth, createModel);
-router.put('/:modelId', auth, updateModel);
-router.delete('/:modelId', auth, deleteModel);
+router.post('/', auth, validateModelCreate, createModel);
+router.put('/:modelId', auth, validateModelUpdate, updateModel);
+router.delete('/:modelId', auth, validateModelId, deleteModel);
 
 export = router;

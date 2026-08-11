@@ -1,23 +1,21 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import DocumentService from '../services/DocumentService';
 import logger from '../logger';
 import { decodeMulterFilename } from '../utils/multerFilename';
 import { parseListPagination } from '../utils/listPagination';
 import { jsonError } from '../utils/httpJson';
 import { UrlNotAllowedError } from '../utils/urlAllowlist';
+import type { AuthRequest } from '../types/express';
 
 type UploadedFile = {
   originalname: string;
   mimetype: string;
   size: number;
-  buffer: Buffer;
+  buffer?: Buffer;
+  path?: string;
 };
 
-type AuthRequest = Request & {
-  userId?: number;
-  id?: string;
-  file?: UploadedFile;
-};
+type DocAuthRequest = AuthRequest & { file?: UploadedFile };
 
 function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
@@ -33,7 +31,7 @@ function publicUploadError(
 }
 
 export async function uploadDocument(
-  req: AuthRequest,
+  req: DocAuthRequest,
   res: Response
 ): Promise<void> {
   if (!req.file) {
