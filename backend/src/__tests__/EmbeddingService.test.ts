@@ -256,7 +256,83 @@ describe('EmbeddingService (Prisma)', () => {
     });
 
     it('signature has no pool argument', () => {
-      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(6);
+      expect(EmbeddingService.findRelevantChunks.length).toBeLessThanOrEqual(7);
+    });
+
+    it('uses hybrid vector+FTS when queryText and embedding provided', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          {
+            chunk_id: 1,
+            content: 'vector text',
+            filename: 'doc2.txt',
+            similarity: 0.95,
+          },
+        ])
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          {
+            chunk_id: 1,
+            content: 'vector text',
+            filename: 'doc2.txt',
+            rank: 0.5,
+          },
+          {
+            chunk_id: 2,
+            content: 'keyword hit',
+            filename: 'doc3.txt',
+            rank: 0.8,
+          },
+        ]);
+
+      const result = await EmbeddingService.findRelevantChunks(
+        [0.1, 0.2],
+        1,
+        [],
+        5,
+        {},
+        'openai',
+        'keyword query'
+      );
+
+      expect(result.length).toBeGreaterThan(0);
+      const ftsSql = mockedPrisma.$queryRawUnsafe.mock.calls[3][0] as string;
+      expect(ftsSql).toContain('plainto_tsquery');
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('hybrid')
+      );
+    });
+
+    it('uses FTS when embeddings unavailable but query text provided', async () => {
+      mockedPrisma.$queryRawUnsafe
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([{ '?column?': 1 }])
+        .mockResolvedValueOnce([
+          {
+            chunk_id: 3,
+            content: 'fts only',
+            filename: 'doc.txt',
+            rank: 0.6,
+          },
+        ]);
+
+      const result = await EmbeddingService.findRelevantChunks(
+        null,
+        1,
+        [],
+        5,
+        {},
+        null,
+        'invoice number'
+      );
+
+      expect(result).toEqual([
+        { content: 'fts only', filename: 'doc.txt', similarity: 0.6 },
+      ]);
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('FTS')
+      );
     });
 
     it('filters by embedding_provider in vector query', async () => {

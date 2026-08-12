@@ -14,6 +14,8 @@ export type MessageListProps = {
   speakingIdx: number | null;
   onSpeak: (content: string, idx: number) => void;
   onCopy: (content: string) => void;
+  onRegenerate?: (assistantIdx: number) => void;
+  onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
   messagesEndRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -25,6 +27,8 @@ const MessageList = React.memo(function MessageList({
   speakingIdx,
   onSpeak,
   onCopy,
+  onRegenerate,
+  onSwitchBranch,
   messagesEndRef,
 }: MessageListProps) {
   if (loading && messages.length === 0) {
@@ -61,6 +65,9 @@ const MessageList = React.memo(function MessageList({
           speakingIdx={speakingIdx}
           onSpeak={onSpeak}
           onCopy={onCopy}
+          onRegenerate={onRegenerate}
+          onSwitchBranch={onSwitchBranch}
+          streaming={streaming}
         />
       ))}
 

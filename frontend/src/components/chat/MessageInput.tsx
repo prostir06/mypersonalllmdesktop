@@ -4,6 +4,7 @@
 import React, { type FormEvent, type KeyboardEvent } from 'react';
 import { Form, Button } from 'react-bootstrap';
 import type { AttachedImage } from '../../hooks/useChatStream';
+import type { ChatAttachmentPayload } from '../../types/api';
 
 export type MessageInputProps = {
   inputMessage: string;
@@ -16,6 +17,9 @@ export type MessageInputProps = {
   attachedImage: AttachedImage | null;
   onClearImage: () => void;
   onAttachImage: () => void;
+  chatAttachments?: ChatAttachmentPayload[];
+  onRemoveAttachment?: (index: number) => void;
+  onAttachFile?: () => void;
   supportsVision: boolean;
 };
 
@@ -30,6 +34,9 @@ const MessageInput = React.memo(function MessageInput({
   attachedImage,
   onClearImage,
   onAttachImage,
+  chatAttachments = [],
+  onRemoveAttachment = () => {},
+  onAttachFile = () => {},
   supportsVision,
 }: MessageInputProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -75,6 +82,33 @@ const MessageInput = React.memo(function MessageInput({
         </div>
       )}
 
+      {chatAttachments.length > 0 && (
+        <div className="mb-2 d-flex flex-wrap gap-2">
+          {chatAttachments.map((a, i) => (
+            <div
+              key={`${a.filename}-${i}`}
+              className="d-flex align-items-center gap-2 px-2 py-1 small"
+              style={{
+                background: 'rgba(34,197,94,0.1)',
+                border: '1px solid rgba(34,197,94,0.25)',
+                borderRadius: 8,
+              }}
+            >
+              <span>📄 {a.filename}</span>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => onRemoveAttachment(i)}
+                className="p-0 text-danger text-decoration-none"
+                title="Видалити вкладення"
+              >
+                ✕
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <Form onSubmit={onSubmit} className="d-flex gap-2 align-items-end">
         <Form.Control
           as="textarea"
@@ -104,6 +138,17 @@ const MessageInput = React.memo(function MessageInput({
 
         <Button
           type="button"
+          variant={chatAttachments.length > 0 ? 'success' : 'outline-success'}
+          onClick={onAttachFile}
+          disabled={streaming}
+          title="Додати файл (PDF, TXT, MD)"
+          className="py-3 px-3"
+        >
+          📎
+        </Button>
+
+        <Button
+          type="button"
           variant={isListening ? 'danger' : 'outline-primary'}
           onClick={onToggleListening}
           disabled={streaming}
@@ -127,7 +172,7 @@ const MessageInput = React.memo(function MessageInput({
           <Button
             type="submit"
             className="btn-accent px-4 py-3 d-flex align-items-center gap-2"
-            disabled={!inputMessage.trim()}
+            disabled={!inputMessage.trim() && chatAttachments.length === 0}
           >
             <span>Надіслати 🚀</span>
           </Button>

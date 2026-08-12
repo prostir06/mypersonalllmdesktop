@@ -4,8 +4,10 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
+| [2026-08-12-project-evolution-v8-design.md](./2026-08-12-project-evolution-v8-design.md) | Draft for review |
+| [2026-08-12-project-evolution-v7-retro.md](./2026-08-12-project-evolution-v7-retro.md) | Implemented (P24-P30) |
 | [2026-08-10-ollama-embeddings-rag-design.md](./2026-08-10-ollama-embeddings-rag-design.md) | Implemented (P23) |
-| [2026-08-10-project-evolution-v6-design.md](./2026-08-10-project-evolution-v6-design.md) | Active roadmap |
+| [2026-08-10-project-evolution-v6-design.md](./2026-08-10-project-evolution-v6-design.md) | Implemented (P18-P22) |
 | Older `*-design.md` files | Historical / implemented |
 
 Implementation plans under `docs/superpowers/plans/` are local-only (gitignored).

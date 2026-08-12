@@ -1,5 +1,6 @@
-import React, { useCallback, useState, type FormEvent, type MouseEvent } from 'react';
+import React, { useCallback, useState, useEffect, type FormEvent, type MouseEvent } from 'react';
 import { Row, Col, Button, Modal, Form, Spinner } from 'react-bootstrap';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import ChatBoxOptimized from '../components/ChatBoxOptimized';
@@ -23,6 +24,27 @@ const Dashboard: React.FC = () => {
   const [renamingId, setRenamingId] = useState<string | number | null>(null);
   const [renameTitle, setRenameTitle] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const cid = searchParams.get('conversation');
+    if (cid && /^\d+$/.test(cid)) {
+      setActiveConversation(cid);
+    }
+  }, [searchParams]);
+
+  const selectConversation = useCallback(
+    (id: string | number | null) => {
+      setActiveConversation(id);
+      if (id == null) {
+        searchParams.delete('conversation');
+        setSearchParams(searchParams, { replace: true });
+        return;
+      }
+      setSearchParams({ conversation: String(id) }, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
 
   const {
     conversations,
@@ -39,7 +61,7 @@ const Dashboard: React.FC = () => {
   useAutoSelectConversation(
     conversations,
     activeConversation,
-    setActiveConversation
+    selectConversation
   );
 
   const handleNewConversation = async () => {
@@ -47,7 +69,7 @@ const Dashboard: React.FC = () => {
       const created = await createConversation.mutateAsync(
         newConvTitle || 'Нова розмова'
       );
-      setActiveConversation(created.id);
+      selectConversation(created.id);
       setNewConvTitle('');
       setShowNewConvModal(false);
     } catch (error) {
@@ -69,7 +91,7 @@ const Dashboard: React.FC = () => {
       await deleteConversation.mutateAsync(deleteTarget);
       if (activeConversation === deleteTarget) {
         const remaining = conversations.filter((c) => c.id !== deleteTarget);
-        setActiveConversation(remaining.length > 0 ? remaining[0].id : null);
+        selectConversation(remaining.length > 0 ? remaining[0].id : null);
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
@@ -106,9 +128,9 @@ const Dashboard: React.FC = () => {
   const onNewMessage = useCallback(
     (newId?: string | number) => {
       invalidateConversations();
-      if (newId) setActiveConversation(newId);
+      if (newId) selectConversation(newId);
     },
-    [invalidateConversations]
+    [invalidateConversations, selectConversation]
   );
 
   return (
@@ -124,7 +146,7 @@ const Dashboard: React.FC = () => {
 
           <MessageSearch
             onSelectConversation={(id: string | number) => {
-              setActiveConversation(id);
+              selectConversation(id);
               invalidateConversations();
             }}
           />
@@ -152,11 +174,11 @@ const Dashboard: React.FC = () => {
                   className={`conversation-card ${
                     activeConversation === conv.id ? 'active' : ''
                   }`}
-                  onClick={() => setActiveConversation(conv.id)}
+                  onClick={() => selectConversation(conv.id)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setActiveConversation(conv.id);
+                      selectConversation(conv.id);
                     }
                   }}
                 >

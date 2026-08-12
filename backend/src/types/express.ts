@@ -8,4 +8,7 @@ declare global {
   }
 }
 
-export type AuthRequest = Request & { userId?: number };
+export type AuthRequest = Request & {
+  userId?: number;
+  file?: { path: string; mimetype: string; originalname: string };
+};

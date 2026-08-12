@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar, Nav, Container, Button } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { isElectronApp } from '../types/electron';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
@@ -52,6 +53,16 @@ const Navigation: React.FC = () => {
             >
               ⚙️ Налаштування AI
             </Nav.Link>
+            {isElectronApp() && (
+              <Nav.Link
+                as={Link}
+                to="/settings#desktop-updates"
+                className={`px-3 py-2 ${location.hash === '#desktop-updates' ? 'fw-bold text-primary' : ''}`}
+                title="Оновлення Desktop"
+              >
+                🔄 Оновлення
+              </Nav.Link>
+            )}
             <Nav.Link
               as={Link}
               to="/profile"

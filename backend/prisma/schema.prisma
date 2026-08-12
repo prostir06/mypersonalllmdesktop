@@ -21,6 +21,7 @@ model User {
   documents     Document[]
   llmModels     LlmModel[]
   refreshTokens RefreshToken[]
+  userPrompts   UserPrompt[]
 
   @@map("users")
 }
@@ -64,13 +65,31 @@ model Message {
   conversationId Int      @map("conversation_id")
   role           String   @db.VarChar(20)
   content        String   @db.Text
+  parentId       Int?     @map("parent_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parent       Message?     @relation("MessageBranches", fields: [parentId], references: [id], onDelete: Cascade)
+  branches     Message[]    @relation("MessageBranches")
 
   @@index([conversationId], map: "idx_messages_conversation_id")
   @@index([conversationId, createdAt(sort: Asc)], map: "idx_messages_conv_created")
+  @@index([parentId], map: "idx_messages_parent_id")
   @@map("messages")
+}
+
+model UserPrompt {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  title     String   @db.VarChar(255)
+  prompt    String   @db.Text
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_user_prompts_user_id")
+  @@map("user_prompts")
 }
 
 model LlmModel {

@@ -14,6 +14,9 @@ jest.mock('../config/prisma', () => ({
     userSettings: {
       findUnique: jest.fn(),
     },
+    userPrompt: {
+      findMany: jest.fn(),
+    },
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
   },
@@ -58,6 +61,7 @@ describe('ChatService', () => {
       provider: 'openai',
       openaiKey: 'sk-test',
     });
+    mockedPrisma.userPrompt.findMany.mockResolvedValue([]);
     mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const tx = {
         message: mockedPrisma.message,
@@ -84,24 +88,30 @@ describe('ChatService', () => {
   });
 
   describe('loadRecentMessages', () => {
-    it('loads the newest 50 messages in chronological order', async () => {
-      const newestFiftyDesc = Array.from({ length: 50 }, (_, i) => ({
-        role: 'user' as const,
-        content: `m${59 - i}`,
+    it('loads linear branch-aware history capped at 50 turns', async () => {
+      const rows = Array.from({ length: 55 }, (_, i) => ({
+        id: i + 1,
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `m${i}`,
+        parentId: i % 2 === 1 ? i : null,
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
       }));
-      mockedPrisma.message.findMany.mockResolvedValue(newestFiftyDesc);
+      mockedPrisma.message.findMany.mockResolvedValue(rows);
 
       const msgs = await ChatService.loadRecentMessages(1);
 
       expect(mockedPrisma.message.findMany).toHaveBeenCalledWith({
         where: { conversationId: 1 },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-        select: { role: true, content: true },
+        orderBy: { createdAt: 'asc' },
+        select: expect.objectContaining({
+          id: true,
+          role: true,
+          content: true,
+          parentId: true,
+        }),
       });
-      expect(msgs).toHaveLength(50);
-      expect(msgs[0].content).toBe('m10');
-      expect(msgs[49].content).toBe('m59');
+      expect(msgs.length).toBeLessThanOrEqual(50);
+      expect(msgs.at(-1)?.content).toBe('m54');
     });
   });
 
@@ -128,9 +138,10 @@ describe('ChatService', () => {
         [],
         5,
         {},
-        'openai'
+        'openai',
+        'query'
       );
-      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(6);
+      expect(mockedEmbed.findRelevantChunks.mock.calls[0].length).toBe(7);
       expect(msgs[0].content).toBe('Be helpful');
       expect(msgs[1].content).toContain('КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ');
     });
@@ -158,6 +169,32 @@ describe('ChatService', () => {
       expect(msgs).toEqual([{ role: 'system', content: 'Keep going' }]);
     });
 
+    it('includes pinned user prompts in system context', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedPrisma.userPrompt.findMany.mockResolvedValue([
+        { prompt: 'Always be concise' },
+      ]);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const msgs = await ChatService.buildSystemContext(1, {}, 'hi');
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0].content).toContain('ЗАКРІПЛЕНІ ІНСТРУКЦІЇ');
+      expect(msgs[0].content).toContain('Always be concise');
+    });
+
+    it('includes ephemeral attachments in system context', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const msgs = await ChatService.buildSystemContext(
+        1,
+        { attachments: [{ filename: 'notes.txt', content: 'hello file' }] },
+        'hi'
+      );
+      expect(msgs[0].content).toContain('notes.txt');
+      expect(msgs[0].content).toContain('hello file');
+    });
+
     it('sanitizes documentIds before RAG', async () => {
       mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
       mockedEmbed.isAvailable.mockReturnValue(false);
@@ -175,7 +212,8 @@ describe('ChatService', () => {
         [1, 4],
         5,
         {},
-        null
+        null,
+        'q'
       );
     });
   });
@@ -294,13 +332,18 @@ describe('ChatService', () => {
       expect(mockedPrisma.conversation.findFirst).not.toHaveBeenCalled();
     });
 
-    it('returns snake_case created_at', async () => {
+    it('returns snake_case created_at with linear history', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
       const createdAt = new Date('2026-08-01T12:00:00Z');
       mockedPrisma.message.findMany.mockResolvedValue([
-        { id: 1, role: 'user', content: 'a', createdAt },
+        {
+          id: 1,
+          role: 'user',
+          content: 'a',
+          parentId: null,
+          createdAt,
+        },
       ]);
-      mockedPrisma.message.count.mockResolvedValue(1);
 
       const result = await ChatService.getHistory(1, 5, 100, 0);
       expect(result.messages[0]).toEqual({
@@ -309,21 +352,35 @@ describe('ChatService', () => {
         content: 'a',
         created_at: createdAt,
       });
+      expect(result.total).toBe(1);
     });
 
-    it('returns total as conversation message count not page length', async () => {
+    it('returns total as linear message count not raw row count', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      const t = new Date('2026-08-01T12:00:00Z');
       mockedPrisma.message.findMany.mockResolvedValue([
-        { id: 1, role: 'user', content: 'a', createdAt: new Date() },
+        { id: 1, role: 'user', content: 'a', parentId: null, createdAt: t },
+        {
+          id: 2,
+          role: 'assistant',
+          content: 'b1',
+          parentId: 1,
+          createdAt: new Date(t.getTime() + 1000),
+        },
+        {
+          id: 3,
+          role: 'assistant',
+          content: 'b2',
+          parentId: 1,
+          createdAt: new Date(t.getTime() + 2000),
+        },
       ]);
-      mockedPrisma.message.count.mockResolvedValue(42);
 
-      const result = await ChatService.getHistory(1, 5, 1, 0);
-      expect(result.total).toBe(42);
-      expect(result.messages).toHaveLength(1);
-      expect(mockedPrisma.message.count).toHaveBeenCalledWith({
-        where: { conversationId: 5 },
-      });
+      const result = await ChatService.getHistory(1, 5, 10, 0);
+      expect(result.total).toBe(2);
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[1].content).toBe('b2');
+      expect(result.messages[1].branches).toHaveLength(2);
     });
 
     it('logs and rethrows when Prisma history load fails', async () => {
@@ -403,7 +460,13 @@ describe('ChatService', () => {
     it('builds multimodal user message and strips image from options', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
       mockedPrisma.message.findMany.mockResolvedValue([
-        { role: 'assistant', content: 'prev' },
+        {
+          id: 9,
+          role: 'assistant',
+          content: 'prev',
+          parentId: 8,
+          createdAt: new Date(),
+        },
       ]);
       mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
       mockedEmbed.isAvailable.mockReturnValue(false);

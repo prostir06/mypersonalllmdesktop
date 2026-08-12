@@ -15,6 +15,8 @@ export const validateChatSend = [
     .isIn(['openai', 'ollama'])
     .withMessage('Invalid provider'),
   body('conversationId').optional({ nullable: true }),
+  body('options.regenerateFromMessageId').optional().isInt({ min: 1 }),
+  body('options.attachments').optional().isArray({ max: 5 }),
   handleValidationErrors,
 ];
 

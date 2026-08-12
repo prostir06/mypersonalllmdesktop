@@ -52,7 +52,28 @@ export interface Message {
   role: string;
   content: string;
   created_at?: string;
+  parent_id?: number;
+  branches?: MessageBranch[];
+  branch_index?: number;
   [key: string]: unknown;
+}
+
+export interface MessageBranch {
+  id: string | number;
+  content: string;
+  created_at?: string;
+}
+
+export interface ChatAttachmentPayload {
+  filename: string;
+  content: string;
+}
+
+export interface ChatAttachmentUploadResponse {
+  filename: string;
+  content: string;
+  chars: number;
+  truncated?: boolean;
 }
 
 export interface ChatHistoryResponse {
@@ -64,6 +85,11 @@ export interface ChatSendOptions {
   temperature?: number;
   max_tokens?: number;
   documentIds?: Array<string | number>;
+  ragEnabled?: boolean;
+  image?: string | null;
+  regenerateFromMessageId?: number;
+  activeBranchIds?: Record<number, number>;
+  attachments?: ChatAttachmentPayload[];
   [key: string]: unknown;
 }
 
@@ -198,4 +224,24 @@ export interface ConversationExportResponse {
 export interface SuccessResponse {
   success?: boolean;
   message?: string;
+}
+
+export interface UserPrompt {
+  id: number;
+  title: string;
+  prompt: string;
+  is_pinned: boolean;
+  created_at?: string;
+}
+
+export interface UserPromptCreatePayload {
+  title: string;
+  prompt: string;
+  is_pinned?: boolean;
+}
+
+export interface UserPromptUpdatePayload {
+  title?: string;
+  prompt?: string;
+  is_pinned?: boolean;
 }

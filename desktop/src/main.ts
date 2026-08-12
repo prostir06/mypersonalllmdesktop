@@ -5,18 +5,58 @@ import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { isAllowedAppOrigin } from './security';
-import { registerIpcHandlers, setBackendOrigin } from './ipc';
+import {
+  registerIpcHandlers,
+  setBackendOrigin,
+  setPendingDeepLink,
+} from './ipc';
 import { startUiServer, type UiServer } from './uiServer';
 import {
   assertUiRootExists,
   packagedUiRoot,
   unpackagedUiRoot,
 } from './uiPaths';
+import { createTray, destroyTray } from './tray';
+import { initUpdater, checkForUpdates } from './updater';
+import {
+  DEEP_LINK_PROTOCOL,
+  findDeepLinkArg,
+  parseDeepLink,
+  type DeepLinkPayload,
+} from './deepLinks';
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
 let mainWindow: BrowserWindow | null = null;
 let uiServer: UiServer | null = null;
+
+type AppWithQuitFlag = typeof app & { isQuitting?: boolean };
+
+function deliverDeepLink(payload: DeepLinkPayload): void {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) {
+    setPendingDeepLink(payload);
+    return;
+  }
+
+  if (win.webContents.isLoading()) {
+    setPendingDeepLink(payload);
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.send('electron:deepLink', payload);
+    });
+    return;
+  }
+
+  win.webContents.send('electron:deepLink', payload);
+  win.show();
+  win.focus();
+}
+
+function handleDeepLinkUrl(raw: string): void {
+  const payload = parseDeepLink(raw);
+  if (!payload) return;
+  deliverDeepLink(payload);
+}
 
 function preloadPath(): string {
   return path.join(__dirname, 'preload.js');
@@ -48,6 +88,14 @@ async function createWindow(): Promise<void> {
     }
   });
 
+  mainWindow.on('close', (event) => {
+    const quitting = (app as AppWithQuitFlag).isQuitting;
+    if (!quitting && process.platform !== 'darwin') {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: 'deny' };
@@ -71,7 +119,6 @@ async function createWindow(): Promise<void> {
     const backendOrigin = resolveBackendOrigin();
     setBackendOrigin(backendOrigin);
     const port = uiPort();
-    // Packaged: resources/ui. Local start: Vite outDir frontend/build.
     const rawRoot = app.isPackaged
       ? packagedUiRoot(process.resourcesPath)
       : unpackagedUiRoot(__dirname);
@@ -88,27 +135,74 @@ async function createWindow(): Promise<void> {
   }
 }
 
-app.whenReady().then(() => {
-  registerIpcHandlers();
-  void createWindow().catch((err) => {
-    console.error('Failed to start Electron UI:', err);
-    app.quit();
-  });
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL, process.execPath, [
+      path.resolve(process.argv[1]),
+    ]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
+}
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const url = findDeepLinkArg(argv);
+    if (url) handleDeepLinkUrl(url);
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
     }
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleDeepLinkUrl(url);
+  });
 
-app.on('before-quit', () => {
-  void uiServer?.close();
-  uiServer = null;
-});
+  app.whenReady().then(() => {
+    registerIpcHandlers();
+    initUpdater(() => mainWindow);
+    createTray(() => mainWindow);
+
+    void createWindow()
+      .then(() => {
+        const launchLink = findDeepLinkArg(process.argv);
+        if (launchLink) handleDeepLinkUrl(launchLink);
+
+        if (app.isPackaged) {
+          void checkForUpdates();
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to start Electron UI:', err);
+        app.quit();
+      });
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow();
+      } else {
+        mainWindow?.show();
+      }
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+
+  app.on('before-quit', () => {
+    (app as AppWithQuitFlag).isQuitting = true;
+    destroyTray();
+    void uiServer?.close();
+    uiServer = null;
+  });
+}

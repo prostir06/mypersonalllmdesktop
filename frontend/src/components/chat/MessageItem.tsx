@@ -75,6 +75,9 @@ export type ChatMessageView = {
   id?: string | number;
   role: string;
   content: string;
+  parent_id?: number;
+  branches?: Array<{ id: string | number; content: string; created_at?: string }>;
+  branch_index?: number;
 };
 
 export type MessageItemProps = {
@@ -83,6 +86,9 @@ export type MessageItemProps = {
   speakingIdx: number | null;
   onSpeak: (content: string, idx: number) => void;
   onCopy: (content: string) => void;
+  onRegenerate?: (assistantIdx: number) => void;
+  onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
+  streaming?: boolean;
 };
 
 const MessageItem = React.memo(function MessageItem({
@@ -91,14 +97,58 @@ const MessageItem = React.memo(function MessageItem({
   speakingIdx,
   onSpeak,
   onCopy,
+  onRegenerate,
+  onSwitchBranch,
+  streaming = false,
 }: MessageItemProps) {
   const components = useMemo(() => ({ code: CodeBlock }), []);
+  const branchCount = msg.branches?.length ?? 0;
+  const branchIndex = msg.branch_index ?? 0;
 
   return (
     <div className={`message-bubble ${msg.role}`}>
       <div className="message-header d-flex justify-content-between align-items-center">
         <span>{msg.role === 'user' ? '👤 Ви' : '🤖 Assistant'}</span>
         <div className="d-flex align-items-center gap-2">
+          {msg.role === 'assistant' && branchCount > 1 && onSwitchBranch && (
+            <span className="d-flex align-items-center gap-1 small text-muted">
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 text-muted text-decoration-none"
+                disabled={branchIndex <= 0 || streaming}
+                onClick={() => onSwitchBranch(idx, branchIndex - 1)}
+                title="Попередня версія"
+              >
+                ◀
+              </Button>
+              <span>
+                {branchIndex + 1}/{branchCount}
+              </span>
+              <Button
+                variant="link"
+                size="sm"
+                className="p-0 text-muted text-decoration-none"
+                disabled={branchIndex >= branchCount - 1 || streaming}
+                onClick={() => onSwitchBranch(idx, branchIndex + 1)}
+                title="Наступна версія"
+              >
+                ▶
+              </Button>
+            </span>
+          )}
+          {msg.role === 'assistant' && onRegenerate && (
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 text-muted text-decoration-none"
+              onClick={() => onRegenerate(idx)}
+              disabled={streaming}
+              title="Перегенерувати відповідь"
+            >
+              🔄
+            </Button>
+          )}
           {msg.role === 'assistant' && (
             <Button
               variant="link"

@@ -12,7 +12,7 @@ import type { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
-import type { Message } from '../types/api';
+import type { ChatAttachmentPayload, Message } from '../types/api';
 import { queryKeys } from './queryKeys';
 
 export type AttachedImage = {
@@ -30,6 +30,14 @@ export type UseChatStreamArgs = {
   selectedDocIds: Array<string | number>;
   attachedImage: AttachedImage;
   setAttachedImage: Dispatch<SetStateAction<AttachedImage>>;
+  chatAttachments?: ChatAttachmentPayload[];
+  setChatAttachments?: Dispatch<SetStateAction<ChatAttachmentPayload[]>>;
+};
+
+type SendOptions = {
+  regenerateFromMessageId?: number;
+  skipOptimisticUser?: boolean;
+  replaceAssistantIndex?: number;
 };
 
 export function useChatStream({
@@ -42,6 +50,8 @@ export function useChatStream({
   selectedDocIds,
   attachedImage,
   setAttachedImage,
+  chatAttachments = [],
+  setChatAttachments = () => {},
 }: UseChatStreamArgs) {
   const queryClient = useQueryClient();
   const [streaming, setStreaming] = useState(false);
@@ -70,31 +80,50 @@ export function useChatStream({
     abortRef.current?.abort();
   }, []);
 
+  const buildRequestOptions = useCallback(
+    (extra?: { regenerateFromMessageId?: number }) => ({
+      temperature,
+      ...(typeof maxTokens === 'number' && Number.isFinite(maxTokens)
+        ? { max_tokens: maxTokens }
+        : {}),
+      documentIds: selectedDocIds,
+      ragEnabled: selectedDocIds.length > 0,
+      image: attachedImage?.base64 || null,
+      attachments:
+        (chatAttachments?.length ?? 0) > 0 ? chatAttachments : undefined,
+      ...extra,
+    }),
+    [
+      attachedImage,
+      chatAttachments,
+      maxTokens,
+      selectedDocIds,
+      temperature,
+    ]
+  );
+
   const sendMessage = useCallback(
     async (
       userContent: string,
-      setMessages: Dispatch<SetStateAction<Message[]>>
+      setMessages: Dispatch<SetStateAction<Message[]>>,
+      opts: SendOptions = {}
     ) => {
       setError(null);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'user',
-          content: userContent,
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      if (!opts.skipOptimisticUser) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'user',
+            content: userContent,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      }
 
-      const requestOptions = {
-        temperature,
-        ...(typeof maxTokens === 'number' && Number.isFinite(maxTokens)
-          ? { max_tokens: maxTokens }
-          : {}),
-        documentIds: selectedDocIds,
-        ragEnabled: selectedDocIds.length > 0,
-        image: attachedImage?.base64 || null,
-      };
+      const requestOptions = buildRequestOptions({
+        regenerateFromMessageId: opts.regenerateFromMessageId,
+      });
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -127,19 +156,32 @@ export function useChatStream({
           rafRef.current = null;
         }
         setStreamedText('');
-        setMessages((prev) => [
-          ...prev,
-          {
+        setMessages((prev) => {
+          const assistantMsg: Message = {
             role: 'assistant',
             content: currentStreamText,
             created_at: new Date().toISOString(),
-          },
-        ]);
+          };
+          if (
+            typeof opts.replaceAssistantIndex === 'number' &&
+            opts.replaceAssistantIndex >= 0
+          ) {
+            const next = [...prev];
+            next[opts.replaceAssistantIndex] = assistantMsg;
+            return next;
+          }
+          return [...prev, assistantMsg];
+        });
         if (onNewMessage) onNewMessage();
         sentOk = true;
         void queryClient.invalidateQueries({
           queryKey: queryKeys.conversations,
         });
+        if (conversationId) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.history(conversationId),
+          });
+        }
       } catch (err: unknown) {
         if (isAbortError(err)) {
           if (rafRef.current != null) {
@@ -175,9 +217,8 @@ export function useChatStream({
             requestOptions
           );
           const data = response.data;
-          setMessages((prev) => [
-            ...prev,
-            {
+          setMessages((prev) => {
+            const assistantMsg: Message = {
               role: 'assistant',
               content: data.content,
               created_at:
@@ -186,8 +227,17 @@ export function useChatStream({
                   : data.timestamp
                     ? String(data.timestamp)
                     : undefined,
-            },
-          ]);
+            };
+            if (
+              typeof opts.replaceAssistantIndex === 'number' &&
+              opts.replaceAssistantIndex >= 0
+            ) {
+              const next = [...prev];
+              next[opts.replaceAssistantIndex] = assistantMsg;
+              return next;
+            }
+            return [...prev, assistantMsg];
+          });
           if (onNewMessage) onNewMessage(data.conversationId);
           sentOk = true;
           void queryClient.invalidateQueries({
@@ -216,22 +266,40 @@ export function useChatStream({
             if (prev?.url) URL.revokeObjectURL(prev.url);
             return null;
           });
+          setChatAttachments([]);
         }
       }
     },
     [
-      attachedImage,
+      buildRequestOptions,
       conversationId,
       onNewMessage,
       queueStreamToken,
-      selectedDocIds,
       selectedModel,
       selectedProvider,
       setAttachedImage,
-      temperature,
-      maxTokens,
+      setChatAttachments,
       queryClient,
     ]
+  );
+
+  const regenerateMessage = useCallback(
+    async (
+      userMessage: Message,
+      assistantIndex: number,
+      setMessages: Dispatch<SetStateAction<Message[]>>
+    ) => {
+      if (!userMessage.id || streaming) return;
+      const userId = Number(userMessage.id);
+      if (!Number.isInteger(userId) || userId <= 0) return;
+
+      await sendMessage(userMessage.content, setMessages, {
+        regenerateFromMessageId: userId,
+        skipOptimisticUser: true,
+        replaceAssistantIndex: assistantIndex,
+      });
+    },
+    [sendMessage, streaming]
   );
 
   return {
@@ -240,6 +308,7 @@ export function useChatStream({
     error,
     setError,
     sendMessage,
+    regenerateMessage,
     stopStreaming,
   };
 }

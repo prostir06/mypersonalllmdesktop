@@ -22,7 +22,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: pgvector/pgvector:pg15
         env:
           POSTGRES_DB: llm_assistant_test
           POSTGRES_USER: postgres
@@ -76,7 +76,7 @@ jobs:
         working-directory: backend
 
       - name: Security audit
-        run: npm audit --audit-level=moderate || true
+        run: npm audit --audit-level=high
         working-directory: backend
 
       - name: Run backend tests with coverage

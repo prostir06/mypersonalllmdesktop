@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 import type {
   AuthRefreshResponse,
   AuthTokenResponse,
+  ChatAttachmentUploadResponse,
   ChatHistoryResponse,
   ChatSearchResponse,
   ChatSendOptions,
@@ -28,6 +29,9 @@ import type {
   StreamInitCallback,
   StreamTokenCallback,
   SuccessResponse,
+  UserPrompt,
+  UserPromptCreatePayload,
+  UserPromptUpdatePayload,
   UserProfile,
   UserSettings,
   UserUpdatePayload,
@@ -271,6 +275,13 @@ export const chatAPI = {
     conversationId?: string | number
   ): Promise<AxiosResponse<ChatSearchResponse>> =>
     api.get('/chat/search', { params: { q, conversationId } }),
+
+  uploadAttachment: (
+    formData: FormData
+  ): Promise<AxiosResponse<ChatAttachmentUploadResponse>> =>
+    api.post('/chat/attachments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
 };
 
 export const conversationAPI = {
@@ -340,4 +351,17 @@ export const settingsAPI = {
   get: (): Promise<AxiosResponse<UserSettings>> => api.get('/settings'),
   update: (data: SettingsUpdatePayload): Promise<AxiosResponse<UserSettings>> =>
     api.put('/settings', data),
+};
+
+export const promptsAPI = {
+  getAll: (): Promise<AxiosResponse<UserPrompt[]>> => api.get('/prompts'),
+  create: (
+    payload: UserPromptCreatePayload
+  ): Promise<AxiosResponse<UserPrompt>> => api.post('/prompts', payload),
+  update: (
+    id: number,
+    payload: UserPromptUpdatePayload
+  ): Promise<AxiosResponse<UserPrompt>> => api.put(`/prompts/${id}`, payload),
+  delete: (id: number): Promise<AxiosResponse<SuccessResponse>> =>
+    api.delete(`/prompts/${id}`),
 };

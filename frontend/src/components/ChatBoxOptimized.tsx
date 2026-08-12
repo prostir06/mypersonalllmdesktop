@@ -13,7 +13,7 @@ import React, {
 import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
-import { conversationAPI, modelsAPI } from '../services/api';
+import { conversationAPI, modelsAPI, chatAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useModels } from '../hooks/useModels';
 import { useSpeech } from '../hooks/useSpeech';
@@ -25,7 +25,7 @@ import {
   type ModelOption,
 } from '../utils/catalogModelOptions';
 import { modelSupportsVision } from '../utils/modelSupportsVision';
-import type { UserSettings } from '../types/api';
+import type { UserSettings, ChatAttachmentPayload, Message } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
@@ -51,7 +51,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   const [attachedImage, setAttachedImage] = useState<AttachedImage | null>(
     null
   );
+  const [chatAttachments, setChatAttachments] = useState<
+    ChatAttachmentPayload[]
+  >([]);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const { data: settings } = useSettings();
@@ -112,6 +116,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     error,
     setError,
     sendMessage,
+    regenerateMessage,
     stopStreaming,
   } = useChatStream({
     conversationId,
@@ -123,6 +128,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     selectedDocIds,
     attachedImage,
     setAttachedImage,
+    chatAttachments,
+    setChatAttachments,
   });
 
   const { messages, setMessages, loading } = useConversationHistory(
@@ -268,10 +275,94 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     setAttachedImage(null);
   }, [attachedImage]);
 
+  const handleFileAttach = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const allowed = /\.(pdf|txt|md)$/i.test(file.name) ||
+        ['application/pdf', 'text/plain', 'text/markdown'].includes(file.type);
+      if (!allowed) {
+        toast.error('Дозволено лише PDF, TXT, MD');
+        return;
+      }
+      if (chatAttachments.length >= 5) {
+        toast.warn('Максимум 5 вкладень на повідомлення');
+        return;
+      }
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await chatAPI.uploadAttachment(formData);
+        setChatAttachments((prev) => [
+          ...prev,
+          { filename: res.data.filename, content: res.data.content },
+        ]);
+        toast.success(
+          res.data.truncated
+            ? `Файл додано (обрізано до ${res.data.chars} символів)`
+            : 'Файл додано до повідомлення'
+        );
+      } catch (err: unknown) {
+        const ax = err as AxiosError<{ error?: string }>;
+        toast.error(ax.response?.data?.error || 'Помилка обробки файлу');
+      }
+      if (chatFileInputRef.current) chatFileInputRef.current.value = '';
+    },
+    [chatAttachments.length]
+  );
+
+  const handleRegenerate = useCallback(
+    async (assistantIdx: number) => {
+      const assistant = messages[assistantIdx];
+      if (!assistant || assistant.role !== 'assistant') return;
+      let userMsg: Message | undefined;
+      for (let i = assistantIdx - 1; i >= 0; i--) {
+        if (messages[i]?.role === 'user') {
+          userMsg = messages[i];
+          break;
+        }
+      }
+      if (!userMsg?.id) {
+        toast.warn('Неможливо перегенерувати — оновіть історію чату');
+        return;
+      }
+      await regenerateMessage(userMsg, assistantIdx, setMessages);
+    },
+    [messages, regenerateMessage, setMessages]
+  );
+
+  const handleSwitchBranch = useCallback(
+    (assistantIdx: number, branchIdx: number) => {
+      setMessages((prev) => {
+        const msg = prev[assistantIdx];
+        if (!msg?.branches?.length) return prev;
+        const branch = msg.branches[branchIdx];
+        if (!branch) return prev;
+        const next = [...prev];
+        next[assistantIdx] = {
+          ...msg,
+          content: branch.content,
+          id: branch.id,
+          branch_index: branchIdx,
+        };
+        return next;
+      });
+    },
+    [setMessages]
+  );
+
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim() || streaming || loading) return;
-    const userContent = inputMessage.trim();
+    if (
+      (!inputMessage.trim() && chatAttachments.length === 0) ||
+      streaming ||
+      loading
+    ) {
+      return;
+    }
+    const userContent =
+      inputMessage.trim() ||
+      'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.';
     setInputMessage('');
     await sendMessage(userContent, setMessages);
   };
@@ -316,6 +407,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         speakingIdx={speakingIdx}
         onSpeak={speakText}
         onCopy={copyMessage}
+        onRegenerate={handleRegenerate}
+        onSwitchBranch={handleSwitchBranch}
         messagesEndRef={messagesEndRef}
       />
 
@@ -332,7 +425,22 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onAttachImage={() =>
           imageInputRef.current && imageInputRef.current.click()
         }
+        chatAttachments={chatAttachments}
+        onRemoveAttachment={(i) =>
+          setChatAttachments((prev) => prev.filter((_, idx) => idx !== i))
+        }
+        onAttachFile={() =>
+          chatFileInputRef.current && chatFileInputRef.current.click()
+        }
         supportsVision={modelSupportsVision(activeModel, catalogModels)}
+      />
+
+      <input
+        type="file"
+        ref={chatFileInputRef}
+        accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+        style={{ display: 'none' }}
+        onChange={handleFileAttach}
       />
 
       <input

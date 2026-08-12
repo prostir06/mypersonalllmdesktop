@@ -1,18 +1,15 @@
-const { PDFParse } = require('pdf-parse');
-const mammoth = require('mammoth');
 const fs = require('fs/promises');
-const path = require('path');
-const { randomUUID } = require('crypto');
 import prisma from '../config/prisma';
 import logger from '../logger';
 import EmbeddingService = require('./EmbeddingService');
 import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import type { EmbeddingContext, EmbeddingProviderName } from './embeddings/types';
-import {
-  getMaxUploadBytes,
-  resolveDocumentKind,
-} from '../utils/fileMagic';
+import { getMaxUploadBytes } from '../utils/fileMagic';
 import { enqueueDocumentJob } from '../utils/documentJobQueue';
+import { chunkText as chunkTextImpl } from './documents/chunking';
+import { extractText as extractTextImpl } from './documents/extraction';
+import { deleteTempUpload, writeTempUpload } from './documents/tempUploads';
+import { truncateFailureReason } from './documents/status';
 
 type FileInfo = {
   originalname: string;
@@ -36,40 +33,6 @@ type DocumentRow = {
 };
 
 type EnqueueFn = (job: () => void | Promise<void>) => void;
-
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
-
-async function ensureUploadsDir(): Promise<void> {
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
-}
-
-async function writeTempUpload(buffer: Buffer): Promise<string> {
-  await ensureUploadsDir();
-  const tempPath = path.join(UPLOADS_DIR, `pending-${randomUUID()}`);
-  await fs.writeFile(tempPath, buffer);
-  return tempPath;
-}
-
-async function deleteTempUpload(tempPath: string | null): Promise<void> {
-  if (!tempPath) return;
-  try {
-    await fs.unlink(tempPath);
-  } catch (err: unknown) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code !== 'ENOENT') {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`Failed to delete temp upload ${tempPath}: ${message}`);
-    }
-  }
-}
-
-function truncateFailureReason(message: string): string {
-  if (message.length <= 500) return message;
-  return `${message.slice(0, 497)}...`;
-}
-
-type FileMeta = Pick<FileInfo, 'originalname' | 'mimetype' | 'size'>;
-type UploadSource = Buffer | string;
 
 function defaultEnqueue(job: () => void | Promise<void>): void {
   enqueueDocumentJob(job);
@@ -115,37 +78,12 @@ function toPublicDocument(
   return base;
 }
 
+type FileMeta = Pick<FileInfo, 'originalname' | 'mimetype' | 'size'>;
+type UploadSource = Buffer | string;
+
 class DocumentService {
   static chunkText(text: string, chunkSize = 1500, overlap = 300): string[] {
-    if (!text || typeof text !== 'string') return [];
-
-    const cleaned = text.replace(/\r\n/g, '\n').trim();
-    if (cleaned.length <= chunkSize) return [cleaned];
-
-    const chunks: string[] = [];
-    let start = 0;
-
-    while (start < cleaned.length) {
-      let end = start + chunkSize;
-
-      if (end < cleaned.length) {
-        const lastBreak = cleaned.lastIndexOf('\n\n', end);
-        if (lastBreak > start + chunkSize / 2) {
-          end = lastBreak;
-        } else {
-          const lastSentence = cleaned.lastIndexOf('. ', end);
-          if (lastSentence > start + chunkSize / 2) {
-            end = lastSentence + 1;
-          }
-        }
-      }
-
-      const chunk = cleaned.slice(start, end).trim();
-      if (chunk) chunks.push(chunk);
-      start = end - overlap;
-    }
-
-    return chunks;
+    return chunkTextImpl(text, chunkSize, overlap);
   }
 
   static async extractText(
@@ -153,24 +91,7 @@ class DocumentService {
     mimetype: string,
     originalname: string
   ): Promise<string> {
-    const kind = resolveDocumentKind(buffer, mimetype, originalname);
-
-    if (kind === 'pdf') {
-      const parser = new PDFParse({ data: buffer });
-      try {
-        const pdfData = await parser.getText();
-        return pdfData?.text || '';
-      } finally {
-        await parser.destroy();
-      }
-    }
-
-    if (kind === 'docx') {
-      const docxResult = await mammoth.extractRawText({ buffer });
-      return docxResult.value;
-    }
-
-    return buffer.toString('utf-8');
+    return extractTextImpl(buffer, mimetype, originalname);
   }
 
   static assertWithinSizeLimit(fileInfo: FileInfo): void {
@@ -234,13 +155,13 @@ class DocumentService {
     try {
       const buffer =
         typeof source === 'string' ? await fs.readFile(source) : source;
-      const extractedText = await this.extractText(buffer, mimetype, originalname);
+      const extractedText = await extractTextImpl(buffer, mimetype, originalname);
 
       if (!extractedText || extractedText.trim().length === 0) {
         throw new Error('Не вдалося витягти текст з надісланого файлу');
       }
 
-      const chunks = this.chunkText(extractedText);
+      const chunks = chunkTextImpl(extractedText);
       const embedCtx = await resolveEmbeddingContext(userId);
       let embeddings: Array<number[] | null> = [];
 

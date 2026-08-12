@@ -89,6 +89,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/documents', require('./routes/documents'));
+app.use('/api/prompts', require('./routes/prompts'));
 
 // Health check endpoint — DB ping via Prisma (same DATABASE_URL as app)
 app.get('/api/health', async (req, res) => {

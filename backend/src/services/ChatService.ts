@@ -10,6 +10,12 @@ import { buildMessageFtsQuery } from '../utils/messageFts';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
 import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import { assertChatImage } from '../utils/chatImage';
+import {
+  buildLinearHistory,
+  linearHistoryUpTo,
+  toProviderMessages,
+  type RawMessage,
+} from './conversationHistory';
 
 class ChatError extends Error {
   statusCode: number;
@@ -24,6 +30,9 @@ type ChatOptions = {
   documentIds?: number[];
   ragEnabled?: boolean;
   image?: string;
+  regenerateFromMessageId?: number;
+  activeBranchIds?: Record<number, number>;
+  attachments?: Array<{ filename: string; content: string }>;
   [key: string]: unknown;
 };
 
@@ -107,6 +116,45 @@ class ChatService {
       logger.warn(`System prompt load skipped: ${message}`);
     }
 
+    try {
+      const pinnedPrompts = await prisma.userPrompt.findMany({
+        where: { userId, isPinned: true },
+        orderBy: { createdAt: 'desc' },
+        select: { prompt: true },
+      });
+      if (pinnedPrompts.length > 0) {
+        const pinnedBlock = pinnedPrompts
+          .map((p: { prompt: string }) => p.prompt)
+          .join('\n\n---\n\n');
+        systemMessages.push({
+          role: 'system',
+          content: `📌 ЗАКРІПЛЕНІ ІНСТРУКЦІЇ:\n\n${pinnedBlock}`,
+        });
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`Pinned prompts load skipped: ${message}`);
+    }
+
+    const attachments = Array.isArray(options.attachments)
+      ? options.attachments.filter(
+          (a) =>
+            a &&
+            typeof a.filename === 'string' &&
+            typeof a.content === 'string' &&
+            a.content.trim()
+        )
+      : [];
+    if (attachments.length > 0) {
+      const attachmentBlock = attachments
+        .map((a) => `--- [Вкладення: ${a.filename}] ---\n${a.content.trim()}`)
+        .join('\n\n');
+      systemMessages.push({
+        role: 'system',
+        content: `📎 КОНТЕКСТ З ВКЛАДЕНЬ (лише для цього запиту):\n\n${attachmentBlock}`,
+      });
+    }
+
     const documentIds = sanitizeDocumentIds(options.documentIds);
     const ragEnabled = Boolean(options.ragEnabled || documentIds.length > 0);
 
@@ -126,19 +174,26 @@ class ChatService {
             ? embedCtx.provider
             : null;
 
+        const trimmed = userMessage.trim();
         const relevantChunks = await EmbeddingService.findRelevantChunks(
           queryEmbedding,
           userId,
           documentIds,
           5,
           {},
-          activeProvider
+          activeProvider,
+          trimmed
         );
 
         if (relevantChunks.length > 0) {
-          const searchMethod = queryEmbedding
-            ? `векторний пошук (${activeProvider})`
-            : 'fallback';
+          const searchMethod =
+            queryEmbedding && trimmed
+              ? `hybrid (${activeProvider})`
+              : queryEmbedding
+                ? `векторний пошук (${activeProvider})`
+                : trimmed
+                  ? 'keyword (FTS)'
+                  : 'fallback';
           const ragContextText = [
             `📄 КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ (${searchMethod}):`,
             ...relevantChunks.map((c) => {
@@ -164,15 +219,38 @@ class ChatService {
     return systemMessages;
   }
 
-  /** Newest 50 turns, returned oldest→newest for the provider prompt. */
-  static async loadRecentMessages(conversationId: number) {
-    const newestFirst = await prisma.message.findMany({
+  /** Newest 50 linear turns (branch-aware), oldest→newest for the provider. */
+  static async loadRecentMessages(
+    conversationId: number,
+    activeBranchIds?: Record<number, number>
+  ) {
+    const rows = await prisma.message.findMany({
       where: { conversationId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: { role: true, content: true },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        parentId: true,
+        createdAt: true,
+      },
     });
-    return newestFirst.reverse();
+    const linear = buildLinearHistory(rows as unknown as RawMessage[], activeBranchIds);
+    return toProviderMessages(linear, 50);
+  }
+
+  static async loadAllRawMessages(conversationId: number) {
+    return prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        parentId: true,
+        createdAt: true,
+      },
+    }) as unknown as Promise<RawMessage[]>;
   }
 
   /**
@@ -182,15 +260,30 @@ class ChatService {
   static async persistTurn(
     conversationId: number,
     userContent: string,
-    assistantContent: string
+    assistantContent: string,
+    opts: {
+      regenerateFromMessageId?: number;
+      skipUserMessage?: boolean;
+    } = {}
   ) {
     try {
       return await prisma.$transaction(async (tx) => {
-        await tx.message.create({
-          data: { conversationId, role: 'user', content: userContent },
-        });
+        let userMessageId = opts.regenerateFromMessageId;
+
+        if (!opts.skipUserMessage) {
+          const userMsg = await tx.message.create({
+            data: { conversationId, role: 'user', content: userContent },
+          });
+          userMessageId = userMsg.id;
+        }
+
         const assistant = await tx.message.create({
-          data: { conversationId, role: 'assistant', content: assistantContent },
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: assistantContent,
+            ...(userMessageId != null ? { parentId: userMessageId } : {}),
+          },
         });
         await tx.conversation.update({
           where: { id: conversationId },
@@ -211,6 +304,8 @@ class ChatService {
     convId: number;
     chatMessages: ChatMessage[];
     options: ChatOptions;
+    isRegenerate: boolean;
+    regenerateFromMessageId?: number;
   }> {
     const options: ChatOptions = { ...(input.options || {}) };
     // Defense-in-depth: never honor client-enabled tools at the service layer
@@ -220,7 +315,47 @@ class ChatService {
       input.conversationId,
       input.message
     );
-    const history = await this.loadRecentMessages(convId);
+
+    const regenerateFromMessageId =
+      typeof options.regenerateFromMessageId === 'number' &&
+      Number.isInteger(options.regenerateFromMessageId) &&
+      options.regenerateFromMessageId > 0
+        ? options.regenerateFromMessageId
+        : undefined;
+    const isRegenerate = regenerateFromMessageId != null;
+    const activeBranchIds =
+      options.activeBranchIds &&
+      typeof options.activeBranchIds === 'object'
+        ? (options.activeBranchIds as Record<number, number>)
+        : undefined;
+
+    let history: Array<{ role: string; content: string }>;
+    if (isRegenerate) {
+      const userMsg = await prisma.message.findFirst({
+        where: {
+          id: regenerateFromMessageId,
+          conversationId: convId,
+          role: 'user',
+        },
+        select: { id: true, content: true },
+      });
+      if (!userMsg) {
+        throw new ChatError(404, 'Message not found');
+      }
+      if (userMsg.content !== input.message) {
+        throw new ChatError(400, 'Message content mismatch for regenerate');
+      }
+      const all = await this.loadAllRawMessages(convId);
+      const linear = linearHistoryUpTo(
+        all,
+        regenerateFromMessageId,
+        activeBranchIds
+      );
+      history = toProviderMessages(linear, 50);
+    } else {
+      history = await this.loadRecentMessages(convId, activeBranchIds);
+    }
+
     const systemMessages = await this.buildSystemContext(
       input.userId,
       options,
@@ -256,15 +391,27 @@ class ChatService {
       options.apiKey = openaiKey;
     }
 
+    const chatMessages = isRegenerate
+      ? [...systemMessages, ...history]
+      : [...systemMessages, ...history, userMessageObj];
+
     return {
       convId,
       options,
-      chatMessages: [...systemMessages, ...history, userMessageObj],
+      chatMessages,
+      isRegenerate,
+      regenerateFromMessageId,
     };
   }
 
   static async sendMessage(input: SendInput) {
-    const { convId, chatMessages, options } = await this.prepareMessages(input);
+    const {
+      convId,
+      chatMessages,
+      options,
+      isRegenerate,
+      regenerateFromMessageId,
+    } = await this.prepareMessages(input);
 
     const response = await ProviderFactory.sendMessage(
       input.provider || 'openai',
@@ -276,7 +423,11 @@ class ChatService {
     const assistant = await this.persistTurn(
       convId,
       input.message,
-      response.content
+      response.content,
+      {
+        skipUserMessage: isRegenerate,
+        regenerateFromMessageId,
+      }
     );
 
     logger.info(
@@ -298,7 +449,13 @@ class ChatService {
     onToken: (token: string) => void,
     onInit?: (conversationId: number) => void
   ) {
-    const { convId, chatMessages, options } = await this.prepareMessages(input);
+    const {
+      convId,
+      chatMessages,
+      options,
+      isRegenerate,
+      regenerateFromMessageId,
+    } = await this.prepareMessages(input);
     if (onInit) onInit(convId);
 
     const response = await ProviderFactory.streamMessage(
@@ -312,7 +469,11 @@ class ChatService {
     const assistant = await this.persistTurn(
       convId,
       input.message,
-      response.content
+      response.content,
+      {
+        skipUserMessage: isRegenerate,
+        regenerateFromMessageId,
+      }
     );
 
     return {
@@ -343,23 +504,34 @@ class ChatService {
       }
 
       // Page of messages + full conversation count (not page length) for clients.
-      const [rows, total] = await Promise.all([
-        prisma.message.findMany({
-          where: { conversationId },
-          orderBy: { createdAt: 'asc' },
-          take: limit,
-          skip: offset,
-          select: { id: true, role: true, content: true, createdAt: true },
-        }),
-        prisma.message.count({ where: { conversationId } }),
-      ]);
+      const allRows = await prisma.message.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          parentId: true,
+          createdAt: true,
+        },
+      });
+      const linear = buildLinearHistory(allRows as unknown as RawMessage[]);
+      const total = linear.length;
+      const page = linear.slice(offset, offset + limit);
 
       return {
-        messages: rows.map((m) => ({
+        messages: page.map((m) => ({
           id: m.id,
           role: m.role,
           content: m.content,
           created_at: m.createdAt,
+          parent_id: m.parentId ?? undefined,
+          branches: m.branches?.map((b) => ({
+            id: b.id,
+            content: b.content,
+            created_at: b.created_at,
+          })),
+          branch_index: m.branchIndex,
         })),
         total,
         limit,

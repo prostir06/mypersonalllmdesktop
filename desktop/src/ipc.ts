@@ -4,8 +4,15 @@
 import { ipcMain, shell } from 'electron';
 import { resolveBackendOrigin } from './backendUrl';
 import { isSafeExternalUrl } from './security';
+import {
+  checkForUpdates,
+  getUpdateStatus,
+  quitAndInstall,
+} from './updater';
+import type { DeepLinkPayload } from './deepLinks';
 
 let backendOrigin = resolveBackendOrigin();
+let pendingDeepLink: DeepLinkPayload | null = null;
 
 export function setBackendOrigin(origin: string): void {
   backendOrigin = origin;
@@ -13,6 +20,16 @@ export function setBackendOrigin(origin: string): void {
 
 export function getBackendOrigin(): string {
   return backendOrigin;
+}
+
+export function setPendingDeepLink(link: DeepLinkPayload | null): void {
+  pendingDeepLink = link;
+}
+
+export function consumePendingDeepLink(): DeepLinkPayload | null {
+  const link = pendingDeepLink;
+  pendingDeepLink = null;
+  return link;
 }
 
 export function registerIpcHandlers(): void {
@@ -24,9 +41,31 @@ export function registerIpcHandlers(): void {
     }
     await shell.openExternal(url);
   });
+
+  ipcMain.handle('electron:isDesktopApp', () => true);
+
+  ipcMain.handle('electron:getPendingDeepLink', () =>
+    consumePendingDeepLink()
+  );
+
+  ipcMain.handle('electron:checkForUpdates', async () => {
+    const status = await checkForUpdates();
+    return status;
+  });
+
+  ipcMain.handle('electron:getUpdateStatus', () => getUpdateStatus());
+
+  ipcMain.handle('electron:quitAndInstall', () => {
+    quitAndInstall();
+  });
 }
 
 export function unregisterIpcHandlers(): void {
   ipcMain.removeHandler('electron:getBackendUrl');
   ipcMain.removeHandler('electron:openExternal');
+  ipcMain.removeHandler('electron:isDesktopApp');
+  ipcMain.removeHandler('electron:getPendingDeepLink');
+  ipcMain.removeHandler('electron:checkForUpdates');
+  ipcMain.removeHandler('electron:getUpdateStatus');
+  ipcMain.removeHandler('electron:quitAndInstall');
 }
