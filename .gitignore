@@ -63,3 +63,9 @@ desktop/release/
 # Cursor local canvases (if present)
 **/*.canvas.tsx
 
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+**/test-results/
+**/playwright-report/
+
