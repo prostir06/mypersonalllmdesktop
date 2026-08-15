@@ -1,8 +1,9 @@
 # Project Evolution v8 — Design
 
 **Date:** 2026-08-12  
-**Status:** Draft for review  
+**Status:** Implemented (code on `master` @ `c4d5c75`)  
 **Parent:** v7 code delivered on `master` @ `4b79cca` (P24–P30 implemented without a v7 design doc)  
+**Note:** Design originally Draft; implementation landed in commit `c4d5c75`. Residual polish tracked in v9 (P35–P37).  
 **Scope:** v8 quality base (P31) → RAG MVP+ (P32) → Chat UX (P33) → Desktop shell deepening (P34)  
 **Non-goals:** multi-tenant orgs/billing, additional LLM embedding/chat providers beyond OpenAI+Ollama, distributed queues (Redis/BullMQ) unless personal-deploy pain forces it, bundling DB inside Electron
 
