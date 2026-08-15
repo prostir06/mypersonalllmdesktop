@@ -8,11 +8,18 @@ import {
 import { loadAllRawMessages, loadRecentMessages } from './history';
 import { ensureConversationId } from './ownership';
 import { buildSystemContext } from './systemContext';
-import { ChatError, type ChatMessage, type ChatOptions, type SendInput } from './types';
+import {
+  ChatError,
+  type ChatMessage,
+  type ChatOptions,
+  type RagSource,
+  type SendInput,
+} from './types';
 
 export type PreparedMessages = {
   convId: number;
   chatMessages: ChatMessage[];
+  sources: RagSource[];
   options: ChatOptions;
   isRegenerate: boolean;
   regenerateFromMessageId?: number;
@@ -109,7 +116,7 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     regenerateFromMessageId,
     activeBranchIds(options)
   );
-  const { messages: systemMessages } = await buildSystemContext(
+  const { messages: systemMessages, sources } = await buildSystemContext(
     input.userId,
     options,
     input.message
@@ -126,6 +133,7 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
   return {
     convId,
     options,
+    sources,
     chatMessages: isRegenerate
       ? [...systemMessages, ...history]
       : [...systemMessages, ...history, currentUserMessage],

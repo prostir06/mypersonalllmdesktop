@@ -51,11 +51,17 @@ export interface Message {
   id?: string | number;
   role: string;
   content: string;
+  sources?: RagSource[];
   created_at?: string;
   parent_id?: number;
   branches?: MessageBranch[];
   branch_index?: number;
   [key: string]: unknown;
+}
+
+export interface RagSource {
+  filename: string;
+  similarity?: number;
 }
 
 export interface MessageBranch {
@@ -98,6 +104,7 @@ export interface ChatSendResponse {
   messageId: string | number;
   content: string;
   role: string;
+  sources?: RagSource[];
   timestamp?: string;
   usage?: unknown;
 }
@@ -119,7 +126,12 @@ export interface ChatSearchResponse {
 export type StreamEvent =
   | { type: 'init'; conversationId: string | number }
   | { type: 'token'; token: string }
-  | { type: 'done'; messageId?: string | number; content?: string }
+  | {
+      type: 'done';
+      messageId?: string | number;
+      content?: string;
+      sources?: RagSource[];
+    }
   | { type: 'error'; error: string };
 
 export type StreamTokenCallback = (token: string) => void;

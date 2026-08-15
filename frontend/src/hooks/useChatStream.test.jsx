@@ -132,4 +132,72 @@ describe('useChatStream', () => {
     const opts = chatAPI.streamMessage.mock.calls[0][4];
     expect(opts.max_tokens).toBe(1500);
   });
+
+  it('attaches sources from stream done payload to the final assistant message', async () => {
+    chatAPI.streamMessage.mockImplementation(
+      async (
+        _id,
+        _msg,
+        _model,
+        _provider,
+        _opts,
+        onToken,
+        _onInit,
+        _signal,
+        onDone
+      ) => {
+        onToken('answer');
+        onDone?.({
+          messageId: 5,
+          content: 'answer',
+          sources: [{ filename: 'a.txt', similarity: 0.9 }],
+        });
+      }
+    );
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages);
+    });
+
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'answer',
+      sources: [{ filename: 'a.txt', similarity: 0.9 }],
+    });
+  });
+
+  it('attaches sources from sendMessage fallback response', async () => {
+    chatAPI.streamMessage.mockRejectedValue(new Error('network down'));
+    chatAPI.sendMessage.mockResolvedValue({
+      data: {
+        conversationId: 1,
+        messageId: 5,
+        content: 'fallback',
+        role: 'assistant',
+        sources: [{ filename: 'b.md', similarity: 0.77 }],
+      },
+    });
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages);
+    });
+
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'fallback',
+      sources: [{ filename: 'b.md', similarity: 0.77 }],
+    });
+  });
 });

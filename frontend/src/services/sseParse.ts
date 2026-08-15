@@ -2,7 +2,7 @@
  * Pure SSE helpers for chat streaming (unit-tested).
  * Keeps buffer state out of React and out of the Axios client.
  */
-import type { StreamEvent } from '../types/api';
+import type { RagSource, StreamEvent } from '../types/api';
 
 /** Raised when the server sends `data: {"type":"error",...}` mid-stream. */
 export class SseStreamError extends Error {
@@ -18,6 +18,7 @@ export type SseHandlers = {
   onDone?: (payload: {
     messageId?: string | number;
     content?: string;
+    sources?: RagSource[];
   }) => void;
   /** Called before SseStreamError is thrown (optional telemetry). */
   onError?: (message: string) => void;
@@ -77,6 +78,7 @@ export function consumeSseChunk(
           handlers.onDone!({
             messageId: data.messageId,
             content: data.content,
+            sources: data.sources,
           })
         );
       } else if (data.type === 'error') {

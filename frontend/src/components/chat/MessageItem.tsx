@@ -5,6 +5,8 @@ import React, { Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-toastify';
+import type { RagSource } from '../../types/api';
+import { MessageSources } from './MessageSources';
 
 const LazyHighlighter = lazy(() => import('./CodeHighlighter'));
 
@@ -75,6 +77,7 @@ export type ChatMessageView = {
   id?: string | number;
   role: string;
   content: string;
+  sources?: RagSource[];
   parent_id?: number;
   branches?: Array<{ id: string | number; content: string; created_at?: string }>;
   branch_index?: number;
@@ -177,6 +180,9 @@ const MessageItem = React.memo(function MessageItem({
       </div>
       <div className="markdown-content">
         <ReactMarkdown components={components}>{msg.content}</ReactMarkdown>
+        {msg.role === 'assistant' && msg.sources?.length ? (
+          <MessageSources sources={msg.sources} />
+        ) : null}
       </div>
     </div>
   );

@@ -26,6 +26,7 @@ import type {
   PaginatedList,
   RemoteModelOption,
   SettingsUpdatePayload,
+  RagSource,
   StreamInitCallback,
   StreamTokenCallback,
   SuccessResponse,
@@ -170,7 +171,12 @@ export const chatAPI = {
     options: ChatSendOptions | undefined,
     onToken: StreamTokenCallback,
     onInit: StreamInitCallback,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onDone?: (payload: {
+      messageId?: string | number;
+      content?: string;
+      sources?: RagSource[];
+    }) => void
   ): Promise<void> => {
     const doFetch = async (accessToken: string | null): Promise<Response> => {
       const res = await fetch(`${API_URL}/chat/stream`, {
@@ -242,6 +248,7 @@ export const chatAPI = {
           {
             onInit,
             onToken,
+            onDone,
           }
         );
       }

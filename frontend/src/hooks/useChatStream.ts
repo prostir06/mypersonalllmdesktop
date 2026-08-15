@@ -12,7 +12,7 @@ import type { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
-import type { ChatAttachmentPayload, Message } from '../types/api';
+import type { ChatAttachmentPayload, Message, RagSource } from '../types/api';
 import { queryKeys } from './queryKeys';
 
 export type AttachedImage = {
@@ -60,6 +60,7 @@ export function useChatStream({
   const abortRef = useRef<AbortController | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingTextRef = useRef('');
+  const doneSourcesRef = useRef<RagSource[] | undefined>(undefined);
 
   const flushStreamText = useCallback(() => {
     rafRef.current = null;
@@ -128,6 +129,7 @@ export function useChatStream({
       const controller = new AbortController();
       abortRef.current = controller;
       pendingTextRef.current = '';
+      doneSourcesRef.current = undefined;
       setStreamedText('');
       setStreaming(true);
 
@@ -148,7 +150,10 @@ export function useChatStream({
           (newConvId) => {
             if (!conversationId && onNewMessage) onNewMessage(newConvId);
           },
-          controller.signal
+          controller.signal,
+          (done) => {
+            doneSourcesRef.current = done.sources;
+          }
         );
 
         if (rafRef.current != null) {
@@ -160,6 +165,7 @@ export function useChatStream({
           const assistantMsg: Message = {
             role: 'assistant',
             content: currentStreamText,
+            sources: doneSourcesRef.current,
             created_at: new Date().toISOString(),
           };
           if (
@@ -221,6 +227,7 @@ export function useChatStream({
             const assistantMsg: Message = {
               role: 'assistant',
               content: data.content,
+              sources: data.sources,
               created_at:
                 typeof data.timestamp === 'string'
                   ? data.timestamp

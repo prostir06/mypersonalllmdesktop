@@ -46,6 +46,7 @@ class ChatService {
     const {
       convId,
       chatMessages,
+      sources,
       options,
       isRegenerate,
       regenerateFromMessageId,
@@ -79,6 +80,7 @@ class ChatService {
       role: 'assistant' as const,
       timestamp: assistant.createdAt,
       usage: response.usage,
+      sources,
     };
   }
 
@@ -90,6 +92,7 @@ class ChatService {
     const {
       convId,
       chatMessages,
+      sources,
       options,
       isRegenerate,
       regenerateFromMessageId,
@@ -118,6 +121,7 @@ class ChatService {
       conversationId: convId,
       messageId: assistant.id,
       content: response.content,
+      sources,
     };
   }
 

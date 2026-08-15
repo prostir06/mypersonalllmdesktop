@@ -116,6 +116,7 @@ describe('api service wrappers', () => {
   it('calls chat and document endpoints with expected payloads', async () => {
     const onToken = vi.fn();
     const onInit = vi.fn();
+    const onDone = vi.fn();
     const encoder = new TextEncoder();
 
     vi.stubGlobal(
@@ -127,7 +128,8 @@ describe('api service wrappers', () => {
               controller.enqueue(
                 encoder.encode(
                   'data: {"type":"init","conversationId":12}\n' +
-                    'data: {"type":"token","token":"Hi"}\n'
+                    'data: {"type":"token","token":"Hi"}\n' +
+                    'data: {"type":"done","messageId":99,"content":"Hi","sources":[{"filename":"a.txt","similarity":0.9}]}\n'
                 )
               );
               controller.close();
@@ -148,7 +150,9 @@ describe('api service wrappers', () => {
       'openai',
       undefined,
       onToken,
-      onInit
+      onInit,
+      undefined,
+      onDone
     );
     chatAPI.getHistory(5, { signal: new AbortController().signal });
     chatAPI.search('rag', 5);
@@ -186,6 +190,11 @@ describe('api service wrappers', () => {
     );
     expect(onInit).toHaveBeenCalledWith(12);
     expect(onToken).toHaveBeenCalledWith('Hi');
+    expect(onDone).toHaveBeenCalledWith({
+      messageId: 99,
+      content: 'Hi',
+      sources: [{ filename: 'a.txt', similarity: 0.9 }],
+    });
     expect(mocks.apiInstance.get).toHaveBeenCalledWith('/chat/history/5', {
       signal: expect.any(AbortSignal),
     });

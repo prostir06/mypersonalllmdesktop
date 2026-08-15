@@ -149,6 +149,7 @@ export async function streamMessage(
       type: 'done',
       messageId: result.messageId,
       content: result.content,
+      sources: result.sources,
     });
     res.end();
   } catch (error: unknown) {

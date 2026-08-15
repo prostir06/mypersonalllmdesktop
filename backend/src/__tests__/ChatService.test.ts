@@ -345,6 +345,41 @@ describe('ChatService', () => {
         })
       ).rejects.toThrow('provider down');
     });
+
+    it('includes sources when RAG returns chunks', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'a.txt', similarity: 0.91 },
+      ]);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Hi',
+        usage: { total_tokens: 10 },
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        message: 'Hello world',
+        provider: 'openai',
+        model: 'gpt-3.5-turbo',
+        options: { ragEnabled: true },
+      });
+
+      expect(result.sources?.[0]).toEqual({
+        filename: 'a.txt',
+        similarity: 0.91,
+      });
+    });
   });
 
   describe('getHistory', () => {
@@ -609,6 +644,34 @@ describe('ChatService', () => {
         )
       ).rejects.toThrow('stream down');
       expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('returns sources collected during RAG context build', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'a.txt', similarity: 0.9 },
+      ]);
+      mockedProvider.streamMessage.mockResolvedValue({ content: 'ok' });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.streamMessage(
+        {
+          userId: 1,
+          conversationId: 10,
+          message: 'Hi',
+          options: { ragEnabled: true },
+        },
+        () => undefined
+      );
+
+      expect(result.sources).toEqual([{ filename: 'a.txt', similarity: 0.9 }]);
     });
   });
 });

@@ -67,10 +67,14 @@ describe('consumeSseChunk', () => {
     const onDone = vi.fn();
     consumeSseChunk(
       '',
-      'data: {"type":"done","messageId":9,"content":"ok"}\n',
+      'data: {"type":"done","messageId":9,"content":"ok","sources":[{"filename":"a.txt","similarity":0.9}]}\n',
       { onDone }
     );
-    expect(onDone).toHaveBeenCalledWith({ messageId: 9, content: 'ok' });
+    expect(onDone).toHaveBeenCalledWith({
+      messageId: 9,
+      content: 'ok',
+      sources: [{ filename: 'a.txt', similarity: 0.9 }],
+    });
   });
 
   it('throws SseStreamError on server error events', () => {
