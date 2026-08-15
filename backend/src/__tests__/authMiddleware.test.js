@@ -22,6 +22,24 @@ describe('auth middleware JWT algorithms', () => {
     expect(req.userId).toBe(7);
   });
 
+  it('includes requestId when token is missing', () => {
+    const req = {
+      id: 'rid-missing-token',
+      header: () => undefined,
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+
+    auth(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'No token, authorization denied',
+      requestId: 'rid-missing-token',
+    });
+  });
+
   it('rejects tokens signed with a non-HS256 algorithm', () => {
     const payload = Buffer.from(
       JSON.stringify({ userId: 1, iat: Math.floor(Date.now() / 1000) })
@@ -41,5 +59,23 @@ describe('auth middleware JWT algorithms', () => {
     auth(req, res, next);
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('includes requestId when token is invalid', () => {
+    const req = {
+      id: 'rid-invalid-token',
+      header: (name) => (name === 'Authorization' ? 'Bearer not-a-jwt' : undefined),
+    };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+
+    auth(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'Token is not valid',
+      requestId: 'rid-invalid-token',
+    });
   });
 });

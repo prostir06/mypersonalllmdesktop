@@ -1,13 +1,14 @@
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import type { AuthRequest } from '../types/express';
+import { jsonError } from '../utils/httpJson';
 
 const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      res.status(401).json({ error: 'No token, authorization denied' });
+      jsonError(res, req, 401, 'No token, authorization denied');
       return;
     }
 
@@ -17,7 +18,7 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
     req.userId = decoded.userId;
     next();
   } catch {
-    res.status(401).json({ error: 'Token is not valid' });
+    jsonError(res, req, 401, 'Token is not valid');
   }
 };
 
