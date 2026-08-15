@@ -2,6 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import {
   useElectronDeepLinks,
+  useElectronShellListeners,
   useElectronUpdateStatus,
 } from './useElectronDesktop';
 
@@ -27,14 +28,10 @@ describe('useElectronDesktop hooks', () => {
     delete window.electron;
   });
 
-  it('applies pending deep links and subscribes for future shell events', async () => {
+  it('applies pending deep links only when enabled', async () => {
     const unsubscribeDeepLink = vi.fn();
-    const unsubscribeNavigate = vi.fn();
-    const unsubscribeCheckForUpdates = vi.fn();
     let deepLinkHandler: ((payload: { type: 'chat'; conversationId: string }) => void) | null =
       null;
-    let navigateHandler: ((payload: { path: string }) => void) | null = null;
-    let checkForUpdatesHandler: (() => void) | null = null;
 
     window.electron = {
       getBackendUrl: vi.fn(),
@@ -48,14 +45,8 @@ describe('useElectronDesktop hooks', () => {
         deepLinkHandler = handler;
         return unsubscribeDeepLink;
       }),
-      onNavigate: vi.fn((handler) => {
-        navigateHandler = handler;
-        return unsubscribeNavigate;
-      }),
-      onCheckForUpdates: vi.fn((handler) => {
-        checkForUpdatesHandler = handler;
-        return unsubscribeCheckForUpdates;
-      }),
+      onNavigate: vi.fn(),
+      onCheckForUpdates: vi.fn(),
       onUpdateStatus: vi.fn(),
     };
 
@@ -69,6 +60,38 @@ describe('useElectronDesktop hooks', () => {
     deepLinkHandler?.({ type: 'chat', conversationId: '12' });
     expect(navigate).toHaveBeenCalledWith('/dashboard?conversation=12');
 
+    unmount();
+    expect(unsubscribeDeepLink).toHaveBeenCalledOnce();
+  });
+
+  it('subscribes to tray shell events independently of auth', () => {
+    const unsubscribeNavigate = vi.fn();
+    const unsubscribeCheckForUpdates = vi.fn();
+    let navigateHandler: ((payload: { path: string }) => void) | null = null;
+    let checkForUpdatesHandler: (() => void) | null = null;
+
+    window.electron = {
+      getBackendUrl: vi.fn(),
+      openExternal: vi.fn(),
+      isDesktopApp: vi.fn(),
+      getPendingDeepLink: vi.fn(),
+      checkForUpdates: vi.fn(),
+      getUpdateStatus: vi.fn(),
+      quitAndInstall: vi.fn(),
+      onDeepLink: vi.fn(),
+      onNavigate: vi.fn((handler) => {
+        navigateHandler = handler;
+        return unsubscribeNavigate;
+      }),
+      onCheckForUpdates: vi.fn((handler) => {
+        checkForUpdatesHandler = handler;
+        return unsubscribeCheckForUpdates;
+      }),
+      onUpdateStatus: vi.fn(),
+    };
+
+    const { unmount } = renderHook(() => useElectronShellListeners());
+
     navigateHandler?.({ path: '/settings' });
     expect(navigate).toHaveBeenLastCalledWith('/settings');
 
@@ -76,7 +99,6 @@ describe('useElectronDesktop hooks', () => {
     expect(toastInfo).toHaveBeenCalledWith('Перевіряємо оновлення…');
 
     unmount();
-    expect(unsubscribeDeepLink).toHaveBeenCalledOnce();
     expect(unsubscribeNavigate).toHaveBeenCalledOnce();
     expect(unsubscribeCheckForUpdates).toHaveBeenCalledOnce();
   });

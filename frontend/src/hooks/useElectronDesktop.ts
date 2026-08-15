@@ -11,6 +11,28 @@ import {
   type UpdateStatus,
 } from '../types/electron';
 
+export function useElectronShellListeners(): void {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isElectronApp() || !window.electron) return;
+
+    const unsubNavigate = window.electron.onNavigate(
+      (payload: ElectronNavigatePayload) => {
+        if (payload.path) navigate(payload.path);
+      }
+    );
+    const unsubCheckForUpdates = window.electron.onCheckForUpdates(() => {
+      toast.info('Перевіряємо оновлення…');
+    });
+
+    return () => {
+      unsubNavigate();
+      unsubCheckForUpdates();
+    };
+  }, [navigate]);
+}
+
 export function useElectronDeepLinks(enabled: boolean): void {
   const navigate = useNavigate();
 
@@ -29,19 +51,8 @@ export function useElectronDeepLinks(enabled: boolean): void {
     });
 
     const unsubDeepLink = window.electron.onDeepLink(apply);
-    const unsubNavigate = window.electron.onNavigate(
-      (payload: ElectronNavigatePayload) => {
-        if (payload.path) navigate(payload.path);
-      }
-    );
-    const unsubCheckForUpdates = window.electron.onCheckForUpdates(() => {
-      toast.info('Перевіряємо оновлення…');
-    });
-
     return () => {
       unsubDeepLink();
-      unsubNavigate();
-      unsubCheckForUpdates();
     };
   }, [enabled, navigate]);
 }

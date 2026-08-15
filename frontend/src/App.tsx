@@ -15,7 +15,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
-import { useElectronDeepLinks } from './hooks/useElectronDesktop';
+import {
+  useElectronDeepLinks,
+  useElectronShellListeners,
+} from './hooks/useElectronDesktop';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -32,6 +35,7 @@ const queryClient = new QueryClient({
 
 const AppRoutes = () => {
   const { isAuthenticated, authReady } = useAuth();
+  useElectronShellListeners();
   useElectronDeepLinks(isAuthenticated);
 
   if (!authReady) {
