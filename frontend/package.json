@@ -20,6 +20,7 @@
     "build:analyze": "vite build --mode analyze",
     "serve": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint ."
   },
   "devDependencies": {
@@ -30,6 +31,7 @@
     "@testing-library/user-event": "^14.6.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^3.2.7",
     "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",

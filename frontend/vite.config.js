@@ -60,5 +60,13 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}'],
+    coverage: {
+      all: false,
+      provider: 'v8',
+      include: ['src/hooks/**', 'src/services/**'],
+      thresholds: {
+        statements: 50,
+      },
+    },
   },
 }));
