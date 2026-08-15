@@ -1,9 +1,11 @@
 import prisma from '../../config/prisma';
+import logger from '../../logger';
 import {
   buildLinearHistory,
   toProviderMessages,
   type RawMessage,
 } from '../conversationHistory';
+import { ChatError } from './types';
 
 /** Newest 50 linear turns (branch-aware), oldest->newest for the provider. */
 export async function loadRecentMessages(
@@ -39,4 +41,54 @@ export async function loadAllRawMessages(
       createdAt: true,
     },
   }) as unknown as Promise<RawMessage[]>;
+}
+
+export async function getHistory(
+  userId: number,
+  conversationId: number,
+  limit: number,
+  offset: number
+) {
+  if (!Number.isInteger(conversationId) || conversationId <= 0) {
+    throw new ChatError(404, 'Conversation not found');
+  }
+
+  try {
+    const owned = await prisma.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true },
+    });
+    if (!owned) {
+      throw new ChatError(404, 'Conversation not found');
+    }
+
+    const allRows = await loadAllRawMessages(conversationId);
+    const linear = buildLinearHistory(allRows);
+    const total = linear.length;
+    const page = linear.slice(offset, offset + limit);
+
+    return {
+      messages: page.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        created_at: m.createdAt,
+        parent_id: m.parentId ?? undefined,
+        branches: m.branches?.map((b) => ({
+          id: b.id,
+          content: b.content,
+          created_at: b.created_at,
+        })),
+        branch_index: m.branchIndex,
+      })),
+      total,
+      limit,
+      offset,
+    };
+  } catch (err: unknown) {
+    if (err instanceof ChatError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`getHistory failed for user ${userId}: ${message}`);
+    throw err;
+  }
 }
