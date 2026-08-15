@@ -1,7 +1,7 @@
 # Project Evolution Roadmap v6 — Design
 
 **Date:** 2026-08-10  
-**Status:** Draft for review  
+**Status:** Implemented (P18-P22)  
 **Parent:** v5 delivered on `master` @ `871adcc` (P15–P17 complete)  
 **Scope:** Post-v5 audit → stabilization, product polish, performance, desktop maturity  
 **Non-goals:** multi-tenant SaaS, billing, new LLM brands without credentials, Redis/BullMQ unless personal-deploy pain forces it
