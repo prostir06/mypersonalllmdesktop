@@ -1,15 +1,14 @@
 import { test, expect } from '@playwright/test';
+import { uniqueUser } from './test-helpers';
 
 test('register and open dashboard chat', async ({ page }) => {
-  const email = `e2e-${Date.now()}@test.local`;
-  const password = 'TestPass1';
-  const name = 'E2E User';
+  const user = uniqueUser('smoke');
 
   await page.goto('/register');
-  await page.getByPlaceholder('Олексій Коваленко').fill(name);
-  await page.getByPlaceholder('name@example.com').fill(email);
-  await page.getByPlaceholder('Мінімум 8 символів').fill(password);
-  await page.getByRole('button', { name: /Зареєструватися/i }).click();
+  await page.getByPlaceholder('Олексій Коваленко').fill(user.name);
+  await page.getByPlaceholder('name@example.com').fill(user.email);
+  await page.getByPlaceholder('Мінімум 8 символів').fill(user.password);
+  await page.getByRole('button', { name: /Зареєструватися|Register/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
   const input = page.getByLabel('Введення повідомлення');

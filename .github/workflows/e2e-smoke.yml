@@ -56,7 +56,7 @@ jobs:
           npm ci
           npx playwright install chromium --with-deps
 
-      - name: Run smoke tests
+      - name: Run E2E tests
         working-directory: e2e
         env:
           E2E_BASE_URL: http://localhost:3000

@@ -15,6 +15,11 @@ import {
   useRenameConversation,
 } from '../hooks/useConversations';
 
+const isSameConversation = (
+  left: string | number | null,
+  right: string | number | null
+) => left != null && right != null && String(left) === String(right);
+
 const Dashboard: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState<
     string | number | null
@@ -89,7 +94,7 @@ const Dashboard: React.FC = () => {
     if (deleteTarget == null) return;
     try {
       await deleteConversation.mutateAsync(deleteTarget);
-      if (activeConversation === deleteTarget) {
+      if (isSameConversation(activeConversation, deleteTarget)) {
         const remaining = conversations.filter((c) => c.id !== deleteTarget);
         selectConversation(remaining.length > 0 ? remaining[0].id : null);
       }
@@ -165,72 +170,73 @@ const Dashboard: React.FC = () => {
                 <small>Немає збережених розмов</small>
               </div>
             ) : (
-              conversations.map((conv) => (
-                <div
-                  key={conv.id}
-                  role="option"
-                  aria-selected={activeConversation === conv.id}
-                  tabIndex={0}
-                  className={`conversation-card ${
-                    activeConversation === conv.id ? 'active' : ''
-                  }`}
-                  onClick={() => selectConversation(conv.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      selectConversation(conv.id);
-                    }
-                  }}
-                >
-                  {renamingId === conv.id ? (
-                    <Form
-                      className="d-flex gap-1 flex-grow-1 me-1"
-                      onClick={(e) => e.stopPropagation()}
-                      onSubmit={(e) => {
+              conversations.map((conv) => {
+                const isActive = isSameConversation(activeConversation, conv.id);
+                return (
+                  <div
+                    key={conv.id}
+                    role="option"
+                    aria-selected={isActive}
+                    tabIndex={0}
+                    className={`conversation-card ${isActive ? 'active' : ''}`}
+                    onClick={() => selectConversation(conv.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        saveRename(conv.id, e);
-                      }}
-                    >
-                      <Form.Control
-                        size="sm"
-                        value={renameTitle}
-                        onChange={(e) => setRenameTitle(e.target.value)}
-                        autoFocus
-                        className="bg-dark text-light border-secondary shadow-none"
-                      />
-                      <Button type="submit" size="sm" variant="success">
-                        ✓
-                      </Button>
-                    </Form>
-                  ) : (
-                    <div className="text-truncate me-2 fw-medium flex-grow-1">
-                      💬 {conv.title || 'Новий чат'}
-                    </div>
-                  )}
-                  <div className="d-flex gap-1">
-                    {renamingId !== conv.id && (
+                        selectConversation(conv.id);
+                      }
+                    }}
+                  >
+                    {renamingId === conv.id ? (
+                      <Form
+                        className="d-flex gap-1 flex-grow-1 me-1"
+                        onClick={(e) => e.stopPropagation()}
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          saveRename(conv.id, e);
+                        }}
+                      >
+                        <Form.Control
+                          size="sm"
+                          value={renameTitle}
+                          onChange={(e) => setRenameTitle(e.target.value)}
+                          autoFocus
+                          className="bg-dark text-light border-secondary shadow-none"
+                        />
+                        <Button type="submit" size="sm" variant="success">
+                          ✓
+                        </Button>
+                      </Form>
+                    ) : (
+                      <div className="text-truncate me-2 fw-medium flex-grow-1">
+                        💬 {conv.title || 'Новий чат'}
+                      </div>
+                    )}
+                    <div className="d-flex gap-1">
+                      {renamingId !== conv.id && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="p-0 text-muted text-decoration-none"
+                          onClick={(e) => startRename(conv, e)}
+                          title="Перейменувати"
+                        >
+                          ✏️
+                        </Button>
+                      )}
                       <Button
                         variant="link"
                         size="sm"
-                        className="p-0 text-muted text-decoration-none"
-                        onClick={(e) => startRename(conv, e)}
-                        title="Перейменувати"
+                        className="p-0 text-muted hover-white text-decoration-none"
+                        onClick={(e) => handleDeleteConversation(conv.id, e)}
+                        title="Видалити розмову"
                       >
-                        ✏️
+                        🗑️
                       </Button>
-                    )}
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="p-0 text-muted hover-white text-decoration-none"
-                      onClick={(e) => handleDeleteConversation(conv.id, e)}
-                      title="Видалити розмову"
-                    >
-                      🗑️
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
             {hasMore && (
               <div className="text-center py-2">
