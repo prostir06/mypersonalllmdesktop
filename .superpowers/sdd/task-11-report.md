@@ -11,6 +11,7 @@
 - `frontend/src/components/chat/MessageItem.branch.test.tsx`
 - `frontend/src/hooks/useElectronDesktop.test.tsx`
 - `frontend/src/hooks/useChatExport.test.ts`
+- `frontend/src/services/api.test.ts`
 
 ## SHA
 - Initial Task 11 commit: `d87583a`
