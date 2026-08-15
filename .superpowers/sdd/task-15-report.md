@@ -3,7 +3,7 @@
 ## STATUS
 `PASS`
 
-Implemented a real tray icon asset, expanded the desktop tray menu with settings and update actions, forwarded new Electron shell events to the renderer, and documented GitHub Releases-based updater publishing.
+Implemented a real tray icon asset, expanded the desktop tray menu with settings and update actions, forwarded new Electron shell events to the renderer, documented GitHub Releases-based updater publishing, and fixed the post-review auth gating bug so tray Settings/update listeners stay mounted while logged out.
 
 ## FILES
 - `desktop/assets/tray.png`
@@ -12,6 +12,7 @@ Implemented a real tray icon asset, expanded the desktop tray menu with settings
 - `desktop/src/preload.ts`
 - `desktop/src/electronBridge.d.ts`
 - `desktop/src/main.ts`
+- `frontend/src/App.tsx`
 - `frontend/src/hooks/useElectronDesktop.ts`
 - `frontend/src/hooks/useElectronDesktop.test.tsx`
 - `frontend/src/types/electron.ts`
@@ -20,27 +21,24 @@ Implemented a real tray icon asset, expanded the desktop tray menu with settings
 - `.superpowers/sdd/task-15-report.md`
 
 ## SHA
-`9a966dbce70e84e7cd3fd47c538af8215c13b596` (`feat(desktop): tray icon, settings/updates menu, publish docs`)
+`91c7f35adc1c2ed447c15819633a46103fdc9e11` (`fix(frontend): always mount desktop shell listeners`)
 
 ## COMMANDS
 ```powershell
 cd frontend
 npm test -- src/hooks/useElectronDesktop.test.tsx
 
-cd ../desktop
-npm test
-
 cd ..
-git add desktop/assets/tray.png desktop/README.md desktop/package.json desktop/src/electronBridge.d.ts desktop/src/ipc.ts desktop/src/main.ts desktop/src/preload.ts desktop/src/tray.ts frontend/src/hooks/useElectronDesktop.test.tsx frontend/src/hooks/useElectronDesktop.ts frontend/src/types/electron.ts
+git add frontend/src/App.tsx frontend/src/hooks/useElectronDesktop.ts frontend/src/hooks/useElectronDesktop.test.tsx
 git commit -m @'
-feat(desktop): tray icon, settings/updates menu, publish docs
+fix(frontend): always mount desktop shell listeners
 '@
 ```
 
 ## Self-Review
-- Kept the tray integration additive: existing show/hide/quit behavior remains, while settings navigation and update checks were layered in via explicit callbacks.
-- Routed renderer-facing tray behavior through typed preload bridge subscriptions so the frontend reacts to `/settings` navigation and update-check toasts without loosening IPC boundaries.
-- Verified the desktop TypeScript/test suite and added focused frontend hook coverage for the new shell events; tray UI itself still relies on the manual checklist below.
+- Moved tray `onNavigate` / `onCheckForUpdates` subscriptions into a dedicated `useElectronShellListeners()` hook that mounts regardless of auth state.
+- Kept deep-link chat handling in `useElectronDeepLinks(isAuthenticated)`, so only conversation routing stays auth-gated while `/settings` remains protected by routing.
+- Added focused regression coverage proving tray shell listeners still work independently of auth, while deep-link behavior remains isolated.
 
 ## Manual Checklist
 - Tray icon visible.
