@@ -52,6 +52,7 @@ import prisma from '../config/prisma';
 import DocumentService from '../services/DocumentService';
 import EmbeddingService from '../services/EmbeddingService';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
+import { computeNeedsReindex } from '../services/documents/publicDocument';
 
 const mockedPrisma = prisma as unknown as {
   document: {
@@ -80,6 +81,17 @@ const mockedEmbed = EmbeddingService as unknown as {
 };
 
 const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
+
+describe('public document helpers', () => {
+  it('needs reindex when provider mismatches', () => {
+    expect(
+      computeNeedsReindex(
+        { embeddingsCount: 3, embeddingProvider: 'openai' } as any,
+        'ollama'
+      )
+    ).toBe(true);
+  });
+});
 
 describe('DocumentService (Prisma)', () => {
   beforeEach(() => {
