@@ -1,7 +1,7 @@
 # Project Evolution v9 — Design
 
 **Date:** 2026-08-15  
-**Status:** Draft for review  
+**Status:** Implemented  
 **Parent:** v8 delivered on `master` @ `c4d5c75` (P31–P34 largely implemented in code; v8 design file previously lagged as Draft)  
 **Scope:** P35 Quality → P36 Reliability → P37 Product polish  
 **Mix:** ~70% quality/reliability, ~30% product polish (small deliverables across RAG + Chat + Desktop)  
