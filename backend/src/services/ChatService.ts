@@ -4,18 +4,18 @@
  */
 import prisma from '../config/prisma';
 import logger from '../logger';
-import EmbeddingService = require('./EmbeddingService');
 import ProviderFactory = require('./providerFactory');
 import { buildMessageFtsQuery } from '../utils/messageFts';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
-import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import { assertChatImage } from '../utils/chatImage';
 import { ChatError, type ChatMessage, type ChatOptions, type SendInput } from './chat/types';
-import {
-  ensureConversationId as ensureConversationIdImpl,
-  sanitizeDocumentIds,
-} from './chat/ownership';
+import { ensureConversationId as ensureConversationIdImpl } from './chat/ownership';
 import { persistTurn as persistTurnImpl } from './chat/persist';
+import { buildSystemContext as buildSystemContextImpl } from './chat/systemContext';
+import {
+  loadAllRawMessages as loadAllRawMessagesImpl,
+  loadRecentMessages as loadRecentMessagesImpl,
+} from './chat/history';
 import {
   buildLinearHistory,
   linearHistoryUpTo,
@@ -31,157 +31,21 @@ class ChatService {
     options: ChatOptions = {},
     userMessage = ''
   ): Promise<ChatMessage[]> {
-    const systemMessages: ChatMessage[] = [];
-
-    try {
-      const settings = await prisma.userSettings.findUnique({
-        where: { userId },
-        select: { systemPrompt: true },
-      });
-      if (settings?.systemPrompt) {
-        systemMessages.push({ role: 'system', content: settings.systemPrompt });
-      }
-    } catch (err: unknown) {
-      // Chat must continue without a system prompt if settings are unavailable
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`System prompt load skipped: ${message}`);
-    }
-
-    try {
-      const pinnedPrompts = await prisma.userPrompt.findMany({
-        where: { userId, isPinned: true },
-        orderBy: { createdAt: 'desc' },
-        select: { prompt: true },
-      });
-      if (pinnedPrompts.length > 0) {
-        const pinnedBlock = pinnedPrompts
-          .map((p: { prompt: string }) => p.prompt)
-          .join('\n\n---\n\n');
-        systemMessages.push({
-          role: 'system',
-          content: `📌 ЗАКРІПЛЕНІ ІНСТРУКЦІЇ:\n\n${pinnedBlock}`,
-        });
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn(`Pinned prompts load skipped: ${message}`);
-    }
-
-    const attachments = Array.isArray(options.attachments)
-      ? options.attachments.filter(
-          (a) =>
-            a &&
-            typeof a.filename === 'string' &&
-            typeof a.content === 'string' &&
-            a.content.trim()
-        )
-      : [];
-    if (attachments.length > 0) {
-      const attachmentBlock = attachments
-        .map((a) => `--- [Вкладення: ${a.filename}] ---\n${a.content.trim()}`)
-        .join('\n\n');
-      systemMessages.push({
-        role: 'system',
-        content: `📎 КОНТЕКСТ З ВКЛАДЕНЬ (лише для цього запиту):\n\n${attachmentBlock}`,
-      });
-    }
-
-    const documentIds = sanitizeDocumentIds(options.documentIds);
-    const ragEnabled = Boolean(options.ragEnabled || documentIds.length > 0);
-
-    if (ragEnabled) {
-      try {
-        let queryEmbedding: number[] | null = null;
-        const embedCtx = await resolveEmbeddingContext(userId);
-        if (userMessage && EmbeddingService.isAvailable(embedCtx)) {
-          queryEmbedding = await EmbeddingService.generateEmbedding(
-            userMessage,
-            embedCtx
-          );
-        }
-
-        const activeProvider =
-          queryEmbedding && embedCtx.provider !== 'none'
-            ? embedCtx.provider
-            : null;
-
-        const trimmed = userMessage.trim();
-        const relevantChunks = await EmbeddingService.findRelevantChunks(
-          queryEmbedding,
-          userId,
-          documentIds,
-          5,
-          {},
-          activeProvider,
-          trimmed
-        );
-
-        if (relevantChunks.length > 0) {
-          const searchMethod =
-            queryEmbedding && trimmed
-              ? `hybrid (${activeProvider})`
-              : queryEmbedding
-                ? `векторний пошук (${activeProvider})`
-                : trimmed
-                  ? 'keyword (FTS)'
-                  : 'fallback';
-          const ragContextText = [
-            `📄 КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ (${searchMethod}):`,
-            ...relevantChunks.map((c) => {
-              const similarityInfo =
-                c.similarity && c.similarity < 1
-                  ? ` [relevance: ${(c.similarity * 100).toFixed(0)}%]`
-                  : '';
-              return `--- [Файл: ${c.filename}${similarityInfo}] ---\n${c.content}`;
-            }),
-          ].join('\n\n');
-
-          systemMessages.push({ role: 'system', content: ragContextText });
-          logger.info(
-            `RAG: Added ${relevantChunks.length} relevant chunks via ${searchMethod} for user ${userId}`
-          );
-        }
-      } catch (ragErr: unknown) {
-        const message = ragErr instanceof Error ? ragErr.message : String(ragErr);
-        logger.warn(`RAG context fetch error: ${message}`);
-      }
-    }
-
-    return systemMessages;
+    const { messages } = await buildSystemContextImpl(userId, options, userMessage);
+    return messages;
   }
 
-  /** Newest 50 linear turns (branch-aware), oldest→newest for the provider. */
+  static buildSystemContextWithSources = buildSystemContextImpl;
+
   static async loadRecentMessages(
     conversationId: number,
     activeBranchIds?: Record<number, number>
   ) {
-    const rows = await prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        parentId: true,
-        createdAt: true,
-      },
-    });
-    const linear = buildLinearHistory(rows as unknown as RawMessage[], activeBranchIds);
-    return toProviderMessages(linear, 50);
+    return loadRecentMessagesImpl(conversationId, activeBranchIds);
   }
 
   static async loadAllRawMessages(conversationId: number) {
-    return prisma.message.findMany({
-      where: { conversationId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        role: true,
-        content: true,
-        parentId: true,
-        createdAt: true,
-      },
-    }) as unknown as Promise<RawMessage[]>;
+    return loadAllRawMessagesImpl(conversationId);
   }
 
   static persistTurn = persistTurnImpl;

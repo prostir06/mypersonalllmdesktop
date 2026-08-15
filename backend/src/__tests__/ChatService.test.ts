@@ -47,6 +47,7 @@ import prisma from '../config/prisma';
 import EmbeddingService from '../services/EmbeddingService';
 import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
+import { buildSystemContext } from '../services/chat/systemContext';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 
 const mockedPrisma = prisma as any;
@@ -116,6 +117,35 @@ describe('ChatService', () => {
   });
 
   describe('buildSystemContext', () => {
+    it('returns sources array with messages', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const result = await buildSystemContext(1, {}, 'hi');
+
+      expect(Array.isArray(result.messages)).toBe(true);
+      expect(Array.isArray(result.sources)).toBe(true);
+      expect(result).toEqual({ messages: [], sources: [] });
+    });
+
+    it('collects RAG chunk sources', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'a.txt', similarity: 0.9 },
+        { content: 'chunk 2', filename: 'b.txt' },
+      ]);
+
+      const result = await buildSystemContext(1, { ragEnabled: true }, 'query');
+
+      expect(result.sources).toEqual([
+        { filename: 'a.txt', similarity: 0.9 },
+        { filename: 'b.txt', similarity: undefined },
+      ]);
+      expect(result.messages[0].content).toContain('a.txt');
+    });
+
     it('calls EmbeddingService without pool', async () => {
       mockedPrisma.userSettings.findUnique.mockResolvedValue({
         systemPrompt: 'Be helpful',
