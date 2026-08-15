@@ -1,25 +1,20 @@
-// Routes/controllers are TypeScript — register only when running from src/
-// (dev / compose bind-mount fallback). Compiled dist/ must not load ts-node.
-const path = require('path');
-if (path.basename(__dirname) !== 'dist') {
-  require('ts-node/register');
-}
+import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
+import logger from './logger';
+import errorHandler from './middleware/errorHandler';
+import './types/express';
 
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+dotenv.config();
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET is not set. Server cannot start without it.');
   process.exit(1);
 }
-
-const logger = require('./logger');
-const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -27,7 +22,7 @@ const app = express();
 app.use(helmet());
 app.use(
   compression({
-    filter: (req, res) => {
+    filter: (req: Request, res: Response) => {
       // SSE must not be buffered/compressed
       const path = req.path || '';
       const url = req.url || '';
@@ -76,7 +71,7 @@ app.use('/api/chat/send', chatLimiter);
 app.use('/api/chat/stream', chatLimiter);
 
 // Logging middleware
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   logger.info(`${req.method} ${req.url} requestId=${req.id || '-'}`);
   next();
 });
@@ -91,13 +86,13 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/prompts', require('./routes/prompts'));
 
-// Health check endpoint — DB ping via Prisma (same DATABASE_URL as app)
-app.get('/api/health', async (req, res) => {
+// Health check endpoint - DB ping via Prisma (same DATABASE_URL as app)
+app.get('/api/health', async (_req: Request, res: Response) => {
   const prisma = require('./config/prisma').default || require('./config/prisma');
   const startTime = process.hrtime.bigint();
 
   let dbStatus = 'ok';
-  let dbLatencyMs = null;
+  let dbLatencyMs: number | null = null;
 
   try {
     const dbStart = Date.now();
@@ -105,7 +100,8 @@ app.get('/api/health', async (req, res) => {
     dbLatencyMs = Date.now() - dbStart;
   } catch (err) {
     dbStatus = 'error';
-    logger.warn(`Health check DB ping failed: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`Health check DB ping failed: ${message}`);
   }
 
   const memoryMb = process.memoryUsage();
@@ -137,7 +133,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // 404 Handler
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'Endpoint not found',
     requestId: req.id,
@@ -155,4 +151,4 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-module.exports = app;
+export = app;

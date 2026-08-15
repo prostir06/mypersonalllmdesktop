@@ -36,4 +36,4 @@ if [ -f dist/server.js ]; then
 fi
 
 echo "Starting backend via ts-node (dev bind-mount fallback)..."
-exec node -r ts-node/register src/server.js
+exec node -r ts-node/register src/server.ts
