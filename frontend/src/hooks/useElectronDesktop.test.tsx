@@ -30,8 +30,6 @@ describe('useElectronDesktop hooks', () => {
 
   it('applies pending deep links only when enabled', async () => {
     const unsubscribeDeepLink = vi.fn();
-    let deepLinkHandler: ((payload: { type: 'chat'; conversationId: string }) => void) | null =
-      null;
 
     window.electron = {
       getBackendUrl: vi.fn(),
@@ -41,10 +39,7 @@ describe('useElectronDesktop hooks', () => {
       checkForUpdates: vi.fn(),
       getUpdateStatus: vi.fn(),
       quitAndInstall: vi.fn(),
-      onDeepLink: vi.fn((handler) => {
-        deepLinkHandler = handler;
-        return unsubscribeDeepLink;
-      }),
+      onDeepLink: vi.fn(() => unsubscribeDeepLink),
       onNavigate: vi.fn(),
       onCheckForUpdates: vi.fn(),
       onUpdateStatus: vi.fn(),
@@ -57,6 +52,7 @@ describe('useElectronDesktop hooks', () => {
       expect(navigate).toHaveBeenCalledWith('/dashboard?conversation=9');
     });
 
+    const deepLinkHandler = vi.mocked(window.electron.onDeepLink).mock.calls[0]?.[0];
     deepLinkHandler?.({ type: 'chat', conversationId: '12' });
     expect(navigate).toHaveBeenCalledWith('/dashboard?conversation=12');
 
@@ -67,8 +63,6 @@ describe('useElectronDesktop hooks', () => {
   it('subscribes to tray shell events independently of auth', () => {
     const unsubscribeNavigate = vi.fn();
     const unsubscribeCheckForUpdates = vi.fn();
-    let navigateHandler: ((payload: { path: string }) => void) | null = null;
-    let checkForUpdatesHandler: (() => void) | null = null;
 
     window.electron = {
       getBackendUrl: vi.fn(),
@@ -79,22 +73,19 @@ describe('useElectronDesktop hooks', () => {
       getUpdateStatus: vi.fn(),
       quitAndInstall: vi.fn(),
       onDeepLink: vi.fn(),
-      onNavigate: vi.fn((handler) => {
-        navigateHandler = handler;
-        return unsubscribeNavigate;
-      }),
-      onCheckForUpdates: vi.fn((handler) => {
-        checkForUpdatesHandler = handler;
-        return unsubscribeCheckForUpdates;
-      }),
+      onNavigate: vi.fn(() => unsubscribeNavigate),
+      onCheckForUpdates: vi.fn(() => unsubscribeCheckForUpdates),
       onUpdateStatus: vi.fn(),
     };
 
     const { unmount } = renderHook(() => useElectronShellListeners());
 
+    const navigateHandler = vi.mocked(window.electron.onNavigate).mock.calls[0]?.[0];
     navigateHandler?.({ path: '/settings' });
     expect(navigate).toHaveBeenLastCalledWith('/settings');
 
+    const checkForUpdatesHandler =
+      vi.mocked(window.electron.onCheckForUpdates).mock.calls[0]?.[0];
     checkForUpdatesHandler?.();
     expect(toastInfo).toHaveBeenCalledWith('Перевіряємо оновлення…');
 
