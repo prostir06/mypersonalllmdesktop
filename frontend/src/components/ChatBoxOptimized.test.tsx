@@ -97,6 +97,7 @@ vi.mock('./PromptLibraryModal', () => ({
 
 vi.mock('../services/api', () => ({
   conversationAPI: { export: vi.fn() },
+  chatAPI: { uploadAttachment: vi.fn() },
   modelsAPI: { getRemote: vi.fn().mockResolvedValue({ data: [] }) },
 }));
 
