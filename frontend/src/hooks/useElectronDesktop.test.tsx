@@ -6,21 +6,35 @@ import {
 } from './useElectronDesktop';
 
 const navigate = vi.fn();
+const { toastInfo } = vi.hoisted(() => ({
+  toastInfo: vi.fn(),
+}));
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => navigate,
 }));
 
+vi.mock('react-toastify', () => ({
+  toast: {
+    info: toastInfo,
+  },
+}));
+
 describe('useElectronDesktop hooks', () => {
   beforeEach(() => {
     navigate.mockReset();
+    toastInfo.mockReset();
     delete window.electron;
   });
 
-  it('applies pending deep links and subscribes for future ones', async () => {
-    const unsubscribe = vi.fn();
+  it('applies pending deep links and subscribes for future shell events', async () => {
+    const unsubscribeDeepLink = vi.fn();
+    const unsubscribeNavigate = vi.fn();
+    const unsubscribeCheckForUpdates = vi.fn();
     let deepLinkHandler: ((payload: { type: 'chat'; conversationId: string }) => void) | null =
       null;
+    let navigateHandler: ((payload: { path: string }) => void) | null = null;
+    let checkForUpdatesHandler: (() => void) | null = null;
 
     window.electron = {
       getBackendUrl: vi.fn(),
@@ -32,7 +46,15 @@ describe('useElectronDesktop hooks', () => {
       quitAndInstall: vi.fn(),
       onDeepLink: vi.fn((handler) => {
         deepLinkHandler = handler;
-        return unsubscribe;
+        return unsubscribeDeepLink;
+      }),
+      onNavigate: vi.fn((handler) => {
+        navigateHandler = handler;
+        return unsubscribeNavigate;
+      }),
+      onCheckForUpdates: vi.fn((handler) => {
+        checkForUpdatesHandler = handler;
+        return unsubscribeCheckForUpdates;
       }),
       onUpdateStatus: vi.fn(),
     };
@@ -47,8 +69,16 @@ describe('useElectronDesktop hooks', () => {
     deepLinkHandler?.({ type: 'chat', conversationId: '12' });
     expect(navigate).toHaveBeenCalledWith('/dashboard?conversation=12');
 
+    navigateHandler?.({ path: '/settings' });
+    expect(navigate).toHaveBeenLastCalledWith('/settings');
+
+    checkForUpdatesHandler?.();
+    expect(toastInfo).toHaveBeenCalledWith('Перевіряємо оновлення…');
+
     unmount();
-    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(unsubscribeDeepLink).toHaveBeenCalledOnce();
+    expect(unsubscribeNavigate).toHaveBeenCalledOnce();
+    expect(unsubscribeCheckForUpdates).toHaveBeenCalledOnce();
   });
 
   it('reads initial update status and subscribes to updates', async () => {
@@ -65,6 +95,8 @@ describe('useElectronDesktop hooks', () => {
       getUpdateStatus: vi.fn().mockResolvedValue(status),
       quitAndInstall: vi.fn(),
       onDeepLink: vi.fn(),
+      onNavigate: vi.fn(),
+      onCheckForUpdates: vi.fn(),
       onUpdateStatus: vi.fn(() => unsubscribe),
     };
 

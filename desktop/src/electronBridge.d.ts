@@ -4,6 +4,10 @@
 import type { DeepLinkPayload } from './deepLinks';
 import type { UpdateStatus } from './updater';
 
+export type ElectronNavigatePayload = {
+  path: string;
+};
+
 export type ElectronBridge = {
   getBackendUrl: () => Promise<string>;
   openExternal: (url: string) => Promise<void>;
@@ -13,6 +17,8 @@ export type ElectronBridge = {
   getUpdateStatus: () => Promise<UpdateStatus>;
   quitAndInstall: () => Promise<void>;
   onDeepLink: (handler: (payload: DeepLinkPayload) => void) => () => void;
+  onNavigate: (handler: (payload: ElectronNavigatePayload) => void) => () => void;
+  onCheckForUpdates: (handler: () => void) => () => void;
   onUpdateStatus: (handler: (status: UpdateStatus) => void) => () => void;
 };
 

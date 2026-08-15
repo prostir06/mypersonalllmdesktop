@@ -9,18 +9,40 @@ import {
   nativeImage,
   type NativeImage,
 } from 'electron';
+import path from 'path';
 
 let tray: Tray | null = null;
 
 function trayIcon(): NativeImage {
-  // Minimal 16x16 indigo tile — replace with packaged .ico when available.
-  const dataUrl =
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAFUlEQVR42mNk+M9Qz0AEYBxVSFUAABXBAQf+6nAAAAAASUVORK5CYII=';
-  const image = nativeImage.createFromDataURL(dataUrl);
-  return image.isEmpty() ? nativeImage.createEmpty() : image;
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'assets', 'tray.png')
+    : path.join(__dirname, '..', 'assets', 'tray.png');
+  const fallbackPath = path.join(__dirname, '..', 'assets', 'tray.png');
+
+  const image = nativeImage.createFromPath(iconPath);
+  if (!image.isEmpty()) return image;
+
+  const fallbackImage = nativeImage.createFromPath(fallbackPath);
+  return fallbackImage.isEmpty() ? nativeImage.createEmpty() : fallbackImage;
 }
 
-export function createTray(getMainWindow: () => BrowserWindow | null): Tray {
+type TrayOptions = {
+  getMainWindow: () => BrowserWindow | null;
+  onOpenSettings: () => void;
+  onCheckForUpdates: () => void;
+};
+
+function showWindow(win: BrowserWindow | null): void {
+  if (!win) return;
+  win.show();
+  win.focus();
+}
+
+export function createTray({
+  getMainWindow,
+  onOpenSettings,
+  onCheckForUpdates,
+}: TrayOptions): Tray {
   if (tray) return tray;
 
   tray = new Tray(trayIcon());
@@ -30,11 +52,16 @@ export function createTray(getMainWindow: () => BrowserWindow | null): Tray {
     {
       label: 'Показати',
       click: () => {
-        const win = getMainWindow();
-        if (!win) return;
-        win.show();
-        win.focus();
+        showWindow(getMainWindow());
       },
+    },
+    {
+      label: 'Налаштування',
+      click: onOpenSettings,
+    },
+    {
+      label: 'Перевірити оновлення',
+      click: onCheckForUpdates,
     },
     {
       label: 'Приховати',
@@ -52,10 +79,7 @@ export function createTray(getMainWindow: () => BrowserWindow | null): Tray {
 
   tray.setContextMenu(contextMenu);
   tray.on('double-click', () => {
-    const win = getMainWindow();
-    if (!win) return;
-    win.show();
-    win.focus();
+    showWindow(getMainWindow());
   });
 
   return tray;

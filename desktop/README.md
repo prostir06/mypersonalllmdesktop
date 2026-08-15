@@ -61,6 +61,13 @@ Artifacts: `desktop/release/`.
 
 CI: `test-desktop` runs Linux pack smoke; `build-desktop-win` uploads Windows installer artifacts (no publish).
 
+## Publishing updates
+
+1. Set `electron-builder` `publish.provider=github` with your GitHub `owner` and `repo`.
+2. Tag the release as `vX.Y.Z` and run `npm run dist`.
+3. Upload the generated installer artifacts and `latest.yml` to the matching GitHub Release.
+4. Packaged apps will query that GitHub Releases feed via `electron-updater`.
+
 ## E2E smoke (optional)
 
 Playwright smoke against Docker stack (`register → dashboard → send message`):

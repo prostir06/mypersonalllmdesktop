@@ -3,7 +3,9 @@
  */
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
+  type ElectronNavigatePayload,
   isElectronApp,
   navigateToDeepLink,
   type UpdateStatus,
@@ -26,7 +28,21 @@ export function useElectronDeepLinks(enabled: boolean): void {
       if (pending) apply(pending);
     });
 
-    return window.electron.onDeepLink(apply);
+    const unsubDeepLink = window.electron.onDeepLink(apply);
+    const unsubNavigate = window.electron.onNavigate(
+      (payload: ElectronNavigatePayload) => {
+        if (payload.path) navigate(payload.path);
+      }
+    );
+    const unsubCheckForUpdates = window.electron.onCheckForUpdates(() => {
+      toast.info('Перевіряємо оновлення…');
+    });
+
+    return () => {
+      unsubDeepLink();
+      unsubNavigate();
+      unsubCheckForUpdates();
+    };
   }, [enabled, navigate]);
 }
 

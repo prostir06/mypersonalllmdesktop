@@ -3,6 +3,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 import type { DeepLinkPayload } from './deepLinks';
+import type { ElectronNavigatePayload } from './electronBridge';
 import type { UpdateStatus } from './updater';
 
 contextBridge.exposeInMainWorld('electron', {
@@ -26,6 +27,23 @@ contextBridge.exposeInMainWorld('electron', {
     };
     ipcRenderer.on('electron:deepLink', listener);
     return () => ipcRenderer.removeListener('electron:deepLink', listener);
+  },
+  onNavigate: (
+    handler: (payload: ElectronNavigatePayload) => void
+  ): (() => void) => {
+    const listener = (_event: unknown, payload: ElectronNavigatePayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on('electron:navigate', listener);
+    return () => ipcRenderer.removeListener('electron:navigate', listener);
+  },
+  onCheckForUpdates: (handler: () => void): (() => void) => {
+    const listener = () => {
+      handler();
+    };
+    ipcRenderer.on('electron:checkForUpdates', listener);
+    return () =>
+      ipcRenderer.removeListener('electron:checkForUpdates', listener);
   },
   onUpdateStatus: (handler: (status: UpdateStatus) => void): (() => void) => {
     const listener = (_event: unknown, status: UpdateStatus) => {

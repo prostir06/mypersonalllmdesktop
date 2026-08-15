@@ -6,6 +6,8 @@ import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { isAllowedAppOrigin } from './security';
 import {
+  emitCheckForUpdatesRequested,
+  emitNavigate,
   registerIpcHandlers,
   setBackendOrigin,
   setPendingDeepLink,
@@ -60,6 +62,15 @@ function handleDeepLinkUrl(raw: string): void {
 
 function preloadPath(): string {
   return path.join(__dirname, 'preload.js');
+}
+
+function showMainWindow(): BrowserWindow | null {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return null;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+  return win;
 }
 
 async function createWindow(): Promise<void> {
@@ -168,7 +179,18 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(() => {
     registerIpcHandlers();
     initUpdater(() => mainWindow);
-    createTray(() => mainWindow);
+    createTray({
+      getMainWindow: () => mainWindow,
+      onOpenSettings: () => {
+        const win = showMainWindow();
+        emitNavigate(win, { path: '/settings' });
+      },
+      onCheckForUpdates: () => {
+        const win = showMainWindow();
+        emitCheckForUpdatesRequested(win);
+        void checkForUpdates();
+      },
+    });
 
     void createWindow()
       .then(() => {
@@ -188,7 +210,7 @@ if (!gotSingleInstanceLock) {
       if (BrowserWindow.getAllWindows().length === 0) {
         void createWindow();
       } else {
-        mainWindow?.show();
+        showMainWindow();
       }
     });
   });
