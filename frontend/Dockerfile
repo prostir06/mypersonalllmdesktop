@@ -22,6 +22,8 @@ RUN npm run build
 # --- Stage 2: Serve with Nginx ---
 FROM nginx:1.25-alpine AS production
 
+RUN apk add --no-cache wget
+
 # Копіюємо зібраний статичний додаток
 COPY --from=builder /app/build /usr/share/nginx/html
 

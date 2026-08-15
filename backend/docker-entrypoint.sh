@@ -30,6 +30,16 @@ fi
 echo "Waiting for database and applying Prisma migrations..."
 npx prisma migrate deploy --config prisma/prisma.config.ts
 
+if [ "${NODE_ENV}" != "production" ] && [ -d src ] && [ -f dist/server.js ]; then
+  if find src -name '*.ts' -type f -newer dist/server.js | grep -q .; then
+    echo "WARNING: src is newer than dist/server.js; rebuilding backend..."
+    if ! npm run build; then
+      echo "FATAL: backend rebuild failed; refusing to start stale dist/server.js" >&2
+      exit 1
+    fi
+  fi
+fi
+
 if [ -f dist/server.js ]; then
   echo "Starting backend from dist/..."
   exec node dist/server.js
