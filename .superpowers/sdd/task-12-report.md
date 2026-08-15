@@ -1,9 +1,10 @@
 # Task 12 Report
 
 ## STATUS
-Implemented the remaining `requestId` sweep for JSON auth errors and committed the code. P36 gate is only partially green because Playwright e2e currently fails on auth flows after successful user registration.
+Implemented the remaining `requestId` sweep for JSON auth errors, then fixed the compose frontend build to always bake relative `/api`. P36 e2e gate is now green.
 
 ## FILES
+- `docker-compose.yml`
 - `backend/src/middleware/auth.ts`
 - `backend/src/__tests__/authMiddleware.test.js`
 - `.superpowers/sdd/task-12-report.md`
@@ -31,6 +32,13 @@ docker compose ps
 curl.exe -s http://localhost:5000/api/health
 curl.exe -s -o NUL -w "%{http_code}" http://localhost:3000/
 
+docker compose up -d --build frontend
+
+# confirm served asset bakes relative /api
+$index = (Invoke-WebRequest -UseBasicParsing http://localhost:3000/).Content
+$asset = ([regex]::Match($index,'/assets/api-[^" ]+\.js')).Value
+$js = (Invoke-WebRequest -UseBasicParsing ('http://localhost:3000' + $asset)).Content
+
 cd e2e
 npm test
 ```
@@ -43,13 +51,18 @@ npm test
 - Health checks:
   - `GET http://localhost:5000/api/health` returned `{"status":"OK",...,"database":{"status":"ok"}}`
   - `GET http://localhost:3000/` returned HTTP `200`
+- Compose frontend asset proof after the docker fix:
+  - served asset: `ASSET=/assets/api-D8Dy01UA.js`
+  - asset check returned `NO_LOCALHOST_5000`
+  - asset check returned `HAS_RELATIVE_API`
 - E2E gate:
-  - `npm test` in `e2e/` failed `4/4` specs
-  - `login.spec.ts`, `conversation-query.spec.ts`, and `rag-upload.spec.ts` stalled on `http://localhost:3000/login`
-  - `smoke.spec.ts` stalled on `http://localhost:3000/register`
-  - Backend logs show successful `POST /api/auth/register` requests and created users during the same run, so the failing gate is in login/register flow after registration rather than in requestId handling
+  - `npm test` in `e2e/` passed `4/4` specs
+  - `conversation-query.spec.ts` passed
+  - `login.spec.ts` passed
+  - `rag-upload.spec.ts` passed
+  - `smoke.spec.ts` passed
 
 ## Self-Review
 - Kept the code change minimal: only swapped the two remaining auth `401` JSON responses to `jsonError(...)`.
 - Added regression coverage for both missing-token and invalid-token branches so the requestId contract is enforced.
-- Did not touch unrelated controller code because the brief's controller grep returned no `error` offenders; the only remaining raw JSON error responses were in `auth` middleware.
+- Kept the compose fix to one line by hardcoding frontend build arg `VITE_API_URL: /api`, which removes host `.env` leakage into the nginx bundle.
