@@ -19,6 +19,7 @@ export type ChatControlsProps = {
   onShowPromptModal: () => void;
   onShowDocModal: () => void;
   onExportChat: () => void;
+  onExportPdf: () => void;
   messagesCount: number;
 };
 
@@ -35,6 +36,7 @@ const ChatControls = React.memo(function ChatControls({
   onShowPromptModal,
   onShowDocModal,
   onExportChat,
+  onExportPdf,
   messagesCount,
 }: ChatControlsProps) {
   return (
@@ -93,15 +95,26 @@ const ChatControls = React.memo(function ChatControls({
         </Button>
 
         {messagesCount > 0 && (
-          <Button
-            variant="outline-warning"
-            size="sm"
-            onClick={onExportChat}
-            title="Експорт чату у Markdown"
-            className="d-flex align-items-center gap-1"
-          >
-            💾 Експорт
-          </Button>
+          <>
+            <Button
+              variant="outline-warning"
+              size="sm"
+              onClick={onExportChat}
+              title="Експорт чату у Markdown"
+              className="d-flex align-items-center gap-1"
+            >
+              💾 Експорт MD
+            </Button>
+            <Button
+              variant="outline-danger"
+              size="sm"
+              onClick={onExportPdf}
+              title="Експорт чату у PDF"
+              className="d-flex align-items-center gap-1"
+            >
+              📕 Експорт PDF
+            </Button>
+          </>
         )}
       </div>
 

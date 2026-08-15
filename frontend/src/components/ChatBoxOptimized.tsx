@@ -112,7 +112,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     conversationId,
     setError
   );
-  const { exportMarkdown } = useChatExport({ conversationId, messages });
+  const { exportMarkdown, exportPdf } = useChatExport({ conversationId, messages });
 
   const scrollToBottom = useCallback(() => {
     if (
@@ -206,6 +206,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onShowPromptModal={() => setShowPromptModal(true)}
         onShowDocModal={() => setShowDocModal(true)}
         onExportChat={exportMarkdown}
+        onExportPdf={exportPdf}
         messagesCount={messages.length}
       />
 

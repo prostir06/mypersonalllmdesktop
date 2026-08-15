@@ -3,7 +3,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'react-toastify';
 import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
-import { downloadTextFile, useChatExport } from './useChatExport';
+import {
+  buildPdfFromMessages,
+  downloadTextFile,
+  useChatExport,
+} from './useChatExport';
+
+const jspdfMock = vi.hoisted(() => {
+  const splitTextToSize = vi.fn();
+  const setFontSize = vi.fn();
+  const addPage = vi.fn();
+  const text = vi.fn();
+  const output = vi.fn();
+  const jsPDF = vi.fn(() => ({
+    splitTextToSize,
+    setFontSize,
+    addPage,
+    text,
+    output,
+  }));
+
+  return {
+    addPage,
+    jsPDF,
+    output,
+    setFontSize,
+    splitTextToSize,
+    text,
+  };
+});
 
 vi.mock('react-toastify', () => ({
   toast: {
@@ -19,10 +47,19 @@ vi.mock('../services/api', () => ({
   },
 }));
 
+vi.mock('jspdf', () => ({
+  jsPDF: jspdfMock.jsPDF,
+}));
+
 describe('downloadTextFile', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    jspdfMock.splitTextToSize.mockReset();
+    jspdfMock.setFontSize.mockReset();
+    jspdfMock.addPage.mockReset();
+    jspdfMock.text.mockReset();
+    jspdfMock.output.mockReset();
   });
 
   it('creates blob link and revokes object URL', () => {
@@ -164,14 +201,76 @@ describe('downloadTextFile', () => {
     expect(toast.error).toHaveBeenCalledWith('Boom');
   });
 
-  it('keeps PDF export explicitly unimplemented', async () => {
+  it('builds a PDF blob from chat messages', async () => {
+    jspdfMock.splitTextToSize.mockImplementation((value: string) =>
+      value.split('\n')
+    );
+    const pdfBlob = new Blob(['pdf'], { type: 'application/pdf' });
+    jspdfMock.output.mockReturnValue(pdfBlob);
+
+    const blob = await buildPdfFromMessages([
+      { role: 'user', content: 'Привіт' } as Message,
+      { role: 'assistant', content: 'Відповідь' } as Message,
+    ]);
+
+    expect(jspdfMock.jsPDF).toHaveBeenCalledWith({ unit: 'pt', format: 'a4' });
+    expect(jspdfMock.setFontSize).toHaveBeenCalledWith(12);
+    expect(jspdfMock.splitTextToSize).toHaveBeenNthCalledWith(
+      1,
+      'Ви\nПривіт',
+      515
+    );
+    expect(jspdfMock.splitTextToSize).toHaveBeenNthCalledWith(
+      2,
+      'Assistant\nВідповідь',
+      515
+    );
+    expect(jspdfMock.text).toHaveBeenCalled();
+    expect(jspdfMock.output).toHaveBeenCalledWith('blob');
+    expect(blob).toBe(pdfBlob);
+  });
+
+  it('exports PDF from local messages', async () => {
+    const click = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    const createObjectURL = vi.fn().mockReturnValue('blob:chat-pdf');
+    const revokeObjectURL = vi.fn();
+    jspdfMock.splitTextToSize.mockImplementation((value: string) =>
+      value.split('\n')
+    );
+    jspdfMock.output.mockReturnValue(
+      new Blob(['pdf'], { type: 'application/pdf' })
+    );
+
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      const element = originalCreateElement(tagName);
+      if (tagName === 'a') {
+        element.click = click;
+      }
+      return element;
+    });
+
     const { result } = renderHook(() =>
       useChatExport({
         conversationId: null,
-        messages: [],
+        messages: [{ role: 'assistant', content: 'Saved locally' } as Message],
       })
     );
 
-    await expect(result.current.exportPdf()).rejects.toThrow('Not implemented');
+    await result.current.exportPdf();
+
+    expect(conversationAPI.export).not.toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(click).toHaveBeenCalledOnce();
+    expect(toast.success).toHaveBeenCalledWith('Чат експортовано у PDF! 📕');
   });
 });

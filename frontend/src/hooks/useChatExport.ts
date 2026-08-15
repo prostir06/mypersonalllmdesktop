@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
+import { jsPDF } from 'jspdf';
 import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
 
@@ -9,18 +10,21 @@ type UseChatExportArgs = {
   messages: Message[];
 };
 
-export function downloadTextFile(
-  content: string,
-  filename: string,
-  type: string
-): void {
-  const blob = new Blob([content], { type });
+export function downloadBlobFile(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export function downloadTextFile(
+  content: string,
+  filename: string,
+  type: string
+): void {
+  downloadBlobFile(new Blob([content], { type }), filename);
 }
 
 function buildMarkdownExport(messages: Message[]): string {
@@ -32,6 +36,32 @@ function buildMarkdownExport(messages: Message[]): string {
     )
     .join('\n\n---\n\n');
   return header + body;
+}
+
+export async function buildPdfFromMessages(messages: Message[]): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  let y = 40;
+
+  doc.setFontSize(12);
+
+  for (const message of messages) {
+    const header = message.role === 'user' ? 'Ви' : 'Assistant';
+    const lines = doc.splitTextToSize(`${header}\n${message.content}`, 515);
+
+    for (const line of lines) {
+      if (y > 780) {
+        doc.addPage();
+        y = 40;
+      }
+
+      doc.text(line, 40, y);
+      y += 14;
+    }
+
+    y += 16;
+  }
+
+  return doc.output('blob');
 }
 
 export function useChatExport({ conversationId, messages }: UseChatExportArgs) {
@@ -65,8 +95,20 @@ export function useChatExport({ conversationId, messages }: UseChatExportArgs) {
   }, [conversationId, messages]);
 
   const exportPdf = useCallback(async () => {
-    throw new Error('Not implemented');
-  }, []);
+    if (!conversationId && messages.length === 0) {
+      toast.warn('Немає повідомлень для експорту.');
+      return;
+    }
+
+    try {
+      const blob = await buildPdfFromMessages(messages);
+      downloadBlobFile(blob, `chat-export-${Date.now()}.pdf`);
+      toast.success('Чат експортовано у PDF! 📕');
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      toast.error(ax.response?.data?.error || 'Помилка експорту');
+    }
+  }, [conversationId, messages]);
 
   return { exportMarkdown, exportPdf };
 }
