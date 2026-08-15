@@ -10,6 +10,12 @@ import { buildMessageFtsQuery } from '../utils/messageFts';
 import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
 import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import { assertChatImage } from '../utils/chatImage';
+import { ChatError, type ChatMessage, type ChatOptions, type SendInput } from './chat/types';
+import {
+  ensureConversationId as ensureConversationIdImpl,
+  sanitizeDocumentIds,
+} from './chat/ownership';
+import { persistTurn as persistTurnImpl } from './chat/persist';
 import {
   buildLinearHistory,
   linearHistoryUpTo,
@@ -17,83 +23,8 @@ import {
   type RawMessage,
 } from './conversationHistory';
 
-class ChatError extends Error {
-  statusCode: number;
-  constructor(statusCode: number, message: string) {
-    super(message);
-    this.statusCode = statusCode;
-    this.name = 'ChatError';
-  }
-}
-
-type ChatOptions = {
-  documentIds?: number[];
-  ragEnabled?: boolean;
-  image?: string;
-  regenerateFromMessageId?: number;
-  activeBranchIds?: Record<number, number>;
-  attachments?: Array<{ filename: string; content: string }>;
-  [key: string]: unknown;
-};
-
-/** Keep only positive integers so RAG filters cannot pass junk into SQL ANY(). */
-function sanitizeDocumentIds(ids: unknown): number[] {
-  if (!Array.isArray(ids)) return [];
-  return ids
-    .map((id) => Number(id))
-    .filter((id) => Number.isInteger(id) && id > 0);
-}
-
-type SendInput = {
-  userId: number;
-  conversationId?: number;
-  message: string;
-  model?: string;
-  provider?: string;
-  options?: ChatOptions;
-  signal?: AbortSignal;
-};
-
-type ChatMessage =
-  | { role: string; content: string }
-  | {
-      role: 'user';
-      content: Array<
-        | { type: 'text'; text: string }
-        | { type: 'image_url'; image_url: { url: string } }
-      >;
-    };
-
-function conversationTitle(message: string): string {
-  return message.substring(0, 50) + (message.length > 50 ? '...' : '');
-}
-
 class ChatService {
-  static async ensureConversationId(
-    userId: number,
-    conversationId: number | undefined,
-    message: string
-  ): Promise<number> {
-    if (conversationId == null) {
-      const created = await prisma.conversation.create({
-        data: { userId, title: conversationTitle(message) },
-      });
-      return created.id;
-    }
-
-    if (!Number.isInteger(conversationId) || conversationId <= 0) {
-      throw new ChatError(404, 'Conversation not found');
-    }
-
-    const owned = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId },
-      select: { id: true },
-    });
-    if (!owned) {
-      throw new ChatError(403, 'Forbidden');
-    }
-    return owned.id;
-  }
+  static ensureConversationId = ensureConversationIdImpl;
 
   static async buildSystemContext(
     userId: number,
@@ -253,52 +184,7 @@ class ChatService {
     }) as unknown as Promise<RawMessage[]>;
   }
 
-  /**
-   * Persist user + assistant in one transaction so a failed write does not
-   * leave a half-saved turn. Callers rethrow after logging.
-   */
-  static async persistTurn(
-    conversationId: number,
-    userContent: string,
-    assistantContent: string,
-    opts: {
-      regenerateFromMessageId?: number;
-      skipUserMessage?: boolean;
-    } = {}
-  ) {
-    try {
-      return await prisma.$transaction(async (tx) => {
-        let userMessageId = opts.regenerateFromMessageId;
-
-        if (!opts.skipUserMessage) {
-          const userMsg = await tx.message.create({
-            data: { conversationId, role: 'user', content: userContent },
-          });
-          userMessageId = userMsg.id;
-        }
-
-        const assistant = await tx.message.create({
-          data: {
-            conversationId,
-            role: 'assistant',
-            content: assistantContent,
-            ...(userMessageId != null ? { parentId: userMessageId } : {}),
-          },
-        });
-        await tx.conversation.update({
-          where: { id: conversationId },
-          data: { updatedAt: new Date() },
-        });
-        return assistant;
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error(
-        `persistTurn failed for conversation ${conversationId}: ${message}`
-      );
-      throw err;
-    }
-  }
+  static persistTurn = persistTurnImpl;
 
   static async prepareMessages(input: SendInput): Promise<{
     convId: number;
