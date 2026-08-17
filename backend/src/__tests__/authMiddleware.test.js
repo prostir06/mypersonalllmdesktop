@@ -2,7 +2,8 @@ const jwt = require('jsonwebtoken');
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
 
-const auth = require('../middleware/auth');
+const authModule = require('../middleware/auth');
+const auth = authModule.default ?? authModule;
 
 describe('auth middleware JWT algorithms', () => {
   it('accepts HS256 tokens', () => {

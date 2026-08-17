@@ -223,4 +223,4 @@ class DocumentService {
   }
 }
 
-export = DocumentService;
+export default DocumentService;

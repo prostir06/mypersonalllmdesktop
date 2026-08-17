@@ -2,8 +2,11 @@
  * Recover UTF-8 filenames when Multer/Busboy mis-decodes them as latin1.
  * Already-correct Unicode (incl. Latin-1 Supplement like é) is left alone.
  */
-
-function decodeMulterFilename(name) {
+export function decodeMulterFilename(name: string): string;
+export function decodeMulterFilename(name: null | undefined): null | undefined;
+export function decodeMulterFilename(
+  name: string | null | undefined
+): string | null | undefined {
   if (name == null || name === '') return name;
 
   for (let i = 0; i < name.length; i++) {
@@ -25,5 +28,3 @@ function decodeMulterFilename(name) {
     return name;
   }
 }
-
-module.exports = { decodeMulterFilename };

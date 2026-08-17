@@ -13,6 +13,8 @@ import {
 import { prepareMessages as prepareMessagesImpl } from './chat/prepare';
 import { searchMessages as searchMessagesImpl } from './chat/search';
 
+export { ChatError };
+
 class ChatService {
   static ensureConversationId = ensureConversationIdImpl;
 
@@ -132,7 +134,4 @@ class ChatService {
   static searchMessages = searchMessagesImpl;
 }
 
-(ChatService as typeof ChatService & { ChatError: typeof ChatError }).ChatError =
-  ChatError;
-
-export = ChatService;
+export default ChatService;

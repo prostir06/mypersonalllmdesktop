@@ -3,7 +3,7 @@
  * Controllers catch ChatError → 4xx JSON; unexpected errors → 500 (or SSE error).
  */
 import { Response, NextFunction } from 'express';
-import ChatService = require('../services/ChatService');
+import ChatService from '../services/ChatService';
 import logger from '../logger';
 import {
   bindClientAbortSignal,

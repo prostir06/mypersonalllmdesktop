@@ -22,4 +22,4 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   }
 };
 
-export = auth;
+export default auth;
