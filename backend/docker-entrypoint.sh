@@ -29,6 +29,7 @@ fi
 
 echo "Waiting for database and applying Prisma migrations..."
 npx prisma migrate deploy --config prisma/prisma.config.ts
+npx prisma generate --config prisma/prisma.config.ts
 
 if [ "${NODE_ENV}" != "production" ] && [ -d src ] && [ -f dist/server.js ]; then
   if find src -name '*.ts' -type f -newer dist/server.js | grep -q .; then
