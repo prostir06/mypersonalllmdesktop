@@ -68,6 +68,7 @@ export interface MessageBranch {
   id: string | number;
   content: string;
   created_at?: string;
+  sources?: RagSource[];
 }
 
 export interface ChatAttachmentPayload {

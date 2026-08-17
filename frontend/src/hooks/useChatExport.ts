@@ -4,6 +4,7 @@ import type { AxiosError } from 'axios';
 import { jsPDF } from 'jspdf';
 import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
+import { applyUnicodeFont } from '../utils/pdfFont';
 
 type UseChatExportArgs = {
   conversationId: string | number | null | undefined;
@@ -38,11 +39,32 @@ function buildMarkdownExport(messages: Message[]): string {
   return header + body;
 }
 
+async function renderPdfLines(doc: jsPDF, text: string): Promise<void> {
+  await applyUnicodeFont(doc);
+  doc.setFontSize(12);
+  let y = 40;
+  const lines = doc.splitTextToSize(text, 515);
+  for (const line of lines) {
+    if (y > 780) {
+      doc.addPage();
+      y = 40;
+    }
+    doc.text(line, 40, y);
+    y += 14;
+  }
+}
+
+export async function buildPdfFromMarkdown(markdown: string): Promise<Blob> {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  await renderPdfLines(doc, markdown);
+  return doc.output('blob');
+}
+
 export async function buildPdfFromMessages(messages: Message[]): Promise<Blob> {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  let y = 40;
-
+  await applyUnicodeFont(doc);
   doc.setFontSize(12);
+  let y = 40;
 
   for (const message of messages) {
     const header = message.role === 'user' ? 'Ви' : 'Assistant';
@@ -101,7 +123,12 @@ export function useChatExport({ conversationId, messages }: UseChatExportArgs) {
     }
 
     try {
-      const blob = await buildPdfFromMessages(messages);
+      const blob = conversationId
+        ? await (async () => {
+            const res = await conversationAPI.export(conversationId, 'md');
+            return buildPdfFromMarkdown(res.data.content);
+          })()
+        : await buildPdfFromMessages(messages);
       downloadBlobFile(blob, `chat-export-${Date.now()}.pdf`);
       toast.success('Чат експортовано у PDF! 📕');
     } catch (err: unknown) {

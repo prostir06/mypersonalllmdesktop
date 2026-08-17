@@ -165,6 +165,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           content: branch.content,
           id: branch.id,
           branch_index: branchIdx,
+          sources: branch.sources ?? msg.sources,
         };
         return next;
       });

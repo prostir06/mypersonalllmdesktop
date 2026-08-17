@@ -5,6 +5,7 @@ import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
 import {
   buildPdfFromMessages,
+  buildPdfFromMarkdown,
   downloadTextFile,
   useChatExport,
 } from './useChatExport';
@@ -51,6 +52,9 @@ vi.mock('jspdf', () => ({
   jsPDF: jspdfMock.jsPDF,
 }));
 
+vi.mock('../utils/pdfFont', () => ({
+  applyUnicodeFont: vi.fn().mockResolvedValue(undefined),
+}));
 describe('downloadTextFile', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -228,6 +232,54 @@ describe('downloadTextFile', () => {
     expect(jspdfMock.text).toHaveBeenCalled();
     expect(jspdfMock.output).toHaveBeenCalledWith('blob');
     expect(blob).toBe(pdfBlob);
+  });
+
+  it('exports PDF from persisted conversation via markdown export', async () => {
+    const click = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    const createObjectURL = vi.fn().mockReturnValue('blob:chat-pdf');
+    const revokeObjectURL = vi.fn();
+    jspdfMock.splitTextToSize.mockImplementation((value: string) =>
+      value.split('\n')
+    );
+    jspdfMock.output.mockReturnValue(
+      new Blob(['pdf'], { type: 'application/pdf' })
+    );
+
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      const element = originalCreateElement(tagName);
+      if (tagName === 'a') {
+        element.click = click;
+      }
+      return element;
+    });
+
+    vi.mocked(conversationAPI.export).mockResolvedValue({
+      data: { content: '# Full export\n\n## Assistant\n\nHi', filename: 'x.md' },
+    } as Awaited<ReturnType<typeof conversationAPI.export>>);
+
+    const { result } = renderHook(() =>
+      useChatExport({
+        conversationId: 42,
+        messages: [{ role: 'user', content: 'ignored' } as Message],
+      })
+    );
+
+    await result.current.exportPdf();
+
+    expect(conversationAPI.export).toHaveBeenCalledWith(42, 'md');
+    expect(jspdfMock.splitTextToSize).toHaveBeenCalled();
+    expect(click).toHaveBeenCalledOnce();
+    expect(toast.success).toHaveBeenCalledWith('Чат експортовано у PDF! 📕');
   });
 
   it('exports PDF from local messages', async () => {
