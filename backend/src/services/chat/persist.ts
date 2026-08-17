@@ -1,5 +1,6 @@
 import prisma from '../../config/prisma';
 import logger from '../../logger';
+import type { RagSource } from './types';
 
 export async function persistTurn(
   conversationId: number,
@@ -8,8 +9,10 @@ export async function persistTurn(
   opts: {
     regenerateFromMessageId?: number;
     skipUserMessage?: boolean;
+    sources?: RagSource[];
   } = {}
 ): Promise<{ id: number; createdAt: Date }> {
+  const { sources } = opts;
   try {
     return await prisma.$transaction(async (tx) => {
       let userMessageId = opts.regenerateFromMessageId;
@@ -26,6 +29,7 @@ export async function persistTurn(
           conversationId,
           role: 'assistant',
           content: assistantContent,
+          ...(sources?.length ? { sources } : {}),
           ...(userMessageId != null ? { parentId: userMessageId } : {}),
         },
       });

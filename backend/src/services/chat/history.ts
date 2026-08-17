@@ -21,6 +21,7 @@ export async function loadRecentMessages(
       content: true,
       parentId: true,
       createdAt: true,
+      sources: true,
     },
   });
   const linear = buildLinearHistory(rows as unknown as RawMessage[], activeBranchIds);
@@ -39,6 +40,7 @@ export async function loadAllRawMessages(
       content: true,
       parentId: true,
       createdAt: true,
+      sources: true,
     },
   }) as unknown as Promise<RawMessage[]>;
 }
@@ -74,10 +76,12 @@ export async function getHistory(
         content: m.content,
         created_at: m.createdAt,
         parent_id: m.parentId ?? undefined,
+        sources: m.sources,
         branches: m.branches?.map((b) => ({
           id: b.id,
           content: b.content,
           created_at: b.created_at,
+          sources: b.sources,
         })),
         branch_index: m.branchIndex,
       })),

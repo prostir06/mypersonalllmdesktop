@@ -1,16 +1,20 @@
 /** Linear conversation view with assistant branch selection. */
+import type { RagSource } from './chat/types';
+
 export type RawMessage = {
   id: number;
   role: string;
   content: string;
   parentId: number | null;
   createdAt: Date;
+  sources?: RagSource[] | null;
 };
 
 export type BranchInfo = {
   id: number;
   content: string;
   created_at: Date;
+  sources?: RagSource[];
 };
 
 export type LinearMessage = {
@@ -21,7 +25,13 @@ export type LinearMessage = {
   parentId?: number | null;
   branches?: BranchInfo[];
   branchIndex?: number;
+  sources?: RagSource[];
 };
+
+export function asRagSources(value: unknown): RagSource[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  return value as RagSource[];
+}
 
 function indexAssistantBranches(all: RawMessage[]): Map<number, RawMessage[]> {
   const byParent = new Map<number, RawMessage[]>();
@@ -78,6 +88,7 @@ export function buildLinearHistory(
         id: b.id,
         content: b.content,
         created_at: b.createdAt,
+        sources: asRagSources(b.sources),
       }));
       out.push({
         id: chosen.id,
@@ -85,6 +96,7 @@ export function buildLinearHistory(
         content: chosen.content,
         createdAt: chosen.createdAt,
         parentId: m.id,
+        sources: asRagSources(chosen.sources),
         branches: branchPayload.length > 1 ? branchPayload : undefined,
         branchIndex: branchPayload.length > 1 ? index : undefined,
       });
@@ -100,6 +112,7 @@ export function buildLinearHistory(
         content: next.content,
         createdAt: next.createdAt,
         parentId: m.id,
+        sources: asRagSources(next.sources),
       });
     }
   }
@@ -116,6 +129,7 @@ export function buildLinearHistory(
         content: m.content,
         createdAt: m.createdAt,
         parentId: m.parentId,
+        sources: asRagSources(m.sources),
       });
     }
   }

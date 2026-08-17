@@ -448,6 +448,35 @@ describe('ChatService', () => {
       expect(result.messages[1].branches).toHaveLength(2);
     });
 
+    it('returns sources on assistant messages from history', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      const createdAt = new Date('2026-08-01T12:00:00Z');
+      const assistantAt = new Date('2026-08-01T12:01:00Z');
+      mockedPrisma.message.findMany.mockResolvedValue([
+        {
+          id: 1,
+          role: 'user',
+          content: 'q',
+          parentId: null,
+          createdAt,
+          sources: null,
+        },
+        {
+          id: 2,
+          role: 'assistant',
+          content: 'a',
+          parentId: 1,
+          createdAt: assistantAt,
+          sources: [{ filename: 'doc.txt', similarity: 0.9 }],
+        },
+      ]);
+
+      const result = await ChatService.getHistory(1, 5, 100, 0);
+      expect(result.messages[1].sources).toEqual([
+        { filename: 'doc.txt', similarity: 0.9 },
+      ]);
+    });
+
     it('logs and rethrows when Prisma history load fails', async () => {
       const logger = require('../logger');
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
@@ -513,6 +542,24 @@ describe('ChatService', () => {
   });
 
   describe('persistTurn', () => {
+    it('stores sources on assistant message', async () => {
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+
+      await ChatService.persistTurn(5, 'q', 'a', {
+        sources: [{ filename: 'doc.txt', similarity: 0.8 }],
+      });
+
+      expect(mockedPrisma.message.create).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({
+          role: 'assistant',
+          content: 'a',
+          sources: [{ filename: 'doc.txt', similarity: 0.8 }],
+        }),
+      });
+    });
+
     it('logs and rethrows when the transaction fails', async () => {
       mockedPrisma.$transaction.mockRejectedValue(new Error('tx fail'));
       await expect(

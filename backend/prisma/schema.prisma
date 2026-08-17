@@ -65,6 +65,7 @@ model Message {
   conversationId Int      @map("conversation_id")
   role           String   @db.VarChar(20)
   content        String   @db.Text
+  sources        Json?    @map("sources")
   parentId       Int?     @map("parent_id")
   createdAt      DateTime @default(now()) @map("created_at")
 

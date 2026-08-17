@@ -66,6 +66,7 @@ class ChatService {
       {
         skipUserMessage: isRegenerate,
         regenerateFromMessageId,
+        sources,
       }
     );
 
@@ -114,6 +115,7 @@ class ChatService {
       {
         skipUserMessage: isRegenerate,
         regenerateFromMessageId,
+        sources,
       }
     );
 
