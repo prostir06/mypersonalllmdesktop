@@ -22,7 +22,8 @@ async function loadUnicodeFontBase64(): Promise<string | null> {
     }
     cachedFontBase64 = btoa(binary);
     return cachedFontBase64;
-  } catch {
+  } catch (err) {
+    console.warn('Unicode PDF font load failed:', err);
     cachedFontBase64 = null;
     return null;
   }

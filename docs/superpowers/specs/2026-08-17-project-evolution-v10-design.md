@@ -1,7 +1,7 @@
 # Project Evolution v10 — Design
 
 **Date:** 2026-08-17  
-**Status:** Draft  
+**Status:** Implemented  
 **Parent:** v9 delivered on `master` @ `18c622c` (P35–P37 implemented)  
 **Scope:** P38 Durable artifacts → P39 Module hygiene → P40 Reliability polish  
 **Mix:** ~70% quality/reliability / ~30% product polish on **existing** features (close v9 residuals)  

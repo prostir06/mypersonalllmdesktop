@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setAccessToken } from './authToken';
+import { setAccessToken, getAccessToken } from './authToken';
 
 const mocks = vi.hoisted(() => {
   const apiInstance = {
@@ -224,6 +224,57 @@ describe('api service wrappers', () => {
     });
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/documents/3/retry');
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/documents/3/reindex');
+  });
+
+  it('throws a session message when stream refresh fails after 401', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    setAccessToken('stale-token');
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 }))
+    );
+    mocks.axiosPost.mockRejectedValue(new Error('refresh cookie missing'));
+
+    await expect(
+      chatAPI.streamMessage(
+        5,
+        'Hello',
+        'gpt-4o-mini',
+        'openai',
+        undefined,
+        vi.fn(),
+        vi.fn()
+      )
+    ).rejects.toThrow('Сесія закінчилася');
+
+    expect(warn).toHaveBeenCalledWith(
+      'Stream session refresh failed:',
+      expect.any(Error)
+    );
+    expect(getAccessToken()).toBeNull();
+    warn.mockRestore();
+  });
+
+  it('surfaces HTTP error body from failed stream response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Rate limited' }), { status: 429 })
+      )
+    );
+
+    await expect(
+      chatAPI.streamMessage(
+        5,
+        'Hello',
+        'gpt-4o-mini',
+        'openai',
+        undefined,
+        vi.fn(),
+        vi.fn()
+      )
+    ).rejects.toThrow('Rate limited');
   });
 
   it('calls model, user, settings, and prompt endpoints with expected payloads', () => {

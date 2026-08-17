@@ -139,4 +139,15 @@ describe('readFetchErrorMessage', () => {
     const response = new Response('plain failure', { status: 502 });
     await expect(readFetchErrorMessage(response)).resolves.toBe('plain failure');
   });
+
+  it('falls back to status when error body cannot be read', async () => {
+    const response = {
+      status: 503,
+      text: () => Promise.reject(new Error('body consumed')),
+    } as unknown as Response;
+
+    await expect(readFetchErrorMessage(response)).resolves.toBe(
+      'HTTP error! status: 503'
+    );
+  });
 });

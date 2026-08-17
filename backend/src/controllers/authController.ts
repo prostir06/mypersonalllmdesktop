@@ -55,7 +55,9 @@ void dummyHashPromise.catch((error: unknown) => {
 async function getDummyHash(): Promise<string> {
   try {
     return await dummyHashPromise;
-  } catch {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`Dummy bcrypt hash unavailable, re-warming: ${message}`);
     dummyHashPromise = bcrypt.hash('dummy-password-for-timing', 12);
     return dummyHashPromise;
   }

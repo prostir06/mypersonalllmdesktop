@@ -62,8 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try {
       await authAPI.logout();
-    } catch {
-      // still clear local session
+    } catch (err) {
+      // Server may already be unreachable — still clear local session.
+      console.warn('Logout request failed:', err);
     }
     setAccessToken(null);
     setToken(null);

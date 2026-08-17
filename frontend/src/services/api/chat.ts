@@ -74,7 +74,8 @@ export const chatAPI = {
         );
         setAccessToken(data.token);
         response = await doFetch(data.token);
-      } catch {
+      } catch (err) {
+        console.warn('Stream session refresh failed:', err);
         setAccessToken(null);
         throw new Error('Сесія закінчилася. Будь ласка, увійдіть знову.');
       }

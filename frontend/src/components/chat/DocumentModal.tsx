@@ -75,7 +75,8 @@ function ChunkPreview({ docId }: { docId: string | number }) {
       const res = await documentsAPI.getChunks(docId, { limit: 3, offset: 0 });
       setChunks(res.data.items);
       setOpen(true);
-    } catch {
+    } catch (err) {
+      console.warn('Document chunk preview failed:', err);
       setError('Не вдалося завантажити фрагменти');
     } finally {
       setLoading(false);

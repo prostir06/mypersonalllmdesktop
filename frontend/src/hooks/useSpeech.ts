@@ -54,7 +54,9 @@ export function useSpeech(
         recognitionRef.current.start();
         setIsListening(true);
         toast.info('🎤 Говоріть зараз...');
-      } catch {
+      } catch (err) {
+        // Browser throws if start() called while already active.
+        console.warn('Speech recognition start failed:', err);
         setIsListening(false);
       }
     }

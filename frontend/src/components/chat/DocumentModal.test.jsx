@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DocumentModal from './DocumentModal';
+import { documentsAPI } from '../../services/api';
 
 vi.mock('../../services/api', () => ({
   documentsAPI: {
@@ -13,6 +14,12 @@ vi.mock('../../services/api', () => ({
 }));
 
 describe('DocumentModal', () => {
+  beforeEach(() => {
+    vi.mocked(documentsAPI.getChunks).mockResolvedValue({
+      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1 },
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -146,5 +153,31 @@ describe('DocumentModal', () => {
 
     await user.click(screen.getByRole('button', { name: /Показати ще/i }));
     expect(onLoadMore).toHaveBeenCalled();
+  });
+
+  it('shows error when chunk preview load fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(documentsAPI.getChunks).mockRejectedValue(new Error('api down'));
+    const user = userEvent.setup();
+
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={docs}
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: /Переглянути фрагменти/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Не вдалося завантажити фрагменти')).toBeInTheDocument();
+    });
+    expect(warn).toHaveBeenCalledWith(
+      'Document chunk preview failed:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
   });
 });

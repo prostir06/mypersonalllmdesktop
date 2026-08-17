@@ -188,8 +188,8 @@ const PromptLibraryModal = ({
                       try {
                         await onSelectPrompt(item.prompt);
                         onHide();
-                      } catch {
-                        // parent shows toast
+                      } catch (err) {
+                        console.warn('Preset prompt apply failed:', err);
                       }
                     }}
                   >
@@ -302,8 +302,8 @@ const PromptLibraryModal = ({
                               try {
                                 await onSelectPrompt(p.prompt);
                                 onHide();
-                              } catch {
-                                // parent shows toast
+                              } catch (err) {
+                                console.warn('Saved prompt apply failed:', err);
                               }
                             }}
                           >
