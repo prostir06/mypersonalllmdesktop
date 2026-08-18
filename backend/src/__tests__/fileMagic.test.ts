@@ -10,9 +10,9 @@ describe('fileMagic', () => {
       expect(sniffFileKind(Buffer.from('%PDF-1.4\n'))).toBe('pdf');
     });
 
-    it('detects DOCX (ZIP) magic', () => {
+    it('detects ZIP magic (DOCX/XLSX container)', () => {
       expect(sniffFileKind(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00]))).toBe(
-        'docx'
+        'zip'
       );
     });
 
@@ -48,6 +48,36 @@ describe('fileMagic', () => {
       expect(
         resolveDocumentKind(Buffer.from('%PDF-1.7'), 'text/plain', 'notes.txt')
       ).toBe('pdf');
+    });
+
+    it('accepts claimed XLSX with ZIP magic', () => {
+      expect(
+        resolveDocumentKind(
+          Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'sales.xlsx'
+        )
+      ).toBe('xlsx');
+    });
+
+    it('rejects claimed XLSX without ZIP magic', () => {
+      expect(() =>
+        resolveDocumentKind(
+          Buffer.from('not a spreadsheet'),
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'sales.xlsx'
+        )
+      ).toThrow(/XLSX/i);
+    });
+
+    it('treats sniffed ZIP named .xlsx as xlsx', () => {
+      expect(
+        resolveDocumentKind(
+          Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+          'application/octet-stream',
+          'report.xlsx'
+        )
+      ).toBe('xlsx');
     });
   });
 

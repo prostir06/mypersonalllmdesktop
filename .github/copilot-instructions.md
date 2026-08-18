@@ -10,6 +10,7 @@ Workspace for a personal LLM assistant control panel.
 - **docker-compose.yml** — Postgres + backend + frontend
 
 Providers: OpenAI API, Ollama (chat + optional local embeddings). Auth: JWT + refresh cookies.
+RAG documents: PDF, DOCX, XLSX, TXT, MD.
 
 ## Ports
 

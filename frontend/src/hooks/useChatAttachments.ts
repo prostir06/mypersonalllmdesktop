@@ -63,10 +63,15 @@ export function useChatAttachments(): UseChatAttachmentsResult {
       const file = e.target.files?.[0];
       if (!file) return;
       const allowed =
-        /\.(pdf|txt|md)$/i.test(file.name) ||
-        ['application/pdf', 'text/plain', 'text/markdown'].includes(file.type);
+        /\.(pdf|xlsx|txt|md)$/i.test(file.name) ||
+        [
+          'application/pdf',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'text/plain',
+          'text/markdown',
+        ].includes(file.type);
       if (!allowed) {
-        toast.error('Дозволено лише PDF, TXT, MD');
+        toast.error('Дозволено лише PDF, XLSX, TXT, MD');
         return;
       }
       if (chatAttachments.length >= 5) {
@@ -88,6 +93,7 @@ export function useChatAttachments(): UseChatAttachmentsResult {
         );
       } catch (err: unknown) {
         const ax = err as AxiosError<{ error?: string }>;
+        console.warn('Chat attachment upload failed:', err);
         toast.error(ax.response?.data?.error || 'Помилка обробки файлу');
       }
       if (chatFileInputRef.current) chatFileInputRef.current.value = '';

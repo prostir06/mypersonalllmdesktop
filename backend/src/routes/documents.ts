@@ -41,17 +41,18 @@ const upload = multer({
       const allowedMimeTypes = [
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'text/plain',
         'text/markdown',
       ];
 
       if (
         allowedMimeTypes.includes(file.mimetype) ||
-        (file.originalname && file.originalname.match(/\.(pdf|docx|txt|md)$/i))
+        (file.originalname && file.originalname.match(/\.(pdf|docx|xlsx|txt|md)$/i))
       ) {
         cb(null, true);
       } else {
-        cb(new Error('Непідтримуваний формат файлу. Дозволено: PDF, DOCX, TXT, MD'));
+        cb(new Error('Непідтримуваний формат файлу. Дозволено: PDF, DOCX, XLSX, TXT, MD'));
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

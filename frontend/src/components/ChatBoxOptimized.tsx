@@ -259,7 +259,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       <input
         type="file"
         ref={chatFileInputRef}
-        accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+        accept=".pdf,.xlsx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown"
         style={{ display: 'none' }}
         onChange={handleFileAttach}
       />

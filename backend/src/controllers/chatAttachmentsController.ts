@@ -9,11 +9,12 @@ const MAX_ATTACHMENT_CHARS = 12000;
 
 const ALLOWED_MIMES = new Set([
   'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
   'text/markdown',
 ]);
 
-const ALLOWED_EXT = /\.(pdf|txt|md)$/i;
+const ALLOWED_EXT = /\.(pdf|xlsx|txt|md)$/i;
 
 export async function uploadChatAttachment(
   req: AuthRequest,
@@ -35,7 +36,7 @@ export async function uploadChatAttachment(
       res,
       req,
       400,
-      'Непідтримуваний формат. Дозволено: PDF, TXT, MD'
+      'Непідтримуваний формат. Дозволено: PDF, XLSX, TXT, MD'
     );
     return;
   }

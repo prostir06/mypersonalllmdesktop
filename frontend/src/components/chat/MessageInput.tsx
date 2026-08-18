@@ -141,7 +141,7 @@ const MessageInput = React.memo(function MessageInput({
           variant={chatAttachments.length > 0 ? 'success' : 'outline-success'}
           onClick={onAttachFile}
           disabled={streaming}
-          title="Додати файл (PDF, TXT, MD)"
+          title="Додати файл (PDF, XLSX, TXT, MD)"
           className="py-3 px-3"
         >
           📎

@@ -47,8 +47,21 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+const mockSheetToCsv = jest.fn();
+const mockXlsxRead = jest.fn((_buffer?: unknown, _opts?: unknown) => ({
+  SheetNames: ['Sales', 'Meta'],
+  Sheets: { Sales: { a: 1 }, Meta: { b: 2 } },
+}));
+jest.mock('xlsx', () => ({
+  read: (buffer: unknown, opts?: unknown) => mockXlsxRead(buffer, opts),
+  utils: {
+    sheet_to_csv: (sheet: unknown) => mockSheetToCsv(sheet),
+  },
+}));
+
 import { PDFParse } from 'pdf-parse';
 import prisma from '../config/prisma';
+import logger from '../logger';
 import DocumentService from '../services/DocumentService';
 import EmbeddingService from '../services/EmbeddingService';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
@@ -145,6 +158,57 @@ describe('DocumentService (Prisma)', () => {
       expect(mockGetText).toHaveBeenCalled();
       expect(mockDestroy).toHaveBeenCalled();
       expect(text).toBe('PDF body');
+    });
+
+    it('keeps PDF text when parser.destroy fails', async () => {
+      mockGetText.mockResolvedValue({ text: 'PDF body' });
+      mockDestroy.mockRejectedValueOnce(new Error('destroy boom'));
+
+      const text = await DocumentService.extractText(
+        Buffer.from('%PDF'),
+        'application/pdf',
+        'doc.pdf'
+      );
+
+      expect(text).toBe('PDF body');
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/PDF parser destroy failed.*destroy boom/)
+      );
+    });
+
+    it('logs and rethrows a public error when XLSX parse fails', async () => {
+      mockXlsxRead.mockImplementationOnce(() => {
+        throw new Error('Corrupt zip');
+      });
+
+      await expect(
+        DocumentService.extractText(
+          Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'sales.xlsx'
+        )
+      ).rejects.toThrow(/Excel/i);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/XLSX extract failed.*sales\.xlsx.*Corrupt zip/)
+      );
+    });
+
+    it('converts XLSX sheets to labeled CSV', async () => {
+      mockSheetToCsv
+        .mockReturnValueOnce('Name,Qty\nA,1')
+        .mockReturnValueOnce('Key,Val\nregion,UA');
+
+      const text = await DocumentService.extractText(
+        Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'sales.xlsx'
+      );
+
+      expect(text).toContain('## Sheet: Sales');
+      expect(text).toContain('Name,Qty\nA,1');
+      expect(text).toContain('## Sheet: Meta');
+      expect(text).toContain('Key,Val\nregion,UA');
     });
   });
 
@@ -463,6 +527,34 @@ describe('DocumentService (Prisma)', () => {
       mockedPrisma.document.findFirst.mockResolvedValue({ stagingPath: null });
       mockedPrisma.document.deleteMany.mockResolvedValue({ count: 0 });
       expect(await DocumentService.delete(99, 1)).toBe(false);
+    });
+  });
+
+  describe('retryIndexing', () => {
+    it('logs the original access error when staging file is gone', async () => {
+      const fs = require('fs/promises') as typeof import('fs/promises');
+      mockedPrisma.document.findFirst.mockResolvedValue({
+        id: 7,
+        userId: 1,
+        status: 'failed',
+        stagingPath: '/tmp/gone.xlsx',
+        filename: 'gone.xlsx',
+        fileType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        fileSize: 10,
+      });
+      const accessSpy = jest
+        .spyOn(fs, 'access')
+        .mockRejectedValue(new Error('ENOENT: no such file'));
+
+      await expect(
+        DocumentService.retryIndexing(7, 1, jest.fn())
+      ).rejects.toThrow(/повторної індексації/);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/staging file missing.*gone\.xlsx.*ENOENT/)
+      );
+      accessSpy.mockRestore();
     });
   });
 });

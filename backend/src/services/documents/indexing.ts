@@ -161,7 +161,11 @@ export async function retryIndexing(
 
   try {
     await fs.access(doc.stagingPath);
-  } catch {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(
+      `retryIndexing: staging file missing for ${doc.filename}: ${message}`
+    );
     throw new Error(
       'Файл недоступний для повторної індексації — завантажте документ знову'
     );

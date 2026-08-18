@@ -143,7 +143,7 @@ const DocumentModal = React.memo(function DocumentModal({
       </Modal.Header>
       <Modal.Body className="bg-dark text-light">
         <p className="text-muted small">
-          Завантажте PDF, DOCX або TXT файли. Обрані документи додаватимуть свій
+          Завантажте PDF, DOCX, XLSX або TXT файли. Обрані документи додаватимуть свій
           вміст до контексту AI.
           {ragEmbeddingMode === 'fallback' && (
             <>
@@ -165,7 +165,7 @@ const DocumentModal = React.memo(function DocumentModal({
             type="file"
             ref={fileInputRef}
             onChange={onFileChange}
-            accept=".pdf,.docx,.txt,.md"
+            accept=".pdf,.docx,.xlsx,.txt,.md"
             style={{ display: 'none' }}
             disabled={uploadingDoc}
           />
@@ -182,7 +182,7 @@ const DocumentModal = React.memo(function DocumentModal({
                 Завантаження…
               </span>
             ) : (
-              '➕ Завантажити новий файл (PDF/DOCX/TXT)'
+              '➕ Завантажити новий файл (PDF/DOCX/XLSX/TXT)'
             )}
           </Button>
         </div>

@@ -1,9 +1,14 @@
 /**
- * Detect PDF / DOCX (ZIP) by magic bytes; validate claimed types.
+ * Detect PDF / Office ZIP (DOCX, XLSX) by magic bytes; validate claimed types.
  */
 
-export type SniffedKind = 'pdf' | 'docx' | 'other';
-export type DocumentKind = 'pdf' | 'docx' | 'text';
+export type SniffedKind = 'pdf' | 'zip' | 'other';
+export type DocumentKind = 'pdf' | 'docx' | 'xlsx' | 'text';
+
+const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export function sniffFileKind(buffer: Buffer): SniffedKind {
   if (
@@ -16,7 +21,7 @@ export function sniffFileKind(buffer: Buffer): SniffedKind {
     return 'pdf'; // %PDF
   }
 
-  // DOCX is a ZIP container (local file header)
+  // DOCX / XLSX are ZIP containers (local file header)
   if (
     buffer.length >= 4 &&
     buffer[0] === 0x50 &&
@@ -24,7 +29,7 @@ export function sniffFileKind(buffer: Buffer): SniffedKind {
     buffer[2] === 0x03 &&
     buffer[3] === 0x04
   ) {
-    return 'docx';
+    return 'zip';
   }
 
   return 'other';
@@ -39,15 +44,19 @@ function claimedPdf(mimetype: string, originalname: string): boolean {
 
 function claimedDocx(mimetype: string, originalname: string): boolean {
   return (
-    mimetype ===
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    originalname.toLowerCase().endsWith('.docx')
+    mimetype === DOCX_MIME || originalname.toLowerCase().endsWith('.docx')
+  );
+}
+
+function claimedXlsx(mimetype: string, originalname: string): boolean {
+  return (
+    mimetype === XLSX_MIME || originalname.toLowerCase().endsWith('.xlsx')
   );
 }
 
 /**
- * Resolve extraction kind. Rejects spoofed PDF/DOCX claims.
- * Unclaimed buffers that sniff as PDF/DOCX are still parsed as such.
+ * Resolve extraction kind. Rejects spoofed PDF/Office claims.
+ * Unclaimed ZIP is treated as DOCX (XLSX is handled via mime/extension above).
  */
 export function resolveDocumentKind(
   buffer: Buffer,
@@ -63,15 +72,22 @@ export function resolveDocumentKind(
     return 'pdf';
   }
 
+  if (claimedXlsx(mimetype, originalname)) {
+    if (sniffed !== 'zip') {
+      throw new Error('Файл заявлено як XLSX, але вміст не відповідає формату');
+    }
+    return 'xlsx';
+  }
+
   if (claimedDocx(mimetype, originalname)) {
-    if (sniffed !== 'docx') {
+    if (sniffed !== 'zip') {
       throw new Error('Файл заявлено як DOCX, але вміст не відповідає формату');
     }
     return 'docx';
   }
 
   if (sniffed === 'pdf') return 'pdf';
-  if (sniffed === 'docx') return 'docx';
+  if (sniffed === 'zip') return 'docx';
   return 'text';
 }
 
