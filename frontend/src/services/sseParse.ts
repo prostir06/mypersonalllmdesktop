@@ -93,7 +93,7 @@ export function consumeSseChunk(
       }
     } catch (err) {
       if (err instanceof SseStreamError) throw err;
-      // Unexpected handler path — already wrapped by safeInvoke for callbacks
+      console.warn('SSE dispatch error:', err);
     }
   }
 

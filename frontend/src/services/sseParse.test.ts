@@ -90,6 +90,7 @@ describe('consumeSseChunk', () => {
   });
 
   it('continues when a handler throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const onToken = vi.fn()
       .mockImplementationOnce(() => {
         throw new Error('ui boom');
@@ -104,6 +105,8 @@ describe('consumeSseChunk', () => {
 
     expect(onToken).toHaveBeenCalledTimes(2);
     expect(rest).toBe('');
+    expect(warn).toHaveBeenCalledWith('SSE handler error:', expect.any(Error));
+    warn.mockRestore();
   });
 });
 

@@ -173,6 +173,7 @@ describe('useChatStream', () => {
   });
 
   it('attaches sources from sendMessage fallback response', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     chatAPI.streamMessage.mockRejectedValue(new Error('network down'));
     chatAPI.sendMessage.mockResolvedValue({
       data: {
@@ -199,5 +200,10 @@ describe('useChatStream', () => {
       content: 'fallback',
       sources: [{ filename: 'b.md', similarity: 0.77 }],
     });
+    expect(warn).toHaveBeenCalledWith(
+      'Stream failed, falling back to /send:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
   });
 });

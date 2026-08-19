@@ -1,8 +1,9 @@
 import prisma from '../../config/prisma';
 import logger from '../../logger';
-import EmbeddingService = require('../EmbeddingService');
+import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { sanitizeDocumentIds } from './ownership';
+import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource } from './types';
 
 export async function buildSystemContext(
@@ -89,7 +90,9 @@ export async function buildSystemContext(
         userId,
         documentIds,
         5,
-        {},
+        typeof options.requestId === 'string'
+          ? { requestId: options.requestId }
+          : {},
         activeProvider,
         trimmed
       );
@@ -106,17 +109,20 @@ export async function buildSystemContext(
         const ragContextText = [
           `📄 КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ (${searchMethod}):`,
           ...relevantChunks.map((c) => {
+            const sheet = parseSheetName(c.content);
             sources.push({
               filename: c.filename,
               similarity:
                 typeof c.similarity === 'number' ? c.similarity : undefined,
+              ...(sheet ? { sheet } : {}),
             });
 
             const similarityInfo =
               c.similarity && c.similarity < 1
                 ? ` [relevance: ${(c.similarity * 100).toFixed(0)}%]`
                 : '';
-            return `--- [Файл: ${c.filename}${similarityInfo}] ---\n${c.content}`;
+            const sheetInfo = sheet ? ` · ${sheet}` : '';
+            return `--- [Файл: ${c.filename}${sheetInfo}${similarityInfo}] ---\n${c.content}`;
           }),
         ].join('\n\n');
 

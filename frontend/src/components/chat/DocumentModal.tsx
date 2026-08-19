@@ -10,6 +10,7 @@ import React, {
 import { Modal, Button, Form, ListGroup, Spinner, Badge, Collapse } from 'react-bootstrap';
 import { documentsAPI } from '../../services/api';
 import type { DocumentChunkRecord, DocumentRecord } from '../../types/api';
+import { parseSheetName, stripSheetHeader } from '../../utils/sheetContext';
 
 export type DocumentModalProps = {
   show: boolean;
@@ -58,6 +59,17 @@ function RagModeBadge({
   );
 }
 
+function fileKindLabel(doc: DocumentRecord): string | null {
+  const name = String(doc.filename || '').toLowerCase();
+  const mime = String(doc.file_type || '').toLowerCase();
+  if (name.endsWith('.xlsx') || mime.includes('spreadsheet')) return 'XLSX';
+  if (name.endsWith('.pdf') || mime.includes('pdf')) return 'PDF';
+  if (name.endsWith('.docx') || mime.includes('wordprocessing')) return 'DOCX';
+  if (name.endsWith('.md')) return 'MD';
+  if (name.endsWith('.txt') || mime.startsWith('text/')) return 'TXT';
+  return null;
+}
+
 function ChunkPreview({ docId }: { docId: string | number }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -97,16 +109,23 @@ function ChunkPreview({ docId }: { docId: string | number }) {
       {error && <div className="text-danger small">{error}</div>}
       <Collapse in={open}>
         <div className="mt-1">
-          {chunks.map((chunk) => (
+          {chunks.map((chunk) => {
+            const sheet = parseSheetName(chunk.content);
+            const body = stripSheetHeader(chunk.content);
+            const preview = body.slice(0, 280);
+            const sheetLine = sheet ? `Аркуш: ${sheet}\n` : '';
+            return (
             <pre
               key={chunk.chunk_index}
               className="small text-muted mb-1 p-2 rounded border border-secondary"
               style={{ whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}
             >
-              #{chunk.chunk_index + 1}: {chunk.content.slice(0, 280)}
-              {chunk.content.length > 280 ? '…' : ''}
+              #{chunk.chunk_index + 1}: {sheetLine}
+              {preview}
+              {body.length > 280 ? '…' : ''}
             </pre>
-          ))}
+            );
+          })}
         </div>
       </Collapse>
     </div>
@@ -204,6 +223,7 @@ const DocumentModal = React.memo(function DocumentModal({
               const isRetrying = retryingDocId === doc.id;
               const isReindexing = reindexingDocId === doc.id;
               const isBusy = isRetrying || isReindexing;
+              const kind = fileKindLabel(doc);
               const statusLabel =
                 status === 'pending'
                   ? 'індексація…'
@@ -225,6 +245,7 @@ const DocumentModal = React.memo(function DocumentModal({
                       onChange={(e) => onToggleDoc(doc.id, e.target.checked)}
                     />
                     <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                      {kind ? `${kind} | ` : ''}
                       {statusLabel ? `${statusLabel} | ` : ''}
                       {doc.chunks_count ?? 0} фрагментів |{' '}
                       {((doc.file_size || 0) / 1024).toFixed(1)} KB

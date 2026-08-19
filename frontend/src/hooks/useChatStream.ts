@@ -214,6 +214,7 @@ export function useChatStream({
           return;
         }
 
+        console.warn('Stream failed, falling back to /send:', err);
         try {
           const response = await chatAPI.sendMessage(
             conversationId,

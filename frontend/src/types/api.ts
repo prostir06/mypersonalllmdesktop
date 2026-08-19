@@ -62,6 +62,7 @@ export interface Message {
 export interface RagSource {
   filename: string;
   similarity?: number;
+  sheet?: string;
 }
 
 export interface MessageBranch {

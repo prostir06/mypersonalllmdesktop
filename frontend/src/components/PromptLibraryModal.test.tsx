@@ -60,6 +60,13 @@ describe('PromptLibraryModal', () => {
     expect(onHide).toHaveBeenCalled();
   });
 
+  it('lists the spreadsheet analyst preset', () => {
+    render(
+      <PromptLibraryModal show onHide={() => {}} onSelectPrompt={vi.fn()} />
+    );
+    expect(screen.getByText('Аналітик таблиць')).toBeInTheDocument();
+  });
+
   it('logs when preset apply handler rejects', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const user = userEvent.setup();

@@ -1,10 +1,6 @@
 /**
- * @file __tests__/health.test.js
- * Інтеграційні тести для API ендпоінтів.
- * Health-check перевіряє наявність стандартних полів у відповіді.
- * В CI без БД сервер повертає DEGRADED (503), але структуру ми перевіряємо.
+ * Health-check: required fields. Without DB, CI may return DEGRADED (503).
  */
-
 const request = require('supertest');
 
 jest.mock('../config/prisma', () => ({
@@ -12,29 +8,27 @@ jest.mock('../config/prisma', () => ({
   default: {
     user: {
       findUnique: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
     },
-    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }])
+    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
   },
   prisma: {
     user: {
       findUnique: jest.fn(),
-      create: jest.fn()
+      create: jest.fn(),
     },
-    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }])
-  }
+    $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
+  },
 }));
 
-const app = require('../server');
+import app = require('../server');
 
 describe('API Integration & Health Tests', () => {
   it('GET /api/health should return health response with required fields', async () => {
     const res = await request(app).get('/api/health');
 
-    // У тестовому середовищі без БД очікуємо 200 або 503
     expect([200, 503]).toContain(res.statusCode);
 
-    // Перевіряємо наявність обов'язкових полів
     expect(res.body).toHaveProperty('status');
     expect(res.body).toHaveProperty('environment');
     expect(res.body).toHaveProperty('timestamp');

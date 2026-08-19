@@ -13,6 +13,8 @@ export type PackRagOptions = {
   minSimilarity?: number;
   /** Approx char budget for packed chunk bodies. */
   maxChars?: number;
+  /** HTTP request id for retrieve error logs (ignored by packer). */
+  requestId?: string;
 };
 
 export function packRelevantChunks(

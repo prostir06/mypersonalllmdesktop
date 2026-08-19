@@ -1,4 +1,8 @@
-import { sanitizeDocumentIds, conversationTitle } from '../services/chat/ownership';
+import {
+  sanitizeDocumentIds,
+  conversationTitle,
+  isPlaceholderTitle,
+} from '../services/chat/ownership';
 
 describe('chat ownership helpers', () => {
   it('sanitizeDocumentIds keeps positive ints only', () => {
@@ -9,5 +13,12 @@ describe('chat ownership helpers', () => {
     const long = 'a'.repeat(60);
     expect(conversationTitle(long).endsWith('...')).toBe(true);
     expect(conversationTitle(long).length).toBe(53);
+  });
+
+  it('treats default UI titles as placeholders', () => {
+    expect(isPlaceholderTitle('Нова розмова')).toBe(true);
+    expect(isPlaceholderTitle('Новий чат')).toBe(true);
+    expect(isPlaceholderTitle('  ')).toBe(true);
+    expect(isPlaceholderTitle('Already named')).toBe(false);
   });
 });

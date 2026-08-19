@@ -91,7 +91,10 @@ Packaged Windows build (after `frontend` production build): `cd desktop && npm r
 ```bash
 cp .env.example .env
 # Optional: set OPENAI_API_KEY
+# Fresh clone / first up: anonymous node_modules volume is created on start.
 docker compose up -d --build
+# After adding a backend npm dependency: recreate that volume
+# docker compose up -d --build --force-recreate --renew-anon-volumes backend
 ```
 
 **Production** (required secrets, no host DB port, image `dist/` only — no ts-node fallback):
@@ -236,8 +239,8 @@ cd frontend && npm run build:analyze
 - Schema source of truth: `backend/prisma/` + `prisma migrate deploy`. Docker image: `pgvector/pgvector:pg15`.
 - Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
 - Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
-- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `settings`, `rag-upload`, `conversation-query`.
-- **npm audit baseline:** [docs/security-audit-baseline.md](docs/security-audit-baseline.md) (2026-08-17).
+- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`.
+- **npm audit baseline:** [docs/security-audit-baseline.md](docs/security-audit-baseline.md) (2026-08-19).
 
 ## License
 

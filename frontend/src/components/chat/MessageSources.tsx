@@ -14,9 +14,10 @@ export function MessageSources({ sources }: MessageSourcesProps) {
       <ul className="mb-0 ps-3">
         {sources.map((s, i) => {
           const pct = formatSimilarityPercent(s.similarity);
+          const label = s.sheet ? `${s.filename} · ${s.sheet}` : s.filename;
           return (
           <li key={`${s.filename}-${i}`}>
-            {s.filename}
+            {label}
             {pct ? ` (${pct})` : ''}
           </li>
           );

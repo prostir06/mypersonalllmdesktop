@@ -1,7 +1,7 @@
 const fs = require('fs/promises');
 import prisma from '../../config/prisma';
 import logger from '../../logger';
-import EmbeddingService = require('../EmbeddingService');
+import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { chunkText } from './chunking';
 import { extractText } from './extraction';
@@ -173,7 +173,7 @@ export async function retryIndexing(
 
   const updated = await prisma.document.update({
     where: { id: docId },
-    data: { status: 'pending', failureReason: null },
+    data: { status: 'pending', failureReason: null, createdAt: new Date() },
   });
 
   const meta = {

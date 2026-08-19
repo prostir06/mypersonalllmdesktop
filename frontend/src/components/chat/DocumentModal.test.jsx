@@ -180,4 +180,57 @@ describe('DocumentModal', () => {
     );
     warn.mockRestore();
   });
+
+  it('shows a file-type hint for xlsx vs pdf', () => {
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={[
+          { ...docs[0], filename: 'notes.pdf' },
+          {
+            id: 9,
+            filename: 'sales.xlsx',
+            chunks_count: 1,
+            file_size: 100,
+            status: 'ready',
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText(/PDF \|/)).toBeInTheDocument();
+    expect(screen.getByText(/XLSX \|/)).toBeInTheDocument();
+  });
+
+  it('shows sheet name in chunk preview', async () => {
+    vi.mocked(documentsAPI.getChunks).mockResolvedValue({
+      data: {
+        items: [{ chunk_index: 0, content: '## Sheet: Inventory\nSKU,1' }],
+        total: 1,
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={[
+          {
+            id: 9,
+            filename: 'sales.xlsx',
+            chunks_count: 1,
+            file_size: 100,
+            status: 'ready',
+          },
+        ]}
+      />
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: /Переглянути фрагменти/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Аркуш: Inventory/)).toBeInTheDocument();
+    });
+  });
 });

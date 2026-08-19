@@ -16,6 +16,15 @@ export function conversationTitle(message: string): string {
   return message.substring(0, 50) + (message.length > 50 ? '...' : '');
 }
 
+const PLACEHOLDER_TITLES = new Set(['нова розмова', 'новий чат']);
+
+export function isPlaceholderTitle(title: string | null | undefined): boolean {
+  if (title == null) return true;
+  const trimmed = title.trim();
+  if (!trimmed) return true;
+  return PLACEHOLDER_TITLES.has(trimmed.toLowerCase());
+}
+
 export async function ensureConversationId(
   userId: number,
   conversationId: number | undefined,

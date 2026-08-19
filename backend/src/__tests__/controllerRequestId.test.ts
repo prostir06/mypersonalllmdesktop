@@ -1,9 +1,10 @@
-const express = require('express');
-const request = require('supertest');
-const requestId = require('../middleware/requestId');
+import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 
-jest.mock('../middleware/auth', () => (req, _res, next) => {
-  req.userId = 1;
+const request = require('supertest');
+
+jest.mock('../middleware/auth', () => (_req: Request, _res: Response, next: NextFunction) => {
+  (_req as Request & { userId?: number }).userId = 1;
   next();
 });
 
@@ -24,16 +25,26 @@ jest.mock('../config/prisma', () => ({
   },
 }));
 
-const prisma = require('../config/prisma').default;
+import prisma from '../config/prisma';
+import requestId = require('../middleware/requestId');
+import authRouter from '../routes/auth';
+import conversationsRouter from '../routes/conversations';
+import modelsRouter from '../routes/models';
+import usersRouter from '../routes/users';
+
+const mockedPrisma = prisma as unknown as {
+  user: { findUnique: jest.Mock };
+  conversation: { findMany: jest.Mock; count: jest.Mock };
+};
 
 function appWithRoutes() {
   const app = express();
   app.use(express.json());
   app.use(requestId);
-  app.use('/api/auth', require('../routes/auth'));
-  app.use('/api/conversations', require('../routes/conversations'));
-  app.use('/api/models', require('../routes/models'));
-  app.use('/api/users', require('../routes/users'));
+  app.use('/api/auth', authRouter);
+  app.use('/api/conversations', conversationsRouter);
+  app.use('/api/models', modelsRouter);
+  app.use('/api/users', usersRouter);
   return app;
 }
 
@@ -54,8 +65,8 @@ describe('controller error JSON includes requestId', () => {
   });
 
   it('conversations list 500', async () => {
-    prisma.conversation.findMany.mockRejectedValue(new Error('db down'));
-    prisma.conversation.count.mockRejectedValue(new Error('db down'));
+    mockedPrisma.conversation.findMany.mockRejectedValue(new Error('db down'));
+    mockedPrisma.conversation.count.mockRejectedValue(new Error('db down'));
     const app = appWithRoutes();
     const res = await request(app)
       .get('/api/conversations')
@@ -66,7 +77,7 @@ describe('controller error JSON includes requestId', () => {
   });
 
   it('users/me 404', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
+    mockedPrisma.user.findUnique.mockResolvedValue(null);
     const app = appWithRoutes();
     const res = await request(app)
       .get('/api/users/me')

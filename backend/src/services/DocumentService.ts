@@ -13,6 +13,7 @@ import {
   type UploadSource,
 } from './documents/indexing';
 import { toPublicDocument } from './documents/publicDocument';
+import { failStalePendingDocuments } from './documents/indexingWatchdog';
 import { deleteTempUpload, writeTempUpload } from './documents/tempUploads';
 
 type FileInfo = {
@@ -173,6 +174,12 @@ class DocumentService {
   }
 
   static async getByUser(userId: number, limit = 50, offset = 0) {
+    try {
+      await failStalePendingDocuments();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`Indexing watchdog skipped: ${message}`);
+    }
     const embedCtx = await resolveEmbeddingContext(userId);
     const where = { userId };
     const [rows, total] = await Promise.all([

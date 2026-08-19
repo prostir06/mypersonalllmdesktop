@@ -33,8 +33,11 @@ jest.mock('../config/prisma', () => ({
 }));
 
 jest.mock('../services/EmbeddingService', () => ({
-  isAvailable: jest.fn(),
-  generateBatchEmbeddings: jest.fn(),
+  __esModule: true,
+  default: {
+    isAvailable: jest.fn(),
+    generateBatchEmbeddings: jest.fn(),
+  },
 }));
 
 jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
@@ -132,6 +135,14 @@ describe('DocumentService (Prisma)', () => {
 
     it('returns one chunk when text shorter than chunkSize', () => {
       expect(DocumentService.chunkText('Короткий', 1000, 200)).toEqual(['Короткий']);
+    });
+
+    it('splits workbook text on sheet headers', () => {
+      const text = '## Sheet: A\nrow-a\n## Sheet: B\nrow-b';
+      expect(DocumentService.chunkText(text, 1500, 0)).toEqual([
+        '## Sheet: A\nrow-a',
+        '## Sheet: B\nrow-b',
+      ]);
     });
   });
 
@@ -480,6 +491,7 @@ describe('DocumentService (Prisma)', () => {
 
   describe('getByUser', () => {
     it('returns paginated snake_case rows with chunks_count', async () => {
+      mockedPrisma.document.updateMany.mockResolvedValue({ count: 0 });
       mockedPrisma.document.findMany.mockResolvedValue([
         {
           id: 1,
@@ -503,6 +515,7 @@ describe('DocumentService (Prisma)', () => {
         chunks_count: 5,
       });
       expect(page).toMatchObject({ total: 1, limit: 10, offset: 0 });
+      expect(mockedPrisma.document.updateMany).toHaveBeenCalled();
       expect(mockedPrisma.document.findMany).toHaveBeenCalledWith({
         where: { userId: 1 },
         orderBy: { createdAt: 'desc' },

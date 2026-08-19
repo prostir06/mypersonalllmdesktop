@@ -1,3 +1,5 @@
+import logger from '../logger';
+
 /**
  * In-process semaphore for background document finalize jobs.
  * Caps concurrent parse/embed work (personal deploy — no Redis required).
@@ -54,6 +56,9 @@ export async function runWithDocumentJobLimit(
 
 export function enqueueDocumentJob(job: () => void | Promise<void>): void {
   setImmediate(() => {
-    void runWithDocumentJobLimit(job).catch(() => undefined);
+    void runWithDocumentJobLimit(job).catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`documentJobQueue: background job failed: ${message}`);
+    });
   });
 }

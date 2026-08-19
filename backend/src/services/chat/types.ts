@@ -38,4 +38,8 @@ export type ChatMessage =
       >;
     };
 
-export type RagSource = { filename: string; similarity?: number };
+export type RagSource = {
+  filename: string;
+  similarity?: number;
+  sheet?: string;
+};

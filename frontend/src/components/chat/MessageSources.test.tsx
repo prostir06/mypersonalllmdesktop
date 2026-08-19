@@ -19,6 +19,15 @@ describe('MessageSources', () => {
     expect(screen.getByText('b.md')).toBeInTheDocument();
   });
 
+  it('shows sheet subtitle when present', () => {
+    render(
+      <MessageSources
+        sources={[{ filename: 'book.xlsx', sheet: 'Sales', similarity: 0.5 }]}
+      />
+    );
+    expect(screen.getByText('book.xlsx · Sales (50%)')).toBeInTheDocument();
+  });
+
   it('renders nothing when sources are empty', () => {
     const { container } = render(<MessageSources sources={[]} />);
     expect(container).toBeEmptyDOMElement();

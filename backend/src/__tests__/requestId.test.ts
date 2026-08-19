@@ -1,13 +1,15 @@
-const express = require('express');
+import express from 'express';
+import type { Request } from 'express';
+
 const request = require('supertest');
-const requestId = require('../middleware/requestId');
-const errorHandler = require('../middleware/errorHandler');
+import requestId = require('../middleware/requestId');
+import errorHandler = require('../middleware/errorHandler');
 
 describe('requestId middleware', () => {
   it('generates X-Request-Id when client omits header', async () => {
     const app = express();
     app.use(requestId);
-    app.get('/ping', (req, res) => {
+    app.get('/ping', (req: Request, res) => {
       res.json({ id: req.id });
     });
 
@@ -20,7 +22,7 @@ describe('requestId middleware', () => {
   it('honors incoming X-Request-Id', async () => {
     const app = express();
     app.use(requestId);
-    app.get('/ping', (req, res) => {
+    app.get('/ping', (req: Request, res) => {
       res.json({ id: req.id });
     });
 
@@ -35,7 +37,7 @@ describe('requestId middleware', () => {
     const app = express();
     app.use(requestId);
     app.get('/boom', () => {
-      const err = new Error('boom');
+      const err = new Error('boom') as Error & { statusCode?: number };
       err.statusCode = 500;
       throw err;
     });

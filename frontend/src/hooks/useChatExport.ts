@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
-import { jsPDF } from 'jspdf';
+import type { jsPDF } from 'jspdf';
 import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
 import { applyUnicodeFont } from '../utils/pdfFont';
@@ -54,14 +54,19 @@ async function renderPdfLines(doc: jsPDF, text: string): Promise<void> {
   }
 }
 
+async function createPdf(): Promise<jsPDF> {
+  const { jsPDF } = await import('jspdf');
+  return new jsPDF({ unit: 'pt', format: 'a4' });
+}
+
 export async function buildPdfFromMarkdown(markdown: string): Promise<Blob> {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const doc = await createPdf();
   await renderPdfLines(doc, markdown);
   return doc.output('blob');
 }
 
 export async function buildPdfFromMessages(messages: Message[]): Promise<Blob> {
-  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const doc = await createPdf();
   await applyUnicodeFont(doc);
   doc.setFontSize(12);
   let y = 40;

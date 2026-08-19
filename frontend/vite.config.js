@@ -26,6 +26,7 @@ function manualChunks(id) {
   if (id.includes('axios')) return 'axios';
   if (id.includes('bootstrap') || id.includes('react-bootstrap')) return 'bootstrap-ui';
   if (id.includes('react-toastify')) return 'toastify';
+  if (id.includes('jspdf')) return 'jspdf';
 
   return undefined;
 }

@@ -19,7 +19,16 @@ export type HybridFusedRow = {
   score: number;
 };
 
-/** Weighted score fusion for vector + keyword hits. */
+/** Scale FTS ranks to 0..1 relative to the max rank in this result set. */
+export function normalizeFtsRanks<T extends { rank: number }>(rows: T[]): T[] {
+  const max = rows.reduce((m, r) => Math.max(m, Number(r.rank) || 0), 0);
+  if (max <= 0) {
+    return rows.map((r) => ({ ...r, rank: 0 }));
+  }
+  return rows.map((r) => ({ ...r, rank: (Number(r.rank) || 0) / max }));
+}
+
+/** Weighted score fusion for vector + keyword hits (FTS ranks max-normalized). */
 export function hybridFuse(
   vectorRows: HybridVectorRow[],
   ftsRows: HybridFtsRow[],
@@ -27,6 +36,7 @@ export function hybridFuse(
   beta = 0.3
 ): HybridFusedRow[] {
   const byKey = new Map<string, HybridFusedRow>();
+  const scaledFts = normalizeFtsRanks(ftsRows);
 
   for (const v of vectorRows) {
     byKey.set(v.key, {
@@ -37,7 +47,7 @@ export function hybridFuse(
     });
   }
 
-  for (const f of ftsRows) {
+  for (const f of scaledFts) {
     const add = beta * f.rank;
     const existing = byKey.get(f.key);
     if (existing) {

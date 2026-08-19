@@ -4,6 +4,7 @@ jest.mock('../config/prisma', () => ({
     conversation: {
       create: jest.fn(),
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       update: jest.fn(),
     },
     message: {
@@ -23,9 +24,12 @@ jest.mock('../config/prisma', () => ({
 }));
 
 jest.mock('../services/EmbeddingService', () => ({
-  isAvailable: jest.fn(),
-  generateEmbedding: jest.fn(),
-  findRelevantChunks: jest.fn(),
+  __esModule: true,
+  default: {
+    isAvailable: jest.fn(),
+    generateEmbedding: jest.fn(),
+    findRelevantChunks: jest.fn(),
+  },
 }));
 
 jest.mock('../services/providerFactory', () => ({
@@ -63,6 +67,9 @@ describe('ChatService', () => {
       openaiKey: 'sk-test',
     });
     mockedPrisma.userPrompt.findMany.mockResolvedValue([]);
+    mockedPrisma.conversation.findUnique.mockResolvedValue({
+      title: 'Existing',
+    });
     mockedPrisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
       const tx = {
         message: mockedPrisma.message,
@@ -146,6 +153,26 @@ describe('ChatService', () => {
       expect(result.messages[0].content).toContain('a.txt');
     });
 
+    it('attaches sheet name from ## Sheet: header to sources', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        {
+          content: '## Sheet: Sales\nA,1',
+          filename: 'book.xlsx',
+          similarity: 0.7,
+        },
+      ]);
+
+      const result = await buildSystemContext(1, { ragEnabled: true }, 'q');
+
+      expect(result.sources).toEqual([
+        { filename: 'book.xlsx', similarity: 0.7, sheet: 'Sales' },
+      ]);
+      expect(result.messages[0].content).toContain('book.xlsx');
+      expect(result.messages[0].content).toContain('Sales');
+    });
+
     it('calls EmbeddingService without pool', async () => {
       mockedPrisma.userSettings.findUnique.mockResolvedValue({
         systemPrompt: 'Be helpful',
@@ -158,7 +185,7 @@ describe('ChatService', () => {
 
       const msgs = await ChatService.buildSystemContext(
         1,
-        { ragEnabled: true },
+        { ragEnabled: true, requestId: 'rid-chat' },
         'query'
       );
 
@@ -167,7 +194,7 @@ describe('ChatService', () => {
         1,
         [],
         5,
-        {},
+        { requestId: 'rid-chat' },
         'openai',
         'query'
       );
@@ -557,6 +584,40 @@ describe('ChatService', () => {
           content: 'a',
           sources: [{ filename: 'doc.txt', similarity: 0.8 }],
         }),
+      });
+    });
+
+    it('sets title from first user turn when conversation still has placeholder', async () => {
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+      mockedPrisma.conversation.findUnique.mockResolvedValue({
+        title: 'Нова розмова',
+      });
+
+      await ChatService.persistTurn(5, 'Invoice totals for March', 'ok');
+
+      expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: expect.objectContaining({
+          title: 'Invoice totals for March',
+        }),
+      });
+    });
+
+    it('does not overwrite a custom conversation title', async () => {
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+      mockedPrisma.conversation.findUnique.mockResolvedValue({
+        title: 'Already named',
+      });
+
+      await ChatService.persistTurn(5, 'Hello', 'ok');
+
+      expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: { updatedAt: expect.any(Date) },
       });
     });
 

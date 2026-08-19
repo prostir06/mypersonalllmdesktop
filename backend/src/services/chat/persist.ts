@@ -1,5 +1,6 @@
 import prisma from '../../config/prisma';
 import logger from '../../logger';
+import { conversationTitle, isPlaceholderTitle } from './ownership';
 import type { RagSource } from './types';
 
 export async function persistTurn(
@@ -33,9 +34,19 @@ export async function persistTurn(
           ...(userMessageId != null ? { parentId: userMessageId } : {}),
         },
       });
+
+      const conv = await tx.conversation.findUnique({
+        where: { id: conversationId },
+        select: { title: true },
+      });
+      const shouldTitle =
+        !opts.skipUserMessage && isPlaceholderTitle(conv?.title);
       await tx.conversation.update({
         where: { id: conversationId },
-        data: { updatedAt: new Date() },
+        data: {
+          updatedAt: new Date(),
+          ...(shouldTitle ? { title: conversationTitle(userContent) } : {}),
+        },
       });
       return assistant;
     });

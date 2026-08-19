@@ -1,22 +1,29 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
+import type { Response, NextFunction } from 'express';
+import type { AuthRequest } from '../types/express';
+import auth from '../middleware/auth';
 
 process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
 
-const authModule = require('../middleware/auth');
-const auth = authModule.default ?? authModule;
+function mockRes() {
+  return {
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn(),
+  };
+}
 
 describe('auth middleware JWT algorithms', () => {
   it('accepts HS256 tokens', () => {
-    const token = jwt.sign({ userId: 7 }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: 7 }, process.env.JWT_SECRET as string, {
       algorithm: 'HS256',
       expiresIn: '1h',
     });
     const req = {
-      header: (name) =>
+      header: (name: string) =>
         name === 'Authorization' ? `Bearer ${token}` : undefined,
-    };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    const next = jest.fn();
+    } as AuthRequest;
+    const res = mockRes() as unknown as Response;
+    const next = jest.fn() as NextFunction;
 
     auth(req, res, next);
     expect(next).toHaveBeenCalled();
@@ -27,9 +34,9 @@ describe('auth middleware JWT algorithms', () => {
     const req = {
       id: 'rid-missing-token',
       header: () => undefined,
-    };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    const next = jest.fn();
+    } as unknown as AuthRequest;
+    const res = mockRes() as unknown as Response;
+    const next = jest.fn() as NextFunction;
 
     auth(req, res, next);
 
@@ -51,11 +58,11 @@ describe('auth middleware JWT algorithms', () => {
     const noneToken = `${noneHeader}.${payload}.`;
 
     const req = {
-      header: (name) =>
+      header: (name: string) =>
         name === 'Authorization' ? `Bearer ${noneToken}` : undefined,
-    };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    const next = jest.fn();
+    } as AuthRequest;
+    const res = mockRes() as unknown as Response;
+    const next = jest.fn() as NextFunction;
 
     auth(req, res, next);
     expect(next).not.toHaveBeenCalled();
@@ -65,10 +72,11 @@ describe('auth middleware JWT algorithms', () => {
   it('includes requestId when token is invalid', () => {
     const req = {
       id: 'rid-invalid-token',
-      header: (name) => (name === 'Authorization' ? 'Bearer not-a-jwt' : undefined),
-    };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    const next = jest.fn();
+      header: (name: string) =>
+        name === 'Authorization' ? 'Bearer not-a-jwt' : undefined,
+    } as unknown as AuthRequest;
+    const res = mockRes() as unknown as Response;
+    const next = jest.fn() as NextFunction;
 
     auth(req, res, next);
 

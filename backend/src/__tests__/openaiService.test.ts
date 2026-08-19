@@ -13,12 +13,14 @@ jest.mock('../logger', () => ({
 }));
 
 import openaiService = require('../services/openaiService');
+import logger from '../logger';
 
 const { executeTool, sendOpenAIMessage, streamOpenAIMessage } = openaiService;
 
 describe('openaiService (SDK)', () => {
   beforeEach(() => {
     mockCreate.mockReset();
+    (logger.error as jest.Mock).mockClear();
     process.env.OPENAI_API_KEY = 'test-key';
   });
 
@@ -245,6 +247,19 @@ describe('openaiService (SDK)', () => {
       );
       expect(result.content).toBe('AB');
       expect(onChunk).toHaveBeenCalledTimes(2);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('UI crash')
+      );
+    });
+
+    it('logs the original stream error before throwing a generic one', async () => {
+      mockCreate.mockRejectedValue(new Error('upstream timeout'));
+      await expect(
+        streamOpenAIMessage([{ role: 'user', content: 'Hi' }])
+      ).rejects.toThrow('Failed to stream from OpenAI API');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('upstream timeout')
+      );
     });
   });
 });

@@ -1,4 +1,4 @@
-const { decodeMulterFilename } = require('../utils/multerFilename');
+import { decodeMulterFilename } from '../utils/multerFilename';
 
 describe('decodeMulterFilename', () => {
   it('keeps already-correct UTF-8 Cyrillic filenames', () => {

@@ -1,3 +1,10 @@
+jest.mock('../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+}));
+
+import logger from '../logger';
 import {
   enqueueDocumentJob,
   getDocumentJobActiveCount,
@@ -11,6 +18,7 @@ describe('documentJobQueue', () => {
 
   beforeEach(() => {
     resetDocumentJobQueue();
+    jest.clearAllMocks();
     process.env.DOCUMENT_JOB_CONCURRENCY = '1';
   });
 
@@ -60,6 +68,22 @@ describe('documentJobQueue', () => {
     await done;
     await new Promise((r) => setImmediate(r));
     expect(finished).toBe(true);
+    expect(getDocumentJobActiveCount()).toBe(0);
+  });
+
+  it('logs when a background job throws', async () => {
+    const done = new Promise<void>((resolve) => {
+      (logger.error as jest.Mock).mockImplementationOnce(() => {
+        resolve();
+      });
+    });
+    enqueueDocumentJob(async () => {
+      throw new Error('embed boom');
+    });
+    await done;
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('embed boom')
+    );
     expect(getDocumentJobActiveCount()).toBe(0);
   });
 });

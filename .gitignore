@@ -37,6 +37,10 @@ credentials.json
 **/uploads/
 backend/uploads/
 
+# Tool caches
+.eslintcache
+*.tsbuildinfo
+
 # IDE & OS Metadata
 .vscode/
 .idea/

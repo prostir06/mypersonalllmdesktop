@@ -4,7 +4,10 @@
 import { BrowserWindow, ipcMain, shell } from 'electron';
 import { resolveBackendOrigin } from './backendUrl';
 import type { ElectronNavigatePayload } from './electronBridge';
-import { isSafeExternalUrl } from './security';
+import {
+  IPC_HANDLE_CHANNELS,
+  parseOpenExternalUrl,
+} from './ipcContract';
 import {
   checkForUpdates,
   getUpdateStatus,
@@ -50,10 +53,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('electron:getBackendUrl', () => backendOrigin);
 
   ipcMain.handle('electron:openExternal', async (_event, url: unknown) => {
-    if (typeof url !== 'string' || !isSafeExternalUrl(url)) {
-      throw new Error('Invalid external URL');
-    }
-    await shell.openExternal(url);
+    const safe = parseOpenExternalUrl(url);
+    await shell.openExternal(safe);
   });
 
   ipcMain.handle('electron:isDesktopApp', () => true);
@@ -75,11 +76,7 @@ export function registerIpcHandlers(): void {
 }
 
 export function unregisterIpcHandlers(): void {
-  ipcMain.removeHandler('electron:getBackendUrl');
-  ipcMain.removeHandler('electron:openExternal');
-  ipcMain.removeHandler('electron:isDesktopApp');
-  ipcMain.removeHandler('electron:getPendingDeepLink');
-  ipcMain.removeHandler('electron:checkForUpdates');
-  ipcMain.removeHandler('electron:getUpdateStatus');
-  ipcMain.removeHandler('electron:quitAndInstall');
+  for (const channel of IPC_HANDLE_CHANNELS) {
+    ipcMain.removeHandler(channel);
+  }
 }

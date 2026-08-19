@@ -328,10 +328,27 @@ describe('EmbeddingService (Prisma)', () => {
       );
 
       expect(result).toEqual([
-        { content: 'fts only', filename: 'doc.txt', similarity: 0.6 },
+        { content: 'fts only', filename: 'doc.txt', similarity: 1 },
       ]);
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('FTS')
+      );
+    });
+
+    it('logs requestId and documentIds when Prisma rejects, then returns []', async () => {
+      mockedPrisma.$queryRawUnsafe.mockRejectedValue(new Error('db down'));
+
+      const result = await EmbeddingService.findRelevantChunks(
+        [0.1],
+        9,
+        [3, 7],
+        2,
+        { requestId: 'rid-rag-1' }
+      );
+
+      expect(result).toEqual([]);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/findRelevantChunks.*db down.*requestId=rid-rag-1.*userId=9.*documentIds=3,7/)
       );
     });
 

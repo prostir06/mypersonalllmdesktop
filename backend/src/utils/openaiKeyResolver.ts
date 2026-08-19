@@ -30,7 +30,9 @@ export async function resolveOpenAiApiKey(
         if (err instanceof EncryptionConfigError) {
           logger.warn(`resolveOpenAiApiKey: ${message}`);
         } else {
-          logger.warn(`resolveOpenAiApiKey decrypt failed for user ${userId}`);
+        logger.warn(
+          `resolveOpenAiApiKey decrypt failed for user ${userId}: ${message}`
+        );
         }
       }
     }

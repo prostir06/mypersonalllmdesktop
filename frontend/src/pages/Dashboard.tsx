@@ -79,6 +79,7 @@ const Dashboard: React.FC = () => {
       setShowNewConvModal(false);
     } catch (error) {
       console.error('Failed to create conversation:', error);
+      toast.error('Не вдалося створити розмову');
     }
   };
 
@@ -100,6 +101,7 @@ const Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
+      toast.error('Не вдалося видалити розмову');
     } finally {
       setDeleteTarget(null);
     }

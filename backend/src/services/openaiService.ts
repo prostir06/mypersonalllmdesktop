@@ -220,7 +220,11 @@ async function streamOpenAIMessage(
             ) {
               throw cbError;
             }
-            logger.error(`Помилка в onChunk коллбеку: ${cbError}`);
+            logger.error(
+              `Помилка в onChunk коллбеку: ${
+                cbError instanceof Error ? cbError.message : String(cbError)
+              }`
+            );
           }
         }
       }
@@ -236,7 +240,11 @@ async function streamOpenAIMessage(
     ) {
       throw error;
     }
-    logger.error('OpenAI Stream API error in streamOpenAIMessage');
+    logger.error(
+      `OpenAI Stream API error in streamOpenAIMessage: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw new Error('Failed to stream from OpenAI API');
   }
 }

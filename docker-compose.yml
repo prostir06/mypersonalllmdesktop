@@ -52,6 +52,8 @@ services:
         condition: service_healthy
     volumes:
       # Dev only: live source. Production override resets this so image dist/ is used.
+      # Anonymous /app/node_modules is cached separately — after adding npm deps:
+      #   docker compose up -d --build --force-recreate --renew-anon-volumes backend
       - ./backend:/app
       - /app/node_modules
     entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
