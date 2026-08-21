@@ -2,7 +2,7 @@ jest.mock('axios');
 
 import axios from 'axios';
 import { EventEmitter } from 'events';
-import ollamaService = require('../services/ollamaService');
+import ollamaService from '../services/ollamaService';
 
 const { sendOllamaMessage, streamOllamaMessage } = ollamaService;
 const mockedAxios = axios as unknown as { post: jest.Mock };

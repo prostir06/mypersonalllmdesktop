@@ -1,6 +1,6 @@
 /** Chat orchestration facade. HTTP/SSE mapping lives in chatController. */
 import logger from '../logger';
-import ProviderFactory = require('./providerFactory');
+import ProviderFactory from './providerFactory';
 import { ChatError, type ChatMessage, type ChatOptions, type SendInput } from './chat/types';
 import { ensureConversationId as ensureConversationIdImpl } from './chat/ownership';
 import { persistTurn as persistTurnImpl } from './chat/persist';

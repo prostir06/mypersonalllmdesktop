@@ -12,7 +12,7 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
-import openaiService = require('../services/openaiService');
+import openaiService from '../services/openaiService';
 import logger from '../logger';
 
 const { executeTool, sendOpenAIMessage, streamOpenAIMessage } = openaiService;

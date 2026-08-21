@@ -33,8 +33,11 @@ jest.mock('../services/EmbeddingService', () => ({
 }));
 
 jest.mock('../services/providerFactory', () => ({
-  sendMessage: jest.fn(),
-  streamMessage: jest.fn(),
+  __esModule: true,
+  default: {
+    sendMessage: jest.fn(),
+    streamMessage: jest.fn(),
+  },
 }));
 
 jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({

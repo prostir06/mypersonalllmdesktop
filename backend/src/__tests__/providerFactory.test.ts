@@ -1,32 +1,38 @@
 jest.mock('../services/openaiService', () => ({
-  sendOpenAIMessage: jest.fn().mockResolvedValue({
-    content: 'OpenAI Test Response',
-    usage: { total_tokens: 10 },
-    model: 'gpt-3.5-turbo',
-  }),
-  streamOpenAIMessage: jest
-    .fn()
-    .mockImplementation(
-      (
-        _messages: unknown,
-        model: string,
-        _options: unknown,
-        onChunk?: (t: string) => void
-      ) => {
-        if (onChunk) onChunk('Hello ');
-        if (onChunk) onChunk('World');
-        return Promise.resolve({ content: 'Hello World', model });
-      }
-    ),
+  __esModule: true,
+  default: {
+    sendOpenAIMessage: jest.fn().mockResolvedValue({
+      content: 'OpenAI Test Response',
+      usage: { total_tokens: 10 },
+      model: 'gpt-3.5-turbo',
+    }),
+    streamOpenAIMessage: jest
+      .fn()
+      .mockImplementation(
+        (
+          _messages: unknown,
+          model: string,
+          _options: unknown,
+          onChunk?: (t: string) => void
+        ) => {
+          if (onChunk) onChunk('Hello ');
+          if (onChunk) onChunk('World');
+          return Promise.resolve({ content: 'Hello World', model });
+        }
+      ),
+  },
 }));
 
 jest.mock('../services/ollamaService', () => ({
-  sendOllamaMessage: jest
-    .fn()
-    .mockResolvedValue({ content: 'Ollama Test Response', usage: {}, model: 'llama2' }),
-  streamOllamaMessage: jest
-    .fn()
-    .mockResolvedValue({ content: 'Ollama Stream Response', model: 'llama2' }),
+  __esModule: true,
+  default: {
+    sendOllamaMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Ollama Test Response', usage: {}, model: 'llama2' }),
+    streamOllamaMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Ollama Stream Response', model: 'llama2' }),
+  },
 }));
 
 jest.mock('../logger', () => ({
@@ -35,9 +41,9 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
-import ProviderFactory = require('../services/providerFactory');
-import openaiService = require('../services/openaiService');
-import ollamaService = require('../services/ollamaService');
+import ProviderFactory from '../services/providerFactory';
+import openaiService from '../services/openaiService';
+import ollamaService from '../services/ollamaService';
 
 describe('ProviderFactory', () => {
   afterEach(() => jest.clearAllMocks());

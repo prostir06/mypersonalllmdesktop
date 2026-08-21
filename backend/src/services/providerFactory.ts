@@ -1,5 +1,5 @@
-import openaiService = require('./openaiService');
-import ollamaService = require('./ollamaService');
+import openaiService from './openaiService';
+import ollamaService from './ollamaService';
 import logger from '../logger';
 
 type SendFn = (
@@ -83,4 +83,4 @@ class ProviderFactory {
   }
 }
 
-export = ProviderFactory;
+export default ProviderFactory;

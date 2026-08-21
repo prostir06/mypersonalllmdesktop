@@ -249,7 +249,7 @@ async function streamOpenAIMessage(
   }
 }
 
-export = {
+export default {
   executeTool,
   sendOpenAIMessage,
   streamOpenAIMessage,

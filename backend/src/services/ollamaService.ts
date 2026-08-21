@@ -205,7 +205,7 @@ async function streamOllamaMessage(
   }
 }
 
-export = {
+export default {
   sendOllamaMessage,
   streamOllamaMessage,
   // exported for unit tests / reuse
