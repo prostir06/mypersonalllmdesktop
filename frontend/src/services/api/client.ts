@@ -1,32 +1,12 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
-import { toast } from 'react-toastify';
-import type { AuthRefreshResponse } from '../../types/api';
-import { getAccessToken, setAccessToken } from '../authToken';
+import { getAccessToken } from '../authToken';
+import { API_URL, refreshAccessToken } from './authRefresh';
 
-export const API_URL = import.meta.env.VITE_API_URL || '/api';
+export { API_URL };
 
 interface RetryAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
 }
-
-interface QueueItem {
-  resolve: (token: string | null) => void;
-  reject: (error: unknown) => void;
-}
-
-let isRefreshing = false;
-let failedQueue: QueueItem[] = [];
-
-const processQueue = (error: unknown, token: string | null = null): void => {
-  failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -58,47 +38,14 @@ api.interceptors.response.use(
       !isAuthRefresh &&
       !isAuthLogin
     ) {
-      if (isRefreshing) {
-        return new Promise<string | null>((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            return api(originalRequest);
-          })
-          .catch((err) => Promise.reject(err));
-      }
-
       originalRequest._retry = true;
-      isRefreshing = true;
 
       try {
-        const { data } = await axios.post<AuthRefreshResponse>(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
-        setAccessToken(data.token);
-        processQueue(null, data.token);
-
-        originalRequest.headers.Authorization = `Bearer ${data.token}`;
+        const token = await refreshAccessToken();
+        originalRequest.headers.Authorization = `Bearer ${token}`;
         return api(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError, null);
-        setAccessToken(null);
-
-        const onAuthPage = ['/login', '/register'].includes(window.location.pathname);
-        if (!onAuthPage) {
-          toast.warn('Сесія закінчилася. Будь ласка, увійдіть знову.');
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
-        }
-
         return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
       }
     }
 

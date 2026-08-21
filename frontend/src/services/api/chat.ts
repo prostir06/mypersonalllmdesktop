@@ -1,6 +1,5 @@
-import axios, { AxiosResponse } from 'axios';
+import type { AxiosResponse } from 'axios';
 import type {
-  AuthRefreshResponse,
   ChatAttachmentUploadResponse,
   ChatHistoryResponse,
   ChatSearchResponse,
@@ -11,8 +10,9 @@ import type {
   StreamTokenCallback,
 } from '../../types/api';
 import { consumeSseChunk, isAbortError, readFetchErrorMessage } from '../sseParse';
-import { getAccessToken, setAccessToken } from '../authToken';
-import { API_URL, api } from './client';
+import { getAccessToken } from '../authToken';
+import { api } from './client';
+import { API_URL, refreshAccessToken } from './authRefresh';
 
 export const chatAPI = {
   sendMessage: (
@@ -67,16 +67,10 @@ export const chatAPI = {
 
     if (response.status === 401) {
       try {
-        const { data } = await axios.post<AuthRefreshResponse>(
-          `${API_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        setAccessToken(data.token);
-        response = await doFetch(data.token);
+        const token = await refreshAccessToken();
+        response = await doFetch(token);
       } catch (err) {
         console.warn('Stream session refresh failed:', err);
-        setAccessToken(null);
         throw new Error('Сесія закінчилася. Будь ласка, увійдіть знову.');
       }
     }
