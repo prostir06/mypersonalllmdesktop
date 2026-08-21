@@ -137,6 +137,7 @@ model DocumentChunk {
   documentId Int                         @map("document_id")
   chunkIndex Int                         @map("chunk_index")
   content    String                      @db.Text
+  contentTsv Unsupported("tsvector")?    @map("content_tsv")
   createdAt  DateTime                    @default(now()) @map("created_at")
   embedding  Unsupported("vector(768)")?
 
