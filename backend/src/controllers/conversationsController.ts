@@ -1,63 +1,14 @@
 import { Response } from 'express';
-import prisma from '../config/prisma';
 import logger from '../logger';
 import { parseListPagination } from '../utils/listPagination';
 import { jsonError } from '../utils/httpJson';
 import type { AuthRequest } from '../types/express';
+import * as ConversationsService from '../services/conversationsService';
 
-type ConversationRow = {
-  id: number;
-  userId: number;
-  title: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-export function parseConversationId(raw: string): number | null {
-  if (!/^\d+$/.test(raw)) return null;
-  return Number(raw);
-}
-
-export function toListItem(row: {
-  id: number;
-  title: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: row.id,
-    title: row.title,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-  };
-}
-
-export function toPublicConversation(row: ConversationRow) {
-  return {
-    id: row.id,
-    user_id: row.userId,
-    title: row.title,
-    created_at: row.createdAt,
-    updated_at: row.updatedAt,
-  };
-}
-
-export function toPublicMessage(row: {
-  role: string;
-  content: string;
-  createdAt: Date;
-}) {
-  return {
-    role: row.role,
-    content: row.content,
-    created_at: row.createdAt,
-  };
-}
-
-function resolveTitle(title: unknown): string {
-  if (typeof title === 'string' && title.trim() !== '') return title;
-  return 'Нова розмова';
-}
+export const parseConversationId = ConversationsService.parseConversationId;
+export const toListItem = ConversationsService.toListItem;
+export const toPublicConversation = ConversationsService.toPublicConversation;
+export const toPublicMessage = ConversationsService.toPublicMessage;
 
 export async function listConversations(
   req: AuthRequest,
@@ -65,19 +16,13 @@ export async function listConversations(
 ): Promise<void> {
   try {
     const { limit, offset } = parseListPagination(req.query);
-    const where = { userId: req.userId! };
-    const [rows, total] = await Promise.all([
-      prisma.conversation.findMany({
-        where,
-        orderBy: { updatedAt: 'desc' },
-        take: limit,
-        skip: offset,
-        select: { id: true, title: true, createdAt: true, updatedAt: true },
-      }),
-      prisma.conversation.count({ where }),
-    ]);
+    const { rows, total } = await ConversationsService.listForUser(
+      req.userId!,
+      limit,
+      offset
+    );
     res.json({
-      items: rows.map(toListItem),
+      items: rows.map(ConversationsService.toListItem),
       total,
       limit,
       offset,
@@ -93,24 +38,26 @@ export async function getConversation(
   req: AuthRequest,
   res: Response
 ): Promise<void> {
-  const id = parseConversationId(String(req.params.conversationId));
+  const id = ConversationsService.parseConversationId(
+    String(req.params.conversationId)
+  );
   if (id == null) {
     jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
   try {
-    const row = await prisma.conversation.findFirst({
-      where: { id, userId: req.userId! },
-    });
+    const row = await ConversationsService.getForUser(req.userId!, id);
     if (!row) {
       jsonError(res, req, 404, 'Conversation not found');
       return;
     }
-    res.json(toPublicConversation(row));
+    res.json(ConversationsService.toPublicConversation(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`GET /conversations/${req.params.conversationId} error: ${message}`);
+    logger.error(
+      `GET /conversations/${req.params.conversationId} error: ${message}`
+    );
     jsonError(res, req, 500, 'Failed to fetch conversation');
   }
 }
@@ -119,13 +66,13 @@ export async function createConversation(
   req: AuthRequest,
   res: Response
 ): Promise<void> {
-  const title = resolveTitle((req.body as { title?: unknown })?.title);
+  const title = ConversationsService.resolveTitle(
+    (req.body as { title?: unknown })?.title
+  );
 
   try {
-    const row = await prisma.conversation.create({
-      data: { userId: req.userId!, title },
-    });
-    res.status(201).json(toPublicConversation(row));
+    const row = await ConversationsService.createForUser(req.userId!, title);
+    res.status(201).json(ConversationsService.toPublicConversation(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /conversations error: ${message}`);
@@ -137,7 +84,9 @@ export async function updateConversation(
   req: AuthRequest,
   res: Response
 ): Promise<void> {
-  const id = parseConversationId(String(req.params.conversationId));
+  const id = ConversationsService.parseConversationId(
+    String(req.params.conversationId)
+  );
   if (id == null) {
     jsonError(res, req, 404, 'Conversation not found');
     return;
@@ -146,22 +95,21 @@ export async function updateConversation(
   const title = (req.body as { title?: string })?.title;
 
   try {
-    const existing = await prisma.conversation.findFirst({
-      where: { id, userId: req.userId! },
-    });
-    if (!existing) {
+    const row = await ConversationsService.updateTitleForUser(
+      req.userId!,
+      id,
+      title
+    );
+    if (!row) {
       jsonError(res, req, 404, 'Conversation not found');
       return;
     }
-
-    const row = await prisma.conversation.update({
-      where: { id },
-      data: { title },
-    });
-    res.json(toPublicConversation(row));
+    res.json(ConversationsService.toPublicConversation(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`PUT /conversations/${req.params.conversationId} error: ${message}`);
+    logger.error(
+      `PUT /conversations/${req.params.conversationId} error: ${message}`
+    );
     jsonError(res, req, 500, 'Failed to update conversation');
   }
 }
@@ -170,16 +118,16 @@ export async function deleteConversation(
   req: AuthRequest,
   res: Response
 ): Promise<void> {
-  const id = parseConversationId(String(req.params.conversationId));
+  const id = ConversationsService.parseConversationId(
+    String(req.params.conversationId)
+  );
   if (id == null) {
     jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
   try {
-    const result = await prisma.conversation.deleteMany({
-      where: { id, userId: req.userId! },
-    });
+    const result = await ConversationsService.deleteForUser(req.userId!, id);
     if (result.count === 0) {
       jsonError(res, req, 404, 'Conversation not found');
       return;
@@ -187,7 +135,9 @@ export async function deleteConversation(
     res.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    logger.error(`DELETE /conversations/${req.params.conversationId} error: ${message}`);
+    logger.error(
+      `DELETE /conversations/${req.params.conversationId} error: ${message}`
+    );
     jsonError(res, req, 500, 'Failed to delete conversation');
   }
 }
@@ -196,68 +146,31 @@ export async function exportConversation(
   req: AuthRequest,
   res: Response
 ): Promise<void> {
-  const id = parseConversationId(String(req.params.conversationId));
+  const id = ConversationsService.parseConversationId(
+    String(req.params.conversationId)
+  );
   if (id == null) {
     jsonError(res, req, 404, 'Conversation not found');
     return;
   }
 
   const formatRaw = String(req.query.format || 'md');
-  const format = formatRaw === 'json' || formatRaw === 'txt' ? formatRaw : 'md';
+  const format: ConversationsService.ExportFormat =
+    formatRaw === 'json' || formatRaw === 'txt' ? formatRaw : 'md';
 
   try {
-    const conversation = await prisma.conversation.findFirst({
-      where: { id, userId: req.userId! },
-    });
-    if (!conversation) {
+    const bundle = await ConversationsService.loadExportBundle(req.userId!, id);
+    if (!bundle) {
       jsonError(res, req, 404, 'Conversation not found');
       return;
     }
-
-    const messages = await prisma.message.findMany({
-      where: { conversationId: id },
-      orderBy: { createdAt: 'asc' },
-      select: { role: true, content: true, createdAt: true },
-    });
-
-    if (format === 'json') {
-      res.json({
-        conversation: toPublicConversation(conversation),
-        messages: messages.map(toPublicMessage),
-      });
-      return;
-    }
-
-    if (format === 'txt') {
-      const text = messages
-        .map((m: { role: string; content: string }) => `[${m.role.toUpperCase()}] ${m.content}`)
-        .join('\n\n---\n\n');
-      res.json({
-        content: text,
-        format: 'txt',
-        filename: `conversation-${id}.txt`,
-      });
-      return;
-    }
-
-    const md = [
-      `# ${conversation.title || 'Розмова'}`,
-      `> Дата: ${new Date(conversation.createdAt).toLocaleString('uk-UA')}`,
-      '',
-      ...messages.map((m: { role: string; content: string }) =>
-        [
-          `## ${m.role === 'user' ? '👤 Ви' : '🤖 Assistant'}`,
-          m.content,
-          '',
-        ].join('\n')
-      ),
-    ].join('\n');
-
-    res.json({
-      content: md,
-      format: 'md',
-      filename: `conversation-${id}.md`,
-    });
+    res.json(
+      ConversationsService.formatExport(
+        format,
+        bundle.conversation,
+        bundle.messages
+      )
+    );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(

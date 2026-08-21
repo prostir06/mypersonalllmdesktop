@@ -1,57 +1,16 @@
 import { Request, Response } from 'express';
-import axios from 'axios';
-import prisma from '../config/prisma';
 import logger from '../logger';
-import {
-  assertAllowedHttpUrlWithDns,
-  UrlNotAllowedError,
-} from '../utils/urlAllowlist';
-import { modelSupportsVision } from '../utils/modelCapabilities';
 import { jsonError } from '../utils/httpJson';
-import { numTemp } from '../utils/numTemp';
 import type { AuthRequest } from '../types/express';
+import * as ModelsService from '../services/modelsService';
 
-type LlmModelRow = {
-  id: number;
-  userId: number | null;
-  name: string;
-  modelId: string;
-  description: string | null;
-  provider: string;
-  temperature: unknown;
-  maxTokens: number;
-  isDefault: boolean;
-  createdAt: Date;
-};
-
-export function parseModelId(raw: string): number | null {
-  if (!/^\d+$/.test(raw)) return null;
-  return Number(raw);
-}
-
-export function toPublicModel(row: LlmModelRow) {
-  return {
-    id: row.id,
-    user_id: row.userId,
-    name: row.name,
-    model_id: row.modelId,
-    description: row.description,
-    provider: row.provider,
-    temperature: numTemp(row.temperature),
-    max_tokens: row.maxTokens,
-    is_default: row.isDefault,
-    created_at: row.createdAt,
-    supports_vision: modelSupportsVision(row.modelId),
-  };
-}
+export const parseModelId = ModelsService.parseModelId;
+export const toPublicModel = ModelsService.toPublicModel;
 
 export async function listModels(req: AuthRequest, res: Response): Promise<void> {
   try {
-    const rows = await prisma.llmModel.findMany({
-      where: { OR: [{ userId: req.userId! }, { isDefault: true }] },
-      orderBy: { name: 'asc' },
-    });
-    res.json(rows.map(toPublicModel));
+    const rows = await ModelsService.listForUser(req.userId!);
+    res.json(rows.map(ModelsService.toPublicModel));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /models error: ${message}`);
@@ -80,18 +39,15 @@ export async function createModel(req: AuthRequest, res: Response): Promise<void
   }
 
   try {
-    const row = await prisma.llmModel.create({
-      data: {
-        userId: req.userId!,
-        name: body.name.trim(),
-        modelId: body.modelId.trim(),
-        description: body.description,
-        temperature: body.temperature ?? 0.7,
-        maxTokens: body.maxTokens ?? 2000,
-        provider: body.provider || 'openai',
-      },
+    const row = await ModelsService.createForUser(req.userId!, {
+      name: body.name,
+      modelId: body.modelId,
+      description: body.description,
+      temperature: body.temperature,
+      maxTokens: body.maxTokens,
+      provider: body.provider,
     });
-    res.status(201).json(toPublicModel(row));
+    res.status(201).json(ModelsService.toPublicModel(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /models error: ${message}`);
@@ -100,7 +56,7 @@ export async function createModel(req: AuthRequest, res: Response): Promise<void
 }
 
 export async function updateModel(req: AuthRequest, res: Response): Promise<void> {
-  const id = parseModelId(String(req.params.modelId));
+  const id = ModelsService.parseModelId(String(req.params.modelId));
   if (id == null) {
     jsonError(res, req, 404, 'Model not found');
     return;
@@ -115,25 +71,12 @@ export async function updateModel(req: AuthRequest, res: Response): Promise<void
   };
 
   try {
-    const existing = await prisma.llmModel.findFirst({
-      where: { id, userId: req.userId! },
-    });
-    if (!existing) {
+    const row = await ModelsService.updateForUser(req.userId!, id, body);
+    if (!row) {
       jsonError(res, req, 404, 'Model not found');
       return;
     }
-
-    const row = await prisma.llmModel.update({
-      where: { id },
-      data: {
-        name: body.name,
-        description: body.description,
-        temperature: body.temperature,
-        maxTokens: body.maxTokens,
-        provider: body.provider || 'openai',
-      },
-    });
-    res.json(toPublicModel(row));
+    res.json(ModelsService.toPublicModel(row));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`PUT /models/${req.params.modelId} error: ${message}`);
@@ -142,16 +85,14 @@ export async function updateModel(req: AuthRequest, res: Response): Promise<void
 }
 
 export async function deleteModel(req: AuthRequest, res: Response): Promise<void> {
-  const id = parseModelId(String(req.params.modelId));
+  const id = ModelsService.parseModelId(String(req.params.modelId));
   if (id == null) {
     jsonError(res, req, 404, 'Model not found');
     return;
   }
 
   try {
-    const result = await prisma.llmModel.deleteMany({
-      where: { id, userId: req.userId! },
-    });
+    const result = await ModelsService.deleteForUser(req.userId!, id);
     if (result.count === 0) {
       jsonError(res, req, 404, 'Model not found');
       return;
@@ -178,65 +119,13 @@ export async function listRemoteModels(req: Request, res: Response): Promise<voi
       return;
     }
 
-    const hostUrl =
-      host ||
-      process.env.OLLAMA_API_URL ||
-      'http://127.0.0.1:11434/v1/chat/completions';
-
-    let origin: string;
-    try {
-      origin = (await assertAllowedHttpUrlWithDns(hostUrl)).origin;
-    } catch (err: unknown) {
-      if (err instanceof UrlNotAllowedError) {
-        jsonError(res, req, err.statusCode, err.message);
-        return;
-      }
-      throw err;
-    }
-
-    const candidates = [
-      `${origin}/api/tags`,
-      `${origin}/v1/models`,
-      `${origin}/models`,
-      `${origin}/v1/list`,
-      `${origin}/v1/engines`,
-    ];
-
-    let models: { id: string; name: string }[] | null = null;
-    for (const url of candidates) {
-      try {
-        // Do not follow redirects after host allowlist (SSRF).
-        const r = await axios.get(url, { timeout: 5000, maxRedirects: 0 });
-        if (r.status === 200 && r.data) {
-          const data = r.data.models || r.data.data || r.data || r.data.engines;
-          if (Array.isArray(data)) {
-            models = data.map((m: unknown) => {
-              if (typeof m === 'string') return { id: m, name: m };
-              const obj = m as {
-                name?: string;
-                id?: string;
-                model?: string;
-                engine?: string;
-              };
-              const val = obj.name || obj.id || obj.model || obj.engine || '';
-              return { id: val, name: val };
-            });
-            break;
-          }
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logger.debug(`Ollama discovery: ${url} failed: ${msg}`);
-      }
-    }
-
-    if (!models) {
-      jsonError(res, req, 502, 'Could not fetch models from Ollama host');
-      return;
-    }
-
+    const models = await ModelsService.discoverRemoteOllamaModels(host);
     res.json(models);
   } catch (error: unknown) {
+    if (error instanceof ModelsService.RemoteModelsError) {
+      jsonError(res, req, error.statusCode, error.message);
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /models/remote error: ${message}`);
     jsonError(res, req, 500, 'Failed to fetch remote models');
