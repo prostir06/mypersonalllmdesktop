@@ -1,8 +1,15 @@
 jest.mock('axios');
+jest.mock('../logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+}));
 
 import axios from 'axios';
 import { EventEmitter } from 'events';
 import ollamaService from '../services/ollamaService';
+import logger from '../logger';
 
 const { sendOllamaMessage, streamOllamaMessage } = ollamaService;
 const mockedAxios = axios as unknown as { post: jest.Mock };
@@ -163,5 +170,27 @@ describe('ollamaService', () => {
     );
     expect(onChunk).toHaveBeenCalledWith('A');
     expect(result.content).toBe('A');
+  });
+
+  it('streamOllamaMessage rejects when onChunk throws non-abort', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => {
+        ee.emit(
+          'data',
+          Buffer.from('data: {"choices":[{"delta":{"content":"A"}}]}\n')
+        );
+      });
+      return Promise.resolve({ data: ee });
+    });
+    const onChunk = jest.fn().mockImplementation(() => {
+      throw new Error('UI crash');
+    });
+    await expect(
+      streamOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2', {}, onChunk)
+    ).rejects.toThrow('UI crash');
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('onChunk')
+    );
   });
 });

@@ -25,7 +25,7 @@ export function parseEncryptionKey(raw = process.env.ENCRYPTION_KEY): Buffer {
     const buf = Buffer.from(value, 'base64');
     if (buf.length === 32) return buf;
   } catch {
-    // fall through
+    // Invalid base64 — try hex path above already failed; throw below.
   }
 
   throw new EncryptionConfigError('ENCRYPTION_KEY must be 32-byte base64 or 64 hex chars');

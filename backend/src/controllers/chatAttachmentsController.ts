@@ -69,8 +69,16 @@ export async function uploadChatAttachment(
   } finally {
     try {
       if (file.path) fs.unlinkSync(file.path);
-    } catch {
-      // temp file already removed
+    } catch (cleanupErr: unknown) {
+      const code = (cleanupErr as NodeJS.ErrnoException)?.code;
+      // ENOENT = already cleaned; other codes mean a leaked temp file.
+      if (code !== 'ENOENT') {
+        const message =
+          cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+        logger.warn(
+          `chat attachment temp cleanup failed path=${file.path}: ${message}`
+        );
+      }
     }
   }
 }

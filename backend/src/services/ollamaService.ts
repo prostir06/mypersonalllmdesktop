@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { assertAllowedHttpUrlWithDns } from '../utils/urlAllowlist';
+import logger from '../logger';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -139,8 +140,10 @@ async function streamOllamaMessage(
       const onAbort = () => {
         try {
           response.data.destroy?.();
-        } catch {
-          // ignore
+        } catch (destroyErr: unknown) {
+          const message =
+            destroyErr instanceof Error ? destroyErr.message : String(destroyErr);
+          logger.warn(`Ollama stream destroy on abort failed: ${message}`);
         }
         const err = new Error('Aborted');
         err.name = 'AbortError';
@@ -170,10 +173,35 @@ async function streamOllamaMessage(
               const token = parsed.choices[0]?.delta?.content || '';
               if (token) {
                 fullContent += token;
-                if (onChunk) onChunk(token);
+                if (onChunk) {
+                  try {
+                    onChunk(token);
+                  } catch (cbError: unknown) {
+                    if (
+                      cbError &&
+                      typeof cbError === 'object' &&
+                      ((cbError as { name?: string }).name === 'AbortError' ||
+                        (cbError as { code?: string }).code === 'ABORT_ERR')
+                    ) {
+                      reject(cbError);
+                      return;
+                    }
+                    const message =
+                      cbError instanceof Error
+                        ? cbError.message
+                        : String(cbError);
+                    logger.error(`Ollama onChunk callback error: ${message}`);
+                    reject(
+                      cbError instanceof Error
+                        ? cbError
+                        : new Error(message)
+                    );
+                    return;
+                  }
+                }
               }
             } catch {
-              // ignore partial line parse errors
+              // Incomplete SSE JSON line — wait for more bytes.
             }
           }
         }

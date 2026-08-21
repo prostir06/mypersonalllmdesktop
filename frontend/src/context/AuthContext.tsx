@@ -40,10 +40,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         setAccessToken(data.token);
         setToken(data.token);
-      } catch {
+      } catch (err: unknown) {
         if (!cancelled) {
           setAccessToken(null);
           setToken(null);
+          const status =
+            typeof err === 'object' &&
+            err !== null &&
+            'response' in err &&
+            typeof (err as { response?: { status?: unknown } }).response
+              ?.status === 'number'
+              ? (err as { response: { status: number } }).response.status
+              : undefined;
+          // 401 = no/expired refresh cookie (normal). Other failures are unexpected.
+          if (status !== 401) {
+            console.warn('Silent session refresh failed:', err);
+          }
         }
       } finally {
         if (!cancelled) setAuthReady(true);

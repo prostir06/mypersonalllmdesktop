@@ -54,6 +54,7 @@ describe('AuthProvider refresh boot', () => {
   });
 
   it('stays unauthenticated when refresh fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked(authAPI.refresh).mockRejectedValue(new Error('no cookie'));
 
     render(
@@ -67,6 +68,32 @@ describe('AuthProvider refresh boot', () => {
     });
     expect(screen.getByTestId('auth').textContent).toBe('false');
     expect(screen.getByTestId('token').textContent).toBe('');
+    expect(warn).toHaveBeenCalledWith(
+      'Silent session refresh failed:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
+  });
+
+  it('does not warn on expected 401 refresh (no cookie)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(authAPI.refresh).mockRejectedValue({
+      response: { status: 401 },
+      message: 'Unauthorized',
+    });
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ready').textContent).toBe('true');
+    });
+    expect(screen.getByTestId('auth').textContent).toBe('false');
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('clears local session when logout API fails', async () => {

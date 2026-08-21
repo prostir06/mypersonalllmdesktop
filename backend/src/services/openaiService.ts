@@ -225,6 +225,13 @@ async function streamOpenAIMessage(
                 cbError instanceof Error ? cbError.message : String(cbError)
               }`
             );
+            // Fail the stream — continuing would hide a broken UI callback.
+            const wrapped =
+              cbError instanceof Error
+                ? cbError
+                : new Error(String(cbError));
+            wrapped.name = 'StreamCallbackError';
+            throw wrapped;
           }
         }
       }
@@ -236,7 +243,8 @@ async function streamOpenAIMessage(
       error &&
       typeof error === 'object' &&
       ((error as { name?: string }).name === 'AbortError' ||
-        (error as { code?: string }).code === 'ABORT_ERR')
+        (error as { code?: string }).code === 'ABORT_ERR' ||
+        (error as { name?: string }).name === 'StreamCallbackError')
     ) {
       throw error;
     }
