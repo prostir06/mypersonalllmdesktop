@@ -137,12 +137,16 @@ export async function streamMessage(
       (token: string) => {
         writeSse(res, { type: 'token', token });
       },
-      (convId: number) => {
+      (convId: number, ragStatus?: string) => {
         // Headers after ownership/prep so 403 stays JSON (not half-open SSE)
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-        writeSse(res, { type: 'init', conversationId: convId });
+        writeSse(res, {
+          type: 'init',
+          conversationId: convId,
+          ...(ragStatus ? { ragStatus } : {}),
+        });
       }
     );
 
@@ -151,6 +155,7 @@ export async function streamMessage(
       messageId: result.messageId,
       content: result.content,
       sources: result.sources,
+      ...(result.ragStatus ? { ragStatus: result.ragStatus } : {}),
     });
     res.end();
   } catch (error: unknown) {

@@ -135,7 +135,7 @@ describe('ChatService', () => {
 
       expect(Array.isArray(result.messages)).toBe(true);
       expect(Array.isArray(result.sources)).toBe(true);
-      expect(result).toEqual({ messages: [], sources: [] });
+      expect(result).toEqual({ messages: [], sources: [], ragStatus: 'skipped' });
     });
 
     it('collects RAG chunk sources', async () => {
@@ -149,6 +149,7 @@ describe('ChatService', () => {
 
       const result = await buildSystemContext(1, { ragEnabled: true }, 'query');
 
+      expect(result.ragStatus).toBe('ok');
       expect(result.sources).toEqual([
         { filename: 'a.txt', similarity: 0.9 },
         { filename: 'b.txt', similarity: undefined },
@@ -221,12 +222,28 @@ describe('ChatService', () => {
       mockedEmbed.isAvailable.mockReturnValue(true);
       mockedEmbed.generateEmbedding.mockRejectedValue(new Error('embed fail'));
 
-      const msgs = await ChatService.buildSystemContext(
+      const result = await ChatService.buildSystemContextWithSources(
         1,
         { ragEnabled: true },
         'q'
       );
-      expect(msgs).toEqual([{ role: 'system', content: 'Keep going' }]);
+      expect(result.ragStatus).toBe('error');
+      expect(result.messages).toEqual([{ role: 'system', content: 'Keep going' }]);
+      expect(result.sources).toEqual([]);
+    });
+
+    it('sets ragStatus empty when retrieve returns no chunks', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([]);
+
+      const result = await ChatService.buildSystemContextWithSources(
+        1,
+        { ragEnabled: true },
+        'q'
+      );
+      expect(result.ragStatus).toBe('empty');
+      expect(result.sources).toEqual([]);
     });
 
     it('includes pinned user prompts in system context', async () => {

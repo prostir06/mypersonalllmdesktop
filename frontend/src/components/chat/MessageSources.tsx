@@ -1,11 +1,20 @@
 import type { RagSource } from '../../types/api';
 import { formatSimilarityPercent } from '../../utils/normalizeSimilarity';
 
-type MessageSourcesProps = {
+export type MessageSourcesProps = {
   sources: RagSource[];
+  ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
 };
 
-export function MessageSources({ sources }: MessageSourcesProps) {
+export function MessageSources({ sources, ragStatus }: MessageSourcesProps) {
+  if (ragStatus === 'error') {
+    return (
+      <div className="message-sources small text-warning mt-2">
+        Контекст RAG недоступний для цієї відповіді
+      </div>
+    );
+  }
+
   if (!sources?.length) return null;
 
   return (

@@ -49,6 +49,7 @@ class ChatService {
       convId,
       chatMessages,
       sources,
+      ragStatus,
       options,
       isRegenerate,
       regenerateFromMessageId,
@@ -84,23 +85,25 @@ class ChatService {
       timestamp: assistant.createdAt,
       usage: response.usage,
       sources,
+      ragStatus,
     };
   }
 
   static async streamMessage(
     input: SendInput,
     onToken: (token: string) => void,
-    onInit?: (conversationId: number) => void
+    onInit?: (conversationId: number, ragStatus?: string) => void
   ) {
     const {
       convId,
       chatMessages,
       sources,
+      ragStatus,
       options,
       isRegenerate,
       regenerateFromMessageId,
     } = await this.prepareMessages(input);
-    if (onInit) onInit(convId);
+    if (onInit) onInit(convId, ragStatus);
 
     const response = await ProviderFactory.streamMessage(
       input.provider || 'openai',
@@ -126,6 +129,7 @@ class ChatService {
       messageId: assistant.id,
       content: response.content,
       sources,
+      ragStatus,
     };
   }
 

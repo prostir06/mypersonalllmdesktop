@@ -239,7 +239,7 @@ cd frontend && npm run build:analyze
 - Schema source of truth: `backend/prisma/` + `prisma migrate deploy`. Docker image: `pgvector/pgvector:pg15`.
 - Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
 - Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
-- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`.
+- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `stream-stop`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`.
 - **npm audit baseline:** [docs/security-audit-baseline.md](docs/security-audit-baseline.md) (2026-08-19).
 
 ## License

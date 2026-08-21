@@ -14,11 +14,15 @@ export class SseStreamError extends Error {
 
 export type SseHandlers = {
   onToken?: (token: string) => void;
-  onInit?: (conversationId: string | number) => void;
+  onInit?: (
+    conversationId: string | number,
+    ragStatus?: 'ok' | 'empty' | 'error' | 'skipped'
+  ) => void;
   onDone?: (payload: {
     messageId?: string | number;
     content?: string;
     sources?: RagSource[];
+    ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
   }) => void;
   /** Called before SseStreamError is thrown (optional telemetry). */
   onError?: (message: string) => void;
@@ -70,7 +74,7 @@ export function consumeSseChunk(
 
     try {
       if (data.type === 'init' && handlers.onInit) {
-        safeInvoke(() => handlers.onInit!(data.conversationId));
+        safeInvoke(() => handlers.onInit!(data.conversationId, data.ragStatus));
       } else if (data.type === 'token' && handlers.onToken) {
         safeInvoke(() => handlers.onToken!(data.token));
       } else if (data.type === 'done' && handlers.onDone) {
@@ -79,6 +83,7 @@ export function consumeSseChunk(
             messageId: data.messageId,
             content: data.content,
             sources: data.sources,
+            ragStatus: data.ragStatus,
           })
         );
       } else if (data.type === 'error') {

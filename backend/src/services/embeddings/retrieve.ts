@@ -164,6 +164,6 @@ export async function findRelevantChunks(
     logger.error(
       `EmbeddingService.findRelevantChunks error: ${message} requestId=${requestId} userId=${userId} documentIds=${ids}`
     );
-    return [];
+    throw error instanceof Error ? error : new Error(message);
   }
 }

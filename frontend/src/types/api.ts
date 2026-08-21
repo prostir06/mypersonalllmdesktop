@@ -126,18 +126,26 @@ export interface ChatSearchResponse {
 }
 
 export type StreamEvent =
-  | { type: 'init'; conversationId: string | number }
+  | {
+      type: 'init';
+      conversationId: string | number;
+      ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
+    }
   | { type: 'token'; token: string }
   | {
       type: 'done';
       messageId?: string | number;
       content?: string;
       sources?: RagSource[];
+      ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
     }
   | { type: 'error'; error: string };
 
 export type StreamTokenCallback = (token: string) => void;
-export type StreamInitCallback = (conversationId: string | number) => void;
+export type StreamInitCallback = (
+  conversationId: string | number,
+  ragStatus?: 'ok' | 'empty' | 'error' | 'skipped'
+) => void;
 
 export interface ModelRecord {
   id: string | number;

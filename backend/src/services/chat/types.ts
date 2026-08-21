@@ -43,3 +43,7 @@ export type RagSource = {
   similarity?: number;
   sheet?: string;
 };
+
+/** RAG retrieval outcome for UI (additive on SSE/API). */
+export type RagStatus = 'ok' | 'empty' | 'error' | 'skipped';
+

@@ -13,6 +13,7 @@ import {
   type ChatMessage,
   type ChatOptions,
   type RagSource,
+  type RagStatus,
   type SendInput,
 } from './types';
 
@@ -20,6 +21,7 @@ export type PreparedMessages = {
   convId: number;
   chatMessages: ChatMessage[];
   sources: RagSource[];
+  ragStatus: RagStatus;
   options: ChatOptions;
   isRegenerate: boolean;
   regenerateFromMessageId?: number;
@@ -116,7 +118,7 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     regenerateFromMessageId,
     activeBranchIds(options)
   );
-  const { messages: systemMessages, sources } = await buildSystemContext(
+  const { messages: systemMessages, sources, ragStatus } = await buildSystemContext(
     input.userId,
     options,
     input.message
@@ -134,6 +136,7 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     convId,
     options,
     sources,
+    ragStatus,
     chatMessages: isRegenerate
       ? [...systemMessages, ...history]
       : [...systemMessages, ...history, currentUserMessage],

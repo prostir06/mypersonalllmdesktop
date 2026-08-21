@@ -157,6 +157,12 @@ const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+    void import('./services/documents/bootRequeue')
+      .then(({ requeueOrFailStaleOnBoot }) => requeueOrFailStaleOnBoot())
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Boot document requeue skipped: ${message}`);
+      });
   });
 }
 

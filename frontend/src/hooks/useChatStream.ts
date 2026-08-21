@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { AxiosError } from 'axios';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'react-toastify';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
 import type { ChatAttachmentPayload, Message, RagSource } from '../types/api';
@@ -147,8 +148,11 @@ export function useChatStream({
             currentStreamText += token;
             queueStreamToken(token);
           },
-          (newConvId) => {
+          (newConvId, ragStatus) => {
             if (!conversationId && onNewMessage) onNewMessage(newConvId);
+            if (ragStatus === 'error') {
+              toast.warn('Контекст RAG тимчасово недоступний');
+            }
           },
           controller.signal,
           (done) => {

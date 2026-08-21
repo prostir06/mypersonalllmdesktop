@@ -4,15 +4,20 @@ import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
-import type { ChatMessage, ChatOptions, RagSource } from './types';
+import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
 
 export async function buildSystemContext(
   userId: number,
   options: ChatOptions = {},
   userMessage = ''
-): Promise<{ messages: ChatMessage[]; sources: RagSource[] }> {
+): Promise<{
+  messages: ChatMessage[];
+  sources: RagSource[];
+  ragStatus: RagStatus;
+}> {
   const systemMessages: ChatMessage[] = [];
   const sources: RagSource[] = [];
+  let ragStatus: RagStatus = 'skipped';
 
   try {
     const settings = await prisma.userSettings.findUnique({
@@ -23,7 +28,6 @@ export async function buildSystemContext(
       systemMessages.push({ role: 'system', content: settings.systemPrompt });
     }
   } catch (err: unknown) {
-    // Chat must continue without a system prompt if settings are unavailable
     const message = err instanceof Error ? err.message : String(err);
     logger.warn(`System prompt load skipped: ${message}`);
   }
@@ -98,6 +102,7 @@ export async function buildSystemContext(
       );
 
       if (relevantChunks.length > 0) {
+        ragStatus = 'ok';
         const searchMethod =
           queryEmbedding && trimmed
             ? `hybrid (${activeProvider})`
@@ -130,12 +135,15 @@ export async function buildSystemContext(
         logger.info(
           `RAG: Added ${relevantChunks.length} relevant chunks via ${searchMethod} for user ${userId}`
         );
+      } else {
+        ragStatus = 'empty';
       }
     } catch (ragErr: unknown) {
+      ragStatus = 'error';
       const message = ragErr instanceof Error ? ragErr.message : String(ragErr);
       logger.warn(`RAG context fetch error: ${message}`);
     }
   }
 
-  return { messages: systemMessages, sources };
+  return { messages: systemMessages, sources, ragStatus };
 }

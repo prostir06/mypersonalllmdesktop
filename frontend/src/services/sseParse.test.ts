@@ -8,6 +8,16 @@ import {
 } from './sseParse';
 
 describe('consumeSseChunk', () => {
+  it('parses init ragStatus when present', () => {
+    const onInit = vi.fn();
+    consumeSseChunk(
+      '',
+      'data: {"type":"init","conversationId":12,"ragStatus":"error"}\n',
+      { onInit }
+    );
+    expect(onInit).toHaveBeenCalledWith(12, 'error');
+  });
+
   it('parses init and token events from complete lines', () => {
     const onInit = vi.fn();
     const onToken = vi.fn();
@@ -20,7 +30,7 @@ describe('consumeSseChunk', () => {
     );
 
     expect(rest).toBe('');
-    expect(onInit).toHaveBeenCalledWith(12);
+    expect(onInit).toHaveBeenCalledWith(12, undefined);
     expect(onToken.mock.calls.map((c) => c[0])).toEqual(['Hi', '!']);
   });
 

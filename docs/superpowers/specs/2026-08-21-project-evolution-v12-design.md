@@ -1,7 +1,7 @@
 # Project Evolution v12 — Design
 
 **Date:** 2026-08-21  
-**Status:** Draft (awaiting user review)  
+**Status:** Implemented (P44–P46)  
 **Parent:** v11 Implemented (P41–P43) on `master` @ `b31aebf`  
 **Scope:** P44 Module hygiene → P45 Thin boundaries + FE DRY → P46 Reliability  
 **Mix:** ~70% code quality / ~30% reliability on **existing** surfaces  

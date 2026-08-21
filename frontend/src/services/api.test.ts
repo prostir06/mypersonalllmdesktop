@@ -188,7 +188,7 @@ describe('api service wrappers', () => {
         credentials: 'include',
       }
     );
-    expect(onInit).toHaveBeenCalledWith(12);
+    expect(onInit).toHaveBeenCalledWith(12, undefined);
     expect(onToken).toHaveBeenCalledWith('Hi');
     expect(onDone).toHaveBeenCalledWith({
       messageId: 99,
