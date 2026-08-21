@@ -21,4 +21,4 @@ router.get('/:conversationId', auth, getConversation);
 router.put('/:conversationId', auth, updateConversation);
 router.delete('/:conversationId', auth, deleteConversation);
 
-export = router;
+export default router;

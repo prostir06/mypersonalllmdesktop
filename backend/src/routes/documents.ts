@@ -69,4 +69,4 @@ router.post('/:id/retry', auth, retryDocument);
 router.get('/:id', auth, getDocument);
 router.delete('/:id', auth, deleteDocument);
 
-export = router;
+export default router;

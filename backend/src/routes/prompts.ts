@@ -19,4 +19,4 @@ router.post('/', auth, validatePromptCreate, createPrompt);
 router.put('/:promptId', auth, validatePromptUpdate, updatePrompt);
 router.delete('/:promptId', auth, validatePromptId, deletePrompt);
 
-export = router;
+export default router;

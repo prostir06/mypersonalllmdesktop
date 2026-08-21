@@ -3,6 +3,9 @@
  */
 const request = require('supertest');
 
+process.env.JWT_SECRET =
+  process.env.JWT_SECRET || 'test-secret-at-least-32-chars-long!!';
+
 jest.mock('../config/prisma', () => ({
   __esModule: true,
   default: {
@@ -21,7 +24,7 @@ jest.mock('../config/prisma', () => ({
   },
 }));
 
-import app = require('../server');
+import app from '../server';
 
 describe('API Integration & Health Tests', () => {
   it('GET /api/health should return health response with required fields', async () => {

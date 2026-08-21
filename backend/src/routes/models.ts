@@ -22,4 +22,4 @@ router.post('/', auth, validateModelCreate, createModel);
 router.put('/:modelId', auth, validateModelUpdate, updateModel);
 router.delete('/:modelId', auth, validateModelId, deleteModel);
 
-export = router;
+export default router;

@@ -8,4 +8,4 @@ const router = express.Router();
 router.get('/me', auth, getMe);
 router.put('/me', auth, validateUserUpdate, updateMe);
 
-export = router;
+export default router;

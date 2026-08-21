@@ -2,6 +2,7 @@ import prisma from '../../config/prisma';
 import logger from '../../logger';
 import { conversationTitle, isPlaceholderTitle } from './ownership';
 import type { RagSource } from './types';
+import type { Prisma } from '@prisma/client';
 
 export async function persistTurn(
   conversationId: number,
@@ -15,7 +16,7 @@ export async function persistTurn(
 ): Promise<{ id: number; createdAt: Date }> {
   const { sources } = opts;
   try {
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let userMessageId = opts.regenerateFromMessageId;
 
       if (!opts.skipUserMessage) {
@@ -48,7 +49,7 @@ export async function persistTurn(
           ...(shouldTitle ? { title: conversationTitle(userContent) } : {}),
         },
       });
-      return assistant;
+      return { id: assistant.id, createdAt: assistant.createdAt };
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

@@ -8,6 +8,15 @@ import dotenv from 'dotenv';
 import logger from './logger';
 import errorHandler from './middleware/errorHandler';
 import requestId from './middleware/requestId';
+import authRoutes from './routes/auth';
+import chatRoutes from './routes/chat';
+import modelsRoutes from './routes/models';
+import settingsRoutes from './routes/settings';
+import conversationsRoutes from './routes/conversations';
+import usersRoutes from './routes/users';
+import documentsRoutes from './routes/documents';
+import promptsRoutes from './routes/prompts';
+import prisma from './config/prisma';
 import './types/express';
 
 dotenv.config();
@@ -78,18 +87,17 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // API Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/chat', require('./routes/chat'));
-app.use('/api/models', require('./routes/models'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/conversations', require('./routes/conversations'));
-app.use('/api/users', require('./routes/users'));
-app.use('/api/documents', require('./routes/documents'));
-app.use('/api/prompts', require('./routes/prompts'));
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/models', modelsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/conversations', conversationsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/documents', documentsRoutes);
+app.use('/api/prompts', promptsRoutes);
 
 // Health check endpoint - DB ping via Prisma (same DATABASE_URL as app)
 app.get('/api/health', async (_req: Request, res: Response) => {
-  const prisma = require('./config/prisma').default || require('./config/prisma');
   const startTime = process.hrtime.bigint();
 
   let dbStatus = 'ok';
@@ -152,4 +160,4 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
-export = app;
+export default app;

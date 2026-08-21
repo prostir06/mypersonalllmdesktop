@@ -51,4 +51,4 @@ router.post(
 router.get('/history/:conversationId', auth, validateChatHistory, getHistory);
 router.get('/search', auth, validateChatSearch, searchMessages);
 
-export = router;
+export default router;

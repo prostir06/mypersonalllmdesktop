@@ -34,4 +34,4 @@ router.post(
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 
-export = router;
+export default router;

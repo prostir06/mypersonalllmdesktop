@@ -12,4 +12,4 @@ const router = express.Router();
 router.get('/', optionalAuth, getSettings);
 router.put('/', auth, validateSettingsUpdate, handleValidationErrors, updateSettings);
 
-export = router;
+export default router;
