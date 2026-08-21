@@ -21,4 +21,4 @@ const optionalAuth = (req: AuthRequest, _res: Response, next: NextFunction): voi
   next();
 };
 
-export = optionalAuth;
+export default optionalAuth;

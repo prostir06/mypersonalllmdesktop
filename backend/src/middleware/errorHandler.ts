@@ -31,4 +31,4 @@ const errorHandler = (
   });
 };
 
-export = errorHandler;
+export default errorHandler;

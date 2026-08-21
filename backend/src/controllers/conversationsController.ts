@@ -230,7 +230,7 @@ export async function exportConversation(
 
     if (format === 'txt') {
       const text = messages
-        .map((m) => `[${m.role.toUpperCase()}] ${m.content}`)
+        .map((m: { role: string; content: string }) => `[${m.role.toUpperCase()}] ${m.content}`)
         .join('\n\n---\n\n');
       res.json({
         content: text,
@@ -244,7 +244,7 @@ export async function exportConversation(
       `# ${conversation.title || 'Розмова'}`,
       `> Дата: ${new Date(conversation.createdAt).toLocaleString('uk-UA')}`,
       '',
-      ...messages.map((m) =>
+      ...messages.map((m: { role: string; content: string }) =>
         [
           `## ${m.role === 'user' ? '👤 Ви' : '🤖 Assistant'}`,
           m.content,

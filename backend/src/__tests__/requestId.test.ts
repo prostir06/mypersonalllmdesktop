@@ -2,8 +2,8 @@ import express from 'express';
 import type { Request } from 'express';
 
 const request = require('supertest');
-import requestId = require('../middleware/requestId');
-import errorHandler = require('../middleware/errorHandler');
+import requestId from '../middleware/requestId';
+import errorHandler from '../middleware/errorHandler';
 
 describe('requestId middleware', () => {
   it('generates X-Request-Id when client omits header', async () => {

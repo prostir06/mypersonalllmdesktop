@@ -15,4 +15,4 @@ function requestId(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-export = requestId;
+export default requestId;

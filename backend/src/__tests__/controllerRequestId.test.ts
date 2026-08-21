@@ -26,7 +26,7 @@ jest.mock('../config/prisma', () => ({
 }));
 
 import prisma from '../config/prisma';
-import requestId = require('../middleware/requestId');
+import requestId from '../middleware/requestId';
 import authRouter from '../routes/auth';
 import conversationsRouter from '../routes/conversations';
 import modelsRouter from '../routes/models';
