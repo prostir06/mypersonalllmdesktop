@@ -107,13 +107,14 @@ describe('ChatService', () => {
         parentId: i % 2 === 1 ? i : null,
         createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)),
       }));
-      mockedPrisma.message.findMany.mockResolvedValue(rows);
+      mockedPrisma.message.findMany.mockResolvedValue([...rows].reverse());
 
       const msgs = await ChatService.loadRecentMessages(1);
 
       expect(mockedPrisma.message.findMany).toHaveBeenCalledWith({
         where: { conversationId: 1 },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' },
+        take: expect.any(Number),
         select: expect.objectContaining({
           id: true,
           role: true,
@@ -123,6 +124,17 @@ describe('ChatService', () => {
       });
       expect(msgs.length).toBeLessThanOrEqual(50);
       expect(msgs.at(-1)?.content).toBe('m54');
+    });
+
+    it('loadRecentMessages caps raw rows via take', async () => {
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      await ChatService.loadRecentMessages(1);
+      expect(mockedPrisma.message.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: expect.any(Number),
+          orderBy: { createdAt: 'desc' },
+        })
+      );
     });
   });
 

@@ -1,6 +1,10 @@
 import axios from 'axios';
 import logger from '../../logger';
 import { resolveOllamaEmbeddingsUrl } from '../../utils/ollamaEmbeddingsUrl';
+import {
+  getOllamaEmbedConcurrency,
+  mapWithConcurrency,
+} from '../../utils/mapWithConcurrency';
 import { UrlNotAllowedError } from '../../utils/urlAllowlist';
 import { OLLAMA_EMBED_MODEL } from './types';
 
@@ -57,14 +61,13 @@ export class OllamaEmbeddingProvider {
   ): Promise<(number[] | null)[]> {
     if (texts.length === 0) return [];
 
-    const embeddings: (number[] | null)[] = [];
-    for (const text of texts) {
-      const embedding = await this.generateEmbedding(text, ollamaHost);
-      embeddings.push(embedding);
-    }
+    const concurrency = getOllamaEmbedConcurrency();
+    const embeddings = await mapWithConcurrency(texts, concurrency, (text) =>
+      this.generateEmbedding(text, ollamaHost)
+    );
 
     logger.info(
-      `OllamaEmbeddingProvider: Generated ${embeddings.filter(Boolean).length}/${texts.length} embeddings`
+      `OllamaEmbeddingProvider: Generated ${embeddings.filter(Boolean).length}/${texts.length} embeddings (concurrency=${concurrency})`
     );
     return embeddings;
   }

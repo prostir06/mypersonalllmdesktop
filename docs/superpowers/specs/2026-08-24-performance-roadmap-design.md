@@ -1,7 +1,7 @@
 # Project Evolution — Performance Roadmap & Optimization Backlog
 
 **Date:** 2026-08-24  
-**Status:** Approved  
+**Status:** Approved — P0 wave implemented on `feature/perf-p0`  
 **Parent:** v12 Implemented (P44–P46) on `master` @ `44819bb`  
 **Scope:** Full-project analysis after v12 + **metric-gated** backlog for development and code optimization  
 **Primary focus:** Performance (TTFT, indexing, history, FE)  

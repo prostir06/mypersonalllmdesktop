@@ -7,14 +7,20 @@ import {
 } from '../conversationHistory';
 import { ChatError } from './types';
 
+export function getChatHistoryRawCap(): number {
+  const n = parseInt(process.env.CHAT_HISTORY_RAW_CAP || '500', 10);
+  return Number.isFinite(n) && n >= 50 ? Math.min(n, 5000) : 500;
+}
+
 /** Newest 50 linear turns (branch-aware), oldest->newest for the provider. */
 export async function loadRecentMessages(
   conversationId: number,
   activeBranchIds?: Record<number, number>
 ): Promise<Array<{ role: string; content: string }>> {
-  const rows = await prisma.message.findMany({
+  const rowsDesc = await prisma.message.findMany({
     where: { conversationId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
+    take: getChatHistoryRawCap(),
     select: {
       id: true,
       role: true,
@@ -24,7 +30,11 @@ export async function loadRecentMessages(
       sources: true,
     },
   });
-  const linear = buildLinearHistory(rows as unknown as RawMessage[], activeBranchIds);
+  const rows = rowsDesc.slice().reverse();
+  const linear = buildLinearHistory(
+    rows as unknown as RawMessage[],
+    activeBranchIds
+  );
   return toProviderMessages(linear, 50);
 }
 

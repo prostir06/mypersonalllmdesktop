@@ -66,4 +66,25 @@ describe('OllamaEmbeddingProvider', () => {
       )
     ).rejects.toThrow(UrlNotAllowedError);
   });
+
+  it('generateBatchEmbeddings runs with bounded concurrency and preserves order', async () => {
+    let active = 0;
+    let maxActive = 0;
+    mockedAxios.post = jest.fn().mockImplementation(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((r) => setTimeout(r, 30));
+      active -= 1;
+      return { data: { embedding: [1, 2] } };
+    });
+    process.env.OLLAMA_EMBED_CONCURRENCY = '2';
+    const out = await OllamaEmbeddingProvider.generateBatchEmbeddings(
+      ['a', 'b', 'c', 'd'],
+      'http://127.0.0.1:11434/v1/chat/completions'
+    );
+    expect(out).toHaveLength(4);
+    expect(out.every((e) => Array.isArray(e))).toBe(true);
+    expect(maxActive).toBeLessThanOrEqual(2);
+    expect(maxActive).toBeGreaterThan(1);
+  });
 });
