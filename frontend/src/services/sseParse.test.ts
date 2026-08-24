@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  cancelStreamReader,
   consumeSseChunk,
   isAbortError,
   isSseStreamError,
@@ -99,22 +100,21 @@ describe('consumeSseChunk', () => {
     expect(onError).toHaveBeenCalledWith('provider boom');
   });
 
-  it('continues when a handler throws', () => {
+  it('warns and rethrows when a handler throws', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const onToken = vi.fn()
-      .mockImplementationOnce(() => {
-        throw new Error('ui boom');
-      })
-      .mockImplementationOnce(() => {});
+    const onToken = vi.fn().mockImplementation(() => {
+      throw new Error('ui boom');
+    });
 
-    const rest = consumeSseChunk(
-      '',
-      'data: {"type":"token","token":"A"}\ndata: {"type":"token","token":"B"}\n',
-      { onToken }
-    );
+    expect(() =>
+      consumeSseChunk(
+        '',
+        'data: {"type":"token","token":"A"}\ndata: {"type":"token","token":"B"}\n',
+        { onToken }
+      )
+    ).toThrow('ui boom');
 
-    expect(onToken).toHaveBeenCalledTimes(2);
-    expect(rest).toBe('');
+    expect(onToken).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith('SSE handler error:', expect.any(Error));
     warn.mockRestore();
   });
@@ -154,6 +154,7 @@ describe('readFetchErrorMessage', () => {
   });
 
   it('falls back to status when error body cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const response = {
       status: 503,
       text: () => Promise.reject(new Error('body consumed')),
@@ -162,5 +163,33 @@ describe('readFetchErrorMessage', () => {
     await expect(readFetchErrorMessage(response)).resolves.toBe(
       'HTTP error! status: 503'
     );
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to read error response body:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
+  });
+});
+
+describe('cancelStreamReader', () => {
+  it('swallows cancel success without warn', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await cancelStreamReader({ cancel: async () => undefined });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('warns when cancel rejects', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await cancelStreamReader({
+      cancel: async () => {
+        throw new Error('already closed');
+      },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      'Stream reader cancel failed:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
   });
 });

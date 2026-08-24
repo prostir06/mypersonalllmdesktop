@@ -9,7 +9,7 @@ import type {
   StreamInitCallback,
   StreamTokenCallback,
 } from '../../types/api';
-import { consumeSseChunk, isAbortError, readFetchErrorMessage } from '../sseParse';
+import { consumeSseChunk, isAbortError, readFetchErrorMessage, cancelStreamReader } from '../sseParse';
 import { getAccessToken } from '../authToken';
 import { api } from './client';
 import { API_URL, refreshAccessToken } from './authRefresh';
@@ -90,7 +90,7 @@ export const chatAPI = {
     try {
       while (true) {
         if (signal?.aborted) {
-          await reader.cancel();
+          await cancelStreamReader(reader);
           throw new DOMException('Aborted', 'AbortError');
         }
 
@@ -109,20 +109,12 @@ export const chatAPI = {
       }
     } catch (err) {
       if (signal?.aborted || isAbortError(err)) {
-        try {
-          await reader.cancel();
-        } catch {
-          // Reader already closed
-        }
+        await cancelStreamReader(reader);
         throw isAbortError(err)
           ? err
           : new DOMException('Aborted', 'AbortError');
       }
-      try {
-        await reader.cancel();
-      } catch {
-        // ignore
-      }
+      await cancelStreamReader(reader);
       throw err;
     }
   },

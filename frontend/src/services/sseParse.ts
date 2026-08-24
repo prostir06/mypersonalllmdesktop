@@ -28,19 +28,11 @@ export type SseHandlers = {
   onError?: (message: string) => void;
 };
 
-function safeInvoke(fn: () => void): void {
-  try {
-    fn();
-  } catch (err) {
-    // Handler bugs must not kill the SSE parse loop, but surface them for debugging.
-    console.warn('SSE handler error:', err);
-  }
-}
-
 /**
  * Append a chunk to the SSE buffer and dispatch complete `data:` events.
  * Returns the leftover incomplete buffer (partial line).
  * Throws {@link SseStreamError} when the server reports a stream error.
+ * Handler exceptions are logged then rethrown — continuing would hide UI bugs.
  */
 export function consumeSseChunk(
   buffer: string,
@@ -68,37 +60,36 @@ export function consumeSseChunk(
     try {
       data = JSON.parse(dataStr) as StreamEvent;
     } catch {
-      // Partial / non-JSON payloads — wait for more bytes
+      // Incomplete / non-JSON SSE line — wait for more bytes.
       continue;
     }
 
     try {
       if (data.type === 'init' && handlers.onInit) {
-        safeInvoke(() => handlers.onInit!(data.conversationId, data.ragStatus));
+        handlers.onInit(data.conversationId, data.ragStatus);
       } else if (data.type === 'token' && handlers.onToken) {
-        safeInvoke(() => handlers.onToken!(data.token));
+        handlers.onToken(data.token);
       } else if (data.type === 'done' && handlers.onDone) {
-        safeInvoke(() =>
-          handlers.onDone!({
-            messageId: data.messageId,
-            content: data.content,
-            sources: data.sources,
-            ragStatus: data.ragStatus,
-          })
-        );
+        handlers.onDone({
+          messageId: data.messageId,
+          content: data.content,
+          sources: data.sources,
+          ragStatus: data.ragStatus,
+        });
       } else if (data.type === 'error') {
         const message =
           typeof data.error === 'string' && data.error
             ? data.error
             : 'Stream error';
         if (handlers.onError) {
-          safeInvoke(() => handlers.onError!(message));
+          handlers.onError(message);
         }
         throw new SseStreamError(message);
       }
     } catch (err) {
       if (err instanceof SseStreamError) throw err;
-      console.warn('SSE dispatch error:', err);
+      console.warn('SSE handler error:', err);
+      throw err;
     }
   }
 
@@ -140,8 +131,20 @@ export async function readFetchErrorMessage(
     } catch {
       return text.slice(0, 200);
     }
-  } catch {
-    // Body already consumed or network glitch while reading error text
+  } catch (err) {
+    // Body already consumed or network glitch while reading error text.
+    console.warn('Failed to read error response body:', err);
   }
   return fallback;
+}
+
+/** Cancel a stream reader; warn if cancel itself fails (already closed, etc.). */
+export async function cancelStreamReader(reader: {
+  cancel: () => Promise<void>;
+}): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch (err) {
+    console.warn('Stream reader cancel failed:', err);
+  }
 }
