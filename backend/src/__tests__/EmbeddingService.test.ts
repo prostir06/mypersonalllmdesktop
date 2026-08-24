@@ -260,31 +260,38 @@ describe('EmbeddingService (Prisma)', () => {
     });
 
     it('uses hybrid vector+FTS when queryText and embedding provided', async () => {
-      mockedPrisma.$queryRawUnsafe
-        .mockResolvedValueOnce([{ '?column?': 1 }])
-        .mockResolvedValueOnce([
-          {
-            chunk_id: 1,
-            content: 'vector text',
-            filename: 'doc2.txt',
-            similarity: 0.95,
-          },
-        ])
-        .mockResolvedValueOnce([{ '?column?': 1 }])
-        .mockResolvedValueOnce([
-          {
-            chunk_id: 1,
-            content: 'vector text',
-            filename: 'doc2.txt',
-            rank: 0.5,
-          },
-          {
-            chunk_id: 2,
-            content: 'keyword hit',
-            filename: 'doc3.txt',
-            rank: 0.8,
-          },
-        ]);
+      mockedPrisma.$queryRawUnsafe.mockImplementation((sql: string) => {
+        if (sql.includes('information_schema.columns')) {
+          return Promise.resolve([{ '?column?': 1 }]);
+        }
+        if (sql.includes('<=>')) {
+          return Promise.resolve([
+            {
+              chunk_id: 1,
+              content: 'vector text',
+              filename: 'doc2.txt',
+              similarity: 0.95,
+            },
+          ]);
+        }
+        if (sql.includes('plainto_tsquery')) {
+          return Promise.resolve([
+            {
+              chunk_id: 1,
+              content: 'vector text',
+              filename: 'doc2.txt',
+              rank: 0.5,
+            },
+            {
+              chunk_id: 2,
+              content: 'keyword hit',
+              filename: 'doc3.txt',
+              rank: 0.8,
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
 
       const result = await EmbeddingService.findRelevantChunks(
         [0.1, 0.2],
@@ -297,11 +304,59 @@ describe('EmbeddingService (Prisma)', () => {
       );
 
       expect(result.length).toBeGreaterThan(0);
-      const ftsSql = mockedPrisma.$queryRawUnsafe.mock.calls[3][0] as string;
-      expect(ftsSql).toContain('plainto_tsquery');
+      const sqls = mockedPrisma.$queryRawUnsafe.mock.calls.map((c) =>
+        String(c[0])
+      );
+      expect(sqls.some((s) => s.includes('<=>'))).toBe(true);
+      expect(sqls.some((s) => s.includes('plainto_tsquery'))).toBe(true);
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('hybrid')
       );
+    });
+
+    it('runs vector and FTS paths for hybrid input (both queried)', async () => {
+      mockedPrisma.$queryRawUnsafe.mockImplementation((sql: string) => {
+        if (sql.includes('information_schema.columns')) {
+          return Promise.resolve([{ '?column?': 1 }]);
+        }
+        if (sql.includes('<=>')) {
+          return Promise.resolve([
+            {
+              chunk_id: 1,
+              content: 'v',
+              filename: 'a.txt',
+              similarity: 0.9,
+            },
+          ]);
+        }
+        if (sql.includes('plainto_tsquery')) {
+          return Promise.resolve([
+            {
+              chunk_id: 2,
+              content: 'f',
+              filename: 'b.txt',
+              rank: 0.5,
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await EmbeddingService.findRelevantChunks(
+        [0.1, 0.2],
+        1,
+        [],
+        5,
+        {},
+        'openai',
+        'hello world'
+      );
+      expect(result.length).toBeGreaterThan(0);
+      const sqls = mockedPrisma.$queryRawUnsafe.mock.calls.map((c) =>
+        String(c[0])
+      );
+      expect(sqls.some((s) => s.includes('<=>'))).toBe(true);
+      expect(sqls.some((s) => /plainto_tsquery/i.test(s))).toBe(true);
     });
 
     it('uses FTS when embeddings unavailable but query text provided', async () => {

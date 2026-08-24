@@ -76,21 +76,25 @@ export async function findRelevantChunks(
     const trimmed = queryText?.trim() || '';
     const hasPgVector = await hasEmbeddingColumn();
 
-    let vectorRows: VectorRow[] = [];
-    if (hasPgVector && queryEmbedding) {
-      vectorRows = await queryVectorRows(
-        queryEmbedding,
-        userId,
-        documentIds,
-        limit,
-        embeddingProvider
-      );
-    }
+    const vectorPromise =
+      hasPgVector && queryEmbedding
+        ? queryVectorRows(
+            queryEmbedding,
+            userId,
+            documentIds,
+            limit,
+            embeddingProvider
+          )
+        : Promise.resolve([] as VectorRow[]);
 
-    let ftsRows: FtsRow[] = [];
-    if (trimmed) {
-      ftsRows = await queryFtsRows(trimmed, userId, documentIds, limit);
-    }
+    const ftsPromise = trimmed
+      ? queryFtsRows(trimmed, userId, documentIds, limit)
+      : Promise.resolve([] as FtsRow[]);
+
+    const [vectorRows, ftsRows] = await Promise.all([
+      vectorPromise,
+      ftsPromise,
+    ]);
 
     if (trimmed && queryEmbedding && vectorRows.length > 0) {
       const fused = hybridFuse(
