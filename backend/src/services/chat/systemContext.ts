@@ -20,26 +20,35 @@ export async function buildSystemContext(
   let ragStatus: RagStatus = 'skipped';
 
   try {
-    const settings = await prisma.userSettings.findUnique({
-      where: { userId },
-      select: { systemPrompt: true },
-    });
-    if (settings?.systemPrompt) {
-      systemMessages.push({ role: 'system', content: settings.systemPrompt });
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`System prompt load skipped: ${message}`);
-  }
+    const [settingsResult, pinnedResult] = await Promise.all([
+      prisma.userSettings
+        .findUnique({
+          where: { userId },
+          select: { systemPrompt: true },
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`System prompt load skipped: ${message}`);
+          return null;
+        }),
+      prisma.userPrompt
+        .findMany({
+          where: { userId, isPinned: true },
+          orderBy: { createdAt: 'desc' },
+          select: { prompt: true },
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`Pinned prompts load skipped: ${message}`);
+          return [] as Array<{ prompt: string }>;
+        }),
+    ]);
 
-  try {
-    const pinnedPrompts = await prisma.userPrompt.findMany({
-      where: { userId, isPinned: true },
-      orderBy: { createdAt: 'desc' },
-      select: { prompt: true },
-    });
-    if (pinnedPrompts.length > 0) {
-      const pinnedBlock = pinnedPrompts
+    if (settingsResult?.systemPrompt) {
+      systemMessages.push({ role: 'system', content: settingsResult.systemPrompt });
+    }
+    if (pinnedResult.length > 0) {
+      const pinnedBlock = pinnedResult
         .map((p: { prompt: string }) => p.prompt)
         .join('\n\n---\n\n');
       systemMessages.push({
@@ -49,7 +58,7 @@ export async function buildSystemContext(
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`Pinned prompts load skipped: ${message}`);
+    logger.warn(`System context preamble load skipped: ${message}`);
   }
 
   const attachments = Array.isArray(options.attachments)

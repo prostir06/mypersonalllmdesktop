@@ -138,6 +138,24 @@ describe('ChatService', () => {
       expect(result).toEqual({ messages: [], sources: [], ragStatus: 'skipped' });
     });
 
+    it('includes system prompt and pinned prompts together', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'SYS',
+      });
+      mockedPrisma.userPrompt.findMany.mockResolvedValue([{ prompt: 'PIN' }]);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const result = await buildSystemContext(1, {}, 'hi');
+      const contents = result.messages.map((m) =>
+        typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+      );
+      const sysIdx = contents.findIndex((c: string) => c.includes('SYS'));
+      const pinIdx = contents.findIndex((c: string) => c.includes('PIN'));
+      expect(sysIdx).toBeGreaterThanOrEqual(0);
+      expect(pinIdx).toBeGreaterThanOrEqual(0);
+      expect(sysIdx).toBeLessThan(pinIdx);
+    });
+
     it('collects RAG chunk sources', async () => {
       mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
       mockedEmbed.isAvailable.mockReturnValue(true);
