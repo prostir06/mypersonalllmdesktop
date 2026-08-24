@@ -14,7 +14,8 @@
     "audit:ci": "node scripts/audit-ci.cjs",
     "prisma:generate": "prisma generate --config prisma/prisma.config.ts",
     "prisma:studio": "prisma studio --config prisma/prisma.config.ts",
-    "prisma:migrate:status": "prisma migrate status --config prisma/prisma.config.ts"
+    "prisma:migrate:status": "prisma migrate status --config prisma/prisma.config.ts",
+    "perf:baseline": "node -r ts-node/register scripts/perf-baseline.ts"
   },
   "keywords": [
     "llm",
