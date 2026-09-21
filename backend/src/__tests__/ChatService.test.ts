@@ -109,6 +109,20 @@ describe('ChatService', () => {
       ).rejects.toMatchObject({ statusCode: 404 });
       expect(mockedPrisma.conversation.create).not.toHaveBeenCalled();
     });
+
+    it('accepts numeric string conversationId from JSON/URL clients', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 41 });
+      const id = await ChatService.ensureConversationId(
+        1,
+        '41' as unknown as number,
+        'Вітаю'
+      );
+      expect(id).toBe(41);
+      expect(mockedPrisma.conversation.findFirst).toHaveBeenCalledWith({
+        where: { id: 41, userId: 1 },
+        select: { id: true },
+      });
+    });
   });
 
   describe('loadRecentMessages', () => {

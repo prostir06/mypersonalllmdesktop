@@ -20,7 +20,8 @@ export type ChatOptions = {
 
 export type SendInput = {
   userId: number;
-  conversationId?: number;
+  /** Accept string — FE may pass URL/query ids before Number coercion. */
+  conversationId?: number | string;
   message: string;
   model?: string;
   provider?: string;

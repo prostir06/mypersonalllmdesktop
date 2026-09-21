@@ -27,24 +27,26 @@ export function isPlaceholderTitle(title: string | null | undefined): boolean {
 
 export async function ensureConversationId(
   userId: number,
-  conversationId: number | undefined,
+  conversationId: number | string | undefined | null,
   message: string
 ): Promise<number> {
   const prisma = getPrisma();
 
-  if (conversationId == null) {
+  if (conversationId == null || conversationId === '') {
     const created = await prisma.conversation.create({
       data: { userId, title: conversationTitle(message) },
     });
     return created.id;
   }
 
-  if (!Number.isInteger(conversationId) || conversationId <= 0) {
+  // JSON/URL clients often send ids as strings; Number.isInteger("41") is false.
+  const id = Number(conversationId);
+  if (!Number.isInteger(id) || id <= 0) {
     throw new ChatError(404, 'Conversation not found');
   }
 
   const owned = await prisma.conversation.findFirst({
-    where: { id: conversationId, userId },
+    where: { id, userId },
     select: { id: true },
   });
   if (!owned) {

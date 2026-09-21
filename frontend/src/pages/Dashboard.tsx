@@ -31,7 +31,8 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     const cid = searchParams.get('conversation');
     if (cid && /^\d+$/.test(cid)) {
-      setActiveConversation(cid);
+      // Keep numeric id so /chat/stream body matches backend Number.isInteger checks.
+      setActiveConversation(Number(cid));
     }
   }, [searchParams]);
 
