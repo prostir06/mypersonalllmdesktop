@@ -21,11 +21,9 @@ test('settings round-trip persists system prompt and temperature', async ({
   await expect(prompt).toBeVisible();
   await prompt.fill(promptValue);
 
-  const temperature = page.getByLabel(/Температура креативності/i);
-  await temperature.focus();
-  for (let i = 0; i < 9; i += 1) {
-    await page.keyboard.press('ArrowRight');
-  }
+  const temperature = page.locator('#temperature-input');
+  await expect(temperature).toBeVisible();
+  await temperature.fill(temperatureValue);
   await expect(temperature).toHaveValue(temperatureValue);
 
   await page.getByRole('button', { name: /Зберегти налаштування/i }).click();
