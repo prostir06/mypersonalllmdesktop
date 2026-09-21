@@ -4,6 +4,9 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
+| [2026-09-21-error-handling-hygiene-design.md](./2026-09-21-error-handling-hygiene-design.md) | Done — inventory G=0 ([inventory](./2026-09-21-error-handling-inventory.md)) |
+| [2026-09-21-project-evolution-v14-memory-ux-e2e-design.md](./2026-09-21-project-evolution-v14-memory-ux-e2e-design.md) | Implemented (P47–P48; P49 E2E runtime deferred) |
+| [2026-09-21-code-quality-v13-thin-controllers-fe-split-design.md](./2026-09-21-code-quality-v13-thin-controllers-fe-split-design.md) | Implemented |
 | [2026-08-24-performance-roadmap-design.md](./2026-08-24-performance-roadmap-design.md) | Approved — P0 + Docker SLI closeout (2026-09-21) |
 | [2026-08-21-project-evolution-v12-design.md](./2026-08-21-project-evolution-v12-design.md) | Implemented (P44–P46) |
 | [2026-08-19-project-evolution-v11-design.md](./2026-08-19-project-evolution-v11-design.md) | Implemented (P41–P43) |
@@ -15,4 +18,4 @@ Superpowers SDD specs for this project. Newest first:
 | [2026-08-10-project-evolution-v6-design.md](./2026-08-10-project-evolution-v6-design.md) | Implemented (P18-P22) |
 | Older `*-design.md` files | Historical / implemented |
 
-Implementation plans under `docs/superpowers/plans/` are local-only (gitignored).
+Implementation plans under `docs/superpowers/plans/` are mostly local-only (gitignored); recent wave plans may be force-tracked.

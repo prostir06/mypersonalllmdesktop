@@ -5,12 +5,14 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 ## Features
 
 - Multi-model chat (OpenAI, Ollama) with streaming and Stop
-- Conversation history, rename, message search, Markdown export
-- Settings (system prompt / roles, model params)
-- JWT authentication
+- Conversation history, rename, message search, Markdown / PDF export
+- Conversation memory: auto summary + editable notes (RAG context)
+- Settings (system prompt / roles, model params, encrypted OpenAI keys)
+- JWT authentication (access + httpOnly refresh cookie)
 - Document upload for RAG (PDF, DOCX, XLSX, TXT, MD)
 - Semantic RAG: OpenAI embeddings or local Ollama (`nomic-embed-text`)
 - Docker Compose for local stack (pgvector + Prisma migrate)
+- Optional Electron desktop shell (Windows-first)
 
 ## Project structure
 
@@ -179,6 +181,14 @@ VITE_API_URL=/api
 ### Conversations
 - `GET|POST /api/conversations`
 - `GET|PUT|DELETE /api/conversations/:id`
+- `GET /api/conversations/:id/export`
+
+### Conversation memory
+- `GET /api/conversations/:id/memory`
+- `POST /api/conversations/:id/memory-notes`
+- `PATCH /api/conversations/:id/memory-notes/:noteId`
+- `DELETE /api/conversations/:id/memory-notes/:noteId`
+- `POST /api/conversations/:id/memory/refresh-summary`
 
 ### Documents (RAG)
 - `POST /api/documents/upload`
@@ -237,11 +247,19 @@ cd frontend && npm run build:analyze
 ## Notes
 
 - Schema source of truth: `backend/prisma/` + `prisma migrate deploy`. Docker image: `pgvector/pgvector:pg15`.
-- Do not commit `.env` or `docs/superpowers/plans/` (local scratch; specs under `docs/superpowers/specs/` are tracked).
+- Do not commit `.env`. Design specs live under `docs/superpowers/specs/` (tracked). Most implementation plans under `docs/superpowers/plans/` are gitignored; a few recent wave plans may be force-tracked.
 - Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
-- Perf SLIs: `cd backend && npm run perf:baseline` → record in [`docs/perf-baseline-2026-08-24.md`](docs/perf-baseline-2026-08-24.md). Knobs: `OLLAMA_EMBED_CONCURRENCY`, `CHAT_HISTORY_RAW_CAP`.
-- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `stream-stop`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`.
+- Perf SLIs: `cd backend && npm run perf:baseline` → record in [`docs/perf-baseline-2026-09-21.md`](docs/perf-baseline-2026-09-21.md). Knobs: `OLLAMA_EMBED_CONCURRENCY`, `CHAT_HISTORY_RAW_CAP`.
+- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `stream-stop`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`, plus deeper citation/memory coverage where enabled.
 - **npm audit baseline:** [docs/security-audit-baseline.md](docs/security-audit-baseline.md) (2026-08-19).
+
+## Pre-upload checklist
+
+- [ ] Working tree clean (`git status`)
+- [ ] No `.env` / secrets staged
+- [ ] `backend` / `frontend` / `desktop` unit tests green
+- [ ] Docker stack healthy: `docker compose up -d --build` → http://localhost:3000
+- [ ] Push only when ready: `git push -u origin master` (or open a PR from a feature branch)
 
 ## License
 
