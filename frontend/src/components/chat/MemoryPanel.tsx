@@ -23,7 +23,7 @@ const MemoryPanel = React.memo(function MemoryPanel({
     updateNote,
     deleteNote,
     refreshSummary,
-  } = useConversationMemory(conversationId);
+  } = useConversationMemory(conversationId, { enabled: show });
   const [newNote, setNewNote] = useState('');
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [editingText, setEditingText] = useState('');

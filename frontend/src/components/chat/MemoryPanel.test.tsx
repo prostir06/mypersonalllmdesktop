@@ -76,4 +76,12 @@ describe('MemoryPanel', () => {
     });
     expect(await screen.findByText('new memory note')).toBeInTheDocument();
   });
+
+  it('does not prefetch memory when panel is hidden', async () => {
+    render(<MemoryPanel show={false} onHide={vi.fn()} conversationId={7} />);
+
+    await waitFor(() => {
+      expect(conversationAPI.getMemory).not.toHaveBeenCalled();
+    });
+  });
 });

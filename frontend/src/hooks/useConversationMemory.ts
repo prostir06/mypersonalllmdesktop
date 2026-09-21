@@ -13,7 +13,11 @@ function readApiError(error: unknown, fallback: string): string {
   );
 }
 
-export function useConversationMemory(conversationId?: string | number | null) {
+export function useConversationMemory(
+  conversationId?: string | number | null,
+  opts: { enabled?: boolean } = {}
+) {
+  const enabled = opts.enabled ?? true;
   const [memory, setMemory] = useState<ConversationMemory>({
     summary: null,
     summary_updated_at: null,
@@ -24,7 +28,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
   const [error, setError] = useState<string | null>(null);
 
   const loadMemory = useCallback(async () => {
-    if (conversationId == null) return;
+    if (conversationId == null || !enabled) return;
     setLoading(true);
     setError(null);
     try {
@@ -35,12 +39,12 @@ export function useConversationMemory(conversationId?: string | number | null) {
     } finally {
       setLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, enabled]);
 
   useEffect(() => {
-    if (conversationId == null) return;
+    if (conversationId == null || !enabled) return;
     void loadMemory();
-  }, [conversationId, loadMemory]);
+  }, [conversationId, enabled, loadMemory]);
 
   const createNote = useCallback(
     async (content: string) => {
