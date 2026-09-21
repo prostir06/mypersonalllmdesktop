@@ -1,10 +1,9 @@
 import React, { useCallback, useState, useEffect, type FormEvent, type MouseEvent } from 'react';
-import { Row, Col, Button, Modal, Form, Spinner } from 'react-bootstrap';
+import { Row, Col } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import ChatBoxOptimized from '../components/ChatBoxOptimized';
-import MessageSearch from '../components/MessageSearch';
 import ConfirmModal from '../components/ConfirmModal';
 import {
   useAutoSelectConversation,
@@ -14,11 +13,9 @@ import {
   useInvalidateConversations,
   useRenameConversation,
 } from '../hooks/useConversations';
-
-const isSameConversation = (
-  left: string | number | null,
-  right: string | number | null
-) => left != null && right != null && String(left) === String(right);
+import { isSameConversation } from './dashboard/isSameConversation';
+import DashboardSidebar from './dashboard/DashboardSidebar';
+import NewConversationModal from './dashboard/NewConversationModal';
 
 const Dashboard: React.FC = () => {
   const [activeConversation, setActiveConversation] = useState<
@@ -143,121 +140,23 @@ const Dashboard: React.FC = () => {
   return (
     <Row className="g-3" style={{ minHeight: 'calc(100vh - 100px)' }}>
       <Col md={4} lg={3}>
-        <div className="sidebar-wrapper glass-panel">
-          <Button
-            className="btn-accent w-100 mb-3 py-2.5 d-flex align-items-center justify-content-center gap-2"
-            onClick={() => setShowNewConvModal(true)}
-          >
-            <span>➕</span> Нова розмова
-          </Button>
-
-          <MessageSearch
-            onSelectConversation={(id: string | number) => {
-              selectConversation(id);
-              invalidateConversations();
-            }}
-          />
-
-          <div
-            className="flex-grow-1 overflow-auto pr-1"
-            role="listbox"
-            aria-label="Список розмов"
-          >
-            {isLoading && conversations.length === 0 ? (
-              <div className="text-center p-4">
-                <Spinner animation="border" size="sm" variant="primary" />
-              </div>
-            ) : conversations.length === 0 ? (
-              <div className="text-center text-muted p-4">
-                <small>Немає збережених розмов</small>
-              </div>
-            ) : (
-              conversations.map((conv) => {
-                const isActive = isSameConversation(activeConversation, conv.id);
-                return (
-                  <div
-                    key={conv.id}
-                    role="option"
-                    aria-selected={isActive}
-                    tabIndex={0}
-                    className={`conversation-card ${isActive ? 'active' : ''}`}
-                    onClick={() => selectConversation(conv.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        selectConversation(conv.id);
-                      }
-                    }}
-                  >
-                    {renamingId === conv.id ? (
-                      <Form
-                        className="d-flex gap-1 flex-grow-1 me-1"
-                        onClick={(e) => e.stopPropagation()}
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          saveRename(conv.id, e);
-                        }}
-                      >
-                        <Form.Control
-                          size="sm"
-                          value={renameTitle}
-                          onChange={(e) => setRenameTitle(e.target.value)}
-                          autoFocus
-                          className="bg-dark text-light border-secondary shadow-none"
-                        />
-                        <Button type="submit" size="sm" variant="success">
-                          ✓
-                        </Button>
-                      </Form>
-                    ) : (
-                      <div className="text-truncate me-2 fw-medium flex-grow-1">
-                        💬 {conv.title || 'Новий чат'}
-                      </div>
-                    )}
-                    <div className="d-flex gap-1">
-                      {renamingId !== conv.id && (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="p-0 text-muted text-decoration-none"
-                          onClick={(e) => startRename(conv, e)}
-                          title="Перейменувати"
-                        >
-                          ✏️
-                        </Button>
-                      )}
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="p-0 text-muted hover-white text-decoration-none"
-                        onClick={(e) => handleDeleteConversation(conv.id, e)}
-                        title="Видалити розмову"
-                      >
-                        🗑️
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-            {hasMore && (
-              <div className="text-center py-2">
-                <Button
-                  variant="outline-secondary"
-                  size="sm"
-                  disabled={isFetchingNextPage}
-                  onClick={() => loadMore()}
-                >
-                  {isFetchingNextPage ? (
-                    <Spinner animation="border" size="sm" />
-                  ) : (
-                    'Показати ще'
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+        <DashboardSidebar
+          conversations={conversations}
+          isLoading={isLoading}
+          hasMore={hasMore}
+          loadMore={loadMore}
+          isFetchingNextPage={isFetchingNextPage}
+          activeConversation={activeConversation}
+          selectConversation={selectConversation}
+          invalidateConversations={invalidateConversations}
+          renamingId={renamingId}
+          renameTitle={renameTitle}
+          setRenameTitle={setRenameTitle}
+          startRename={startRename}
+          saveRename={saveRename}
+          handleDeleteConversation={handleDeleteConversation}
+          onNewConversation={() => setShowNewConvModal(true)}
+        />
       </Col>
 
       <Col md={8} lg={9}>
@@ -267,46 +166,13 @@ const Dashboard: React.FC = () => {
         />
       </Col>
 
-      <Modal
+      <NewConversationModal
         show={showNewConvModal}
+        title={newConvTitle}
+        onTitleChange={setNewConvTitle}
         onHide={() => setShowNewConvModal(false)}
-        centered
-      >
-        <Modal.Header closeButton className="bg-dark text-light border-secondary">
-          <Modal.Title className="h6">Створити нову розмову</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="bg-dark text-light">
-          <Form.Group>
-            <Form.Label className="small text-muted">
-              Тема або Назва розмови
-            </Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Наприклад: Аналіз коду, Генерація ідей..."
-              value={newConvTitle}
-              onChange={(e) => setNewConvTitle(e.target.value)}
-              className="bg-secondary bg-opacity-25 text-light border-secondary shadow-none"
-              autoFocus
-            />
-          </Form.Group>
-        </Modal.Body>
-        <Modal.Footer className="bg-dark text-light border-secondary">
-          <Button
-            variant="outline-secondary"
-            size="sm"
-            onClick={() => setShowNewConvModal(false)}
-          >
-            Скасувати
-          </Button>
-          <Button
-            className="btn-accent"
-            size="sm"
-            onClick={handleNewConversation}
-          >
-            Створити
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        onCreate={handleNewConversation}
+      />
 
       <ConfirmModal
         show={deleteTarget != null}
