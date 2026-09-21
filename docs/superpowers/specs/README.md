@@ -4,7 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
-| [2026-08-24-performance-roadmap-design.md](./2026-08-24-performance-roadmap-design.md) | Approved — P0 implemented (`feature/perf-p0`) |
+| [2026-08-24-performance-roadmap-design.md](./2026-08-24-performance-roadmap-design.md) | Approved — P0 + Docker SLI closeout (2026-09-21) |
 | [2026-08-21-project-evolution-v12-design.md](./2026-08-21-project-evolution-v12-design.md) | Implemented (P44–P46) |
 | [2026-08-19-project-evolution-v11-design.md](./2026-08-19-project-evolution-v11-design.md) | Implemented (P41–P43) |
 | [2026-08-17-project-evolution-v10-design.md](./2026-08-17-project-evolution-v10-design.md) | Implemented (P38–P40) |

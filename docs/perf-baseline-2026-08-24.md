@@ -19,10 +19,14 @@
 
 | Change | SLI | Before ms | After ms | Notes |
 |--------|-----|-----------|----------|-------|
-| P0-3 `OLLAMA_EMBED_CONCURRENCY=4` | S3 ollama N=8 | 3063 | **658** | ~4.6× |
+| P0-3 `OLLAMA_EMBED_CONCURRENCY=4` | S3 ollama N=8 | 3063 | **658** | ~4.6× (host) |
 | P0-1 vector∥FTS | S2 | — | — | DB unavailable this host |
 | P0-2 parallel prompts | S1 | — | — | not timed separately |
 | P0-4 history raw cap | S4 | — | — | needs conversation fixture |
+
+## Follow-up
+
+Docker SLI closeout (S1 init proxy, S2, S4): see [`docs/perf-baseline-2026-09-21.md`](./perf-baseline-2026-09-21.md).
 
 ## Gate notes
 

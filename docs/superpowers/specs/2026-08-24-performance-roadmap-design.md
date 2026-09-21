@@ -1,7 +1,7 @@
 # Project Evolution — Performance Roadmap & Optimization Backlog
 
 **Date:** 2026-08-24  
-**Status:** Approved — P0 wave implemented on `feature/perf-p0`  
+**Status:** Approved — P0 code shipped; SLI gates closed on Docker (2026-09-21) except full S1 first-token (provider-limited)  
 **Parent:** v12 Implemented (P44–P46) on `master` @ `44819bb`  
 **Scope:** Full-project analysis after v12 + **metric-gated** backlog for development and code optimization  
 **Primary focus:** Performance (TTFT, indexing, history, FE)  

@@ -73,3 +73,7 @@ e2e/playwright-report/
 **/test-results/
 **/playwright-report/
 
+
+# Local SLI measurement fixtures (tokens)
+.sli-fixture.json
+
