@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MessageInput from './MessageInput';
 
@@ -10,22 +10,57 @@ const baseProps = {
   onSubmit: vi.fn((e) => e?.preventDefault?.()),
   isListening: false,
   onToggleListening: vi.fn(),
+  streaming: false,
+  onStop: vi.fn(),
   attachedImage: null,
   onClearImage: vi.fn(),
   onAttachImage: vi.fn(),
+  chatAttachments: [],
+  onRemoveAttachment: vi.fn(),
+  onAttachFile: vi.fn(),
   supportsVision: false,
 };
 
 describe('MessageInput', () => {
-  it('calls onStop when Stop is clicked while streaming', async () => {
+  afterEach(() => cleanup());
+
+  it('calls onStop when localized stop is clicked while streaming', async () => {
     const user = userEvent.setup();
     const onStop = vi.fn();
 
+    render(<MessageInput {...baseProps} streaming onStop={onStop} />);
+
+    await user.click(screen.getByRole('button', { name: /зупинити генерацію/i }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables submit for image-only message', () => {
     render(
-      <MessageInput {...baseProps} streaming onStop={onStop} />
+      <MessageInput
+        {...baseProps}
+        inputMessage="   "
+        supportsVision
+        attachedImage={{ url: 'blob:test', base64: 'abc' }}
+      />
     );
 
-    await user.click(screen.getByRole('button', { name: /stop/i }));
-    expect(onStop).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: /надіслати/i })).toBeEnabled();
+  });
+
+  it('adds aria-labels for icon-only actions', () => {
+    render(
+      <MessageInput
+        {...baseProps}
+        supportsVision
+        attachedImage={{ url: 'blob:test', base64: 'abc' }}
+        chatAttachments={[{ filename: 'plan.pdf', mime_type: 'application/pdf', size: 10 }]}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Додати зображення' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Додати файл' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Увімкнути голосове введення' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Видалити зображення' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Видалити вкладення plan.pdf' })).toBeInTheDocument();
   });
 });

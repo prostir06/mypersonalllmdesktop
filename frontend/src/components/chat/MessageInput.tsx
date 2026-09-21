@@ -76,6 +76,7 @@ const MessageInput = React.memo(function MessageInput({
             onClick={onClearImage}
             className="p-0 text-danger text-decoration-none"
             title="Видалити зображення"
+            aria-label="Видалити зображення"
           >
             ✕
           </Button>
@@ -101,6 +102,7 @@ const MessageInput = React.memo(function MessageInput({
                 onClick={() => onRemoveAttachment(i)}
                 className="p-0 text-danger text-decoration-none"
                 title="Видалити вкладення"
+                aria-label={`Видалити вкладення ${a.filename}`}
               >
                 ✕
               </Button>
@@ -130,6 +132,7 @@ const MessageInput = React.memo(function MessageInput({
             onClick={onAttachImage}
             disabled={streaming}
             title="Додати зображення (Vision)"
+            aria-label="Додати зображення"
             className="py-3 px-3"
           >
             🖼️
@@ -142,6 +145,7 @@ const MessageInput = React.memo(function MessageInput({
           onClick={onAttachFile}
           disabled={streaming}
           title="Додати файл (PDF, XLSX, TXT, MD)"
+          aria-label="Додати файл"
           className="py-3 px-3"
         >
           📎
@@ -153,6 +157,7 @@ const MessageInput = React.memo(function MessageInput({
           onClick={onToggleListening}
           disabled={streaming}
           title={isListening ? 'Зупинити запис' : 'Голосове введення (STT)'}
+          aria-label={isListening ? 'Зупинити запис' : 'Увімкнути голосове введення'}
           className="py-3 px-3"
         >
           {isListening ? '⏹️' : '🎤'}
@@ -165,14 +170,19 @@ const MessageInput = React.memo(function MessageInput({
             className="px-4 py-3"
             onClick={onStop}
             title="Зупинити генерацію"
+            aria-label="Зупинити генерацію"
           >
-            Stop
+            Зупинити
           </Button>
         ) : (
           <Button
             type="submit"
             className="btn-accent px-4 py-3 d-flex align-items-center gap-2"
-            disabled={!inputMessage.trim() && chatAttachments.length === 0}
+            disabled={
+              !inputMessage.trim() &&
+              chatAttachments.length === 0 &&
+              !attachedImage
+            }
           >
             <span>Надіслати 🚀</span>
           </Button>
