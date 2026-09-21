@@ -46,6 +46,7 @@ jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
 
 jest.mock('../services/conversationMemoryService', () => ({
   buildMemorySystemMessages: jest.fn(),
+  maybeRefreshSummary: jest.fn(),
 }));
 
 jest.mock('../logger', () => ({
@@ -60,18 +61,23 @@ import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
 import { buildSystemContext } from '../services/chat/systemContext';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
-import { buildMemorySystemMessages } from '../services/conversationMemoryService';
+import {
+  buildMemorySystemMessages,
+  maybeRefreshSummary,
+} from '../services/conversationMemoryService';
 
 const mockedPrisma = prisma as any;
 const mockedEmbed = EmbeddingService as any;
 const mockedProvider = ProviderFactory as any;
 const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
 const mockedBuildMemory = buildMemorySystemMessages as jest.Mock;
+const mockedMaybeRefreshSummary = maybeRefreshSummary as jest.Mock;
 
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedBuildMemory.mockResolvedValue([]);
+    mockedMaybeRefreshSummary.mockResolvedValue(undefined);
     mockedResolveCtx.mockResolvedValue({
       provider: 'openai',
       openaiKey: 'sk-test',
@@ -463,6 +469,42 @@ describe('ChatService', () => {
         filename: 'a.txt',
         similarity: 0.91,
       });
+    });
+
+    it('returns success result when maybeRefreshSummary throws', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Hi',
+        usage: { total_tokens: 10 },
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+      mockedMaybeRefreshSummary.mockRejectedValueOnce(new Error('summary down'));
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        conversationId: 10,
+        message: 'Hello world',
+        provider: 'openai',
+        model: 'gpt-3.5-turbo',
+        options: {},
+      });
+
+      expect(result).toMatchObject({
+        conversationId: 10,
+        messageId: 101,
+        content: 'Hi',
+        role: 'assistant',
+      });
+      expect(mockedMaybeRefreshSummary).toHaveBeenCalledWith(1, 10);
     });
   });
 

@@ -12,6 +12,7 @@ import {
 } from './chat/history';
 import { prepareMessages as prepareMessagesImpl } from './chat/prepare';
 import { searchMessages as searchMessagesImpl } from './chat/search';
+import { maybeRefreshSummary } from './conversationMemoryService';
 
 export { ChatError };
 
@@ -73,6 +74,12 @@ class ChatService {
       }
     );
 
+    void maybeRefreshSummary(input.userId, convId).catch((err) => {
+      logger.warn(
+        `maybeRefreshSummary skipped: ${err instanceof Error ? err.message : err}`
+      );
+    });
+
     logger.info(
       `Message sent in conversation ${convId} by user ${input.userId}`
     );
@@ -123,6 +130,12 @@ class ChatService {
         sources,
       }
     );
+
+    void maybeRefreshSummary(input.userId, convId).catch((err) => {
+      logger.warn(
+        `maybeRefreshSummary skipped: ${err instanceof Error ? err.message : err}`
+      );
+    });
 
     return {
       conversationId: convId,
