@@ -1,14 +1,6 @@
-/**
- * Chat orchestrator — wires settings, stream, speech, and documents hooks.
- */
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  type FormEvent,
-} from 'react';
+import React, { useState, useEffect, useRef, useCallback, type FormEvent } from 'react';
 import { Alert } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useSpeech } from '../hooks/useSpeech';
@@ -35,10 +27,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   conversationId,
   onNewMessage,
 }) => {
+  const navigate = useNavigate();
   const [inputMessage, setInputMessage] = useState('');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-
+  const lastUserContentRef = useRef('');
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const {
@@ -106,11 +99,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     chatAttachments,
     setChatAttachments,
   });
-
-  const { messages, setMessages, loading } = useConversationHistory(
-    conversationId,
-    setError
-  );
+  const { messages, setMessages, loading } = useConversationHistory(conversationId, setError);
   const { exportMarkdown, exportPdf } = useChatExport({ conversationId, messages });
 
   const scrollToBottom = useCallback(() => {
@@ -174,16 +163,13 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
-    if (
-      (!inputMessage.trim() && chatAttachments.length === 0) ||
-      streaming ||
-      loading
-    ) {
+    if ((!inputMessage.trim() && chatAttachments.length === 0) || streaming || loading) {
       return;
     }
     const userContent =
       inputMessage.trim() ||
       'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.';
+    lastUserContentRef.current = userContent;
     setInputMessage('');
     await sendMessage(userContent, setMessages);
   };
@@ -218,7 +204,28 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           onClose={() => setError(null)}
           className="py-2"
         >
-          {error}
+          <div className="small mb-2">{error}</div>
+          <div className="d-flex gap-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-light"
+              onClick={() =>
+                lastUserContentRef.current &&
+                !streaming &&
+                !loading &&
+                void sendMessage(lastUserContentRef.current, setMessages)
+              }
+            >
+              Повторити
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-warning"
+              onClick={() => navigate('/settings')}
+            >
+              Перевірити налаштування
+            </button>
+          </div>
         </Alert>
       )}
 
@@ -245,14 +252,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onStop={stopStreaming}
         attachedImage={attachedImage}
         onClearImage={clearAttachedImage}
-        onAttachImage={() =>
-          imageInputRef.current && imageInputRef.current.click()
-        }
+        onAttachImage={() => imageInputRef.current && imageInputRef.current.click()}
         chatAttachments={chatAttachments}
         onRemoveAttachment={removeAttachment}
-        onAttachFile={() =>
-          chatFileInputRef.current && chatFileInputRef.current.click()
-        }
+        onAttachFile={() => chatFileInputRef.current && chatFileInputRef.current.click()}
         supportsVision={modelSupportsVision(activeModel, catalogModels)}
       />
 
@@ -286,9 +289,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           settings?.rag_embedding_mode ||
           (settings?.has_openai_api_key ? 'openai' : 'fallback')
         }
-        onApplySystemPrompt={async (promptText) => {
-          await updateSettings.mutateAsync({ system_prompt: promptText });
-        }}
+        onApplySystemPrompt={(promptText) =>
+          updateSettings.mutateAsync({ system_prompt: promptText })
+        }
       />
     </div>
   );

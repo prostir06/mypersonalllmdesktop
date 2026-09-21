@@ -1,8 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatBoxOptimized from './ChatBoxOptimized';
+
+const navigateMock = vi.fn();
+const chatStreamState = {
+  streaming: false,
+  streamedText: '',
+  error: null as string | null,
+  setError: vi.fn(),
+  sendMessage: vi.fn(),
+  regenerateMessage: vi.fn(),
+  stopStreaming: vi.fn(),
+};
 
 const settingsData = {
   default_provider: 'openai',
@@ -69,14 +80,7 @@ vi.mock('../hooks/useChatDocuments', () => ({
 }));
 
 vi.mock('../hooks/useChatStream', () => ({
-  useChatStream: () => ({
-    streaming: false,
-    streamedText: '',
-    error: null,
-    setError: vi.fn(),
-    sendMessage: vi.fn(),
-    stopStreaming: vi.fn(),
-  }),
+  useChatStream: () => chatStreamState,
 }));
 
 vi.mock('../hooks/useConversationHistory', () => ({
@@ -100,8 +104,42 @@ vi.mock('../services/api', () => ({
   chatAPI: { uploadAttachment: vi.fn() },
   modelsAPI: { getRemote: vi.fn().mockResolvedValue({ data: [] }) },
 }));
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => navigateMock };
+});
 
 describe('ChatBoxOptimized', () => {
+  afterEach(() => {
+    chatStreamState.error = null;
+    cleanup();
+  });
+
+  it('shows retry and settings quick actions for stream error', async () => {
+    const user = userEvent.setup();
+    chatStreamState.error = 'Помилка';
+    chatStreamState.sendMessage.mockClear();
+    navigateMock.mockClear();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    await user.type(screen.getByLabelText(/Введення повідомлення/i), 'hello');
+    await user.click(screen.getByRole('button', { name: /надіслати/i }));
+    await user.click(screen.getByRole('button', { name: 'Повторити' }));
+    await user.click(screen.getByRole('button', { name: 'Перевірити налаштування' }));
+
+    expect(chatStreamState.sendMessage).toHaveBeenNthCalledWith(
+      1,
+      'hello',
+      expect.any(Function)
+    );
+    expect(chatStreamState.sendMessage).toHaveBeenNthCalledWith(
+      2,
+      'hello',
+      expect.any(Function)
+    );
+    expect(navigateMock).toHaveBeenCalledWith('/settings');
+  });
+
   it('shows catalog model for provider and switches to ollama catalog', async () => {
     const user = userEvent.setup();
     render(<ChatBoxOptimized conversationId={null} />);

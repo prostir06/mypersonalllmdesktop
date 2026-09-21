@@ -10,8 +10,17 @@ vi.mock('../services/api', () => ({
     sendMessage: vi.fn(),
   },
 }));
+vi.mock('react-toastify', () => ({
+  toast: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 import { chatAPI } from '../services/api';
+import { toast } from 'react-toastify';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 function wrapper({ children }) {
@@ -91,6 +100,7 @@ describe('useChatStream', () => {
     expect(messages.some((m) => m.role === 'assistant' && m.content === 'partial')).toBe(
       true
     );
+    expect(toast.info).toHaveBeenCalledWith('Генерацію зупинено');
   });
 
   it('does not call sendMessage fallback on SseStreamError', async () => {
@@ -108,7 +118,7 @@ describe('useChatStream', () => {
 
     expect(chatAPI.sendMessage).not.toHaveBeenCalled();
     await waitFor(() => {
-      expect(result.current.error).toMatch(/provider boom/);
+      expect(result.current.error).toBe('Не вдалося отримати відповідь від AI. Спробуйте ще раз.');
     });
   });
 

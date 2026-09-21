@@ -103,4 +103,34 @@ export function buildChatRequestOptions(args: {
   };
 }
 
+export function mapChatError(rawMessage: string | undefined | null): string {
+  const source = (rawMessage || '').toLowerCase();
+
+  if (
+    source.includes('api key') ||
+    source.includes('unauthorized') ||
+    source.includes('401')
+  ) {
+    return 'Невірний або відсутній API ключ. Перевірте Налаштування AI.';
+  }
+
+  if (
+    source.includes('network') ||
+    source.includes('timeout') ||
+    source.includes('econn') ||
+    source.includes('fetch failed')
+  ) {
+    return 'Проблема з мережею або таймаутом. Спробуйте ще раз.';
+  }
+
+  if (
+    source.includes('model') &&
+    (source.includes('not found') || source.includes('unavailable'))
+  ) {
+    return 'Обрана модель недоступна. Змініть модель у Налаштуваннях AI.';
+  }
+
+  return 'Не вдалося отримати відповідь від AI. Спробуйте ще раз.';
+}
+
 export type { RagSource };

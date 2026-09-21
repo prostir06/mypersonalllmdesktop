@@ -18,6 +18,7 @@ import { queryKeys } from './queryKeys';
 import {
   appendOrReplaceAssistant,
   buildChatRequestOptions,
+  mapChatError,
   type AttachedImage,
   type UseChatStreamArgs,
   type SendOptions,
@@ -180,11 +181,12 @@ export function useChatStream({
             ]);
           }
           setStreamedText('');
+          toast.info('Генерацію зупинено');
           return;
         }
 
         if (isSseStreamError(err)) {
-          setError(`Не вдалося отримати відповідь від AI: ${err.message}`);
+          setError(mapChatError(err.message));
           return;
         }
 
@@ -232,7 +234,7 @@ export function useChatStream({
             (fallbackErr instanceof Error
               ? fallbackErr.message
               : String(fallbackErr));
-          setError(`Не вдалося отримати відповідь від AI: ${msg}`);
+          setError(mapChatError(msg));
         }
       } finally {
         abortRef.current = null;
