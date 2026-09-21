@@ -44,6 +44,10 @@ jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
   resolveEmbeddingContext: jest.fn(),
 }));
 
+jest.mock('../services/conversationMemoryService', () => ({
+  buildMemorySystemMessages: jest.fn(),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -56,15 +60,18 @@ import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
 import { buildSystemContext } from '../services/chat/systemContext';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
+import { buildMemorySystemMessages } from '../services/conversationMemoryService';
 
 const mockedPrisma = prisma as any;
 const mockedEmbed = EmbeddingService as any;
 const mockedProvider = ProviderFactory as any;
 const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
+const mockedBuildMemory = buildMemorySystemMessages as jest.Mock;
 
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockedBuildMemory.mockResolvedValue([]);
     mockedResolveCtx.mockResolvedValue({
       provider: 'openai',
       openaiKey: 'sk-test',
@@ -680,6 +687,40 @@ describe('ChatService', () => {
   });
 
   describe('prepareMessages', () => {
+    it('injects memory after pinned prompts and before attachments', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedPrisma.userPrompt.findMany.mockResolvedValue([{ prompt: 'PIN' }]);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedBuildMemory.mockResolvedValue([
+        { role: 'system', content: 'MEM_NOTE' },
+        { role: 'system', content: 'MEM_SUMMARY' },
+      ]);
+
+      const prepared = await ChatService.prepareMessages({
+        userId: 1,
+        conversationId: 10,
+        message: 'hi',
+        options: { attachments: [{ filename: 'notes.txt', content: 'hello file' }] },
+      });
+
+      const contents = prepared.chatMessages.map((m) =>
+        typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+      );
+      const pinIdx = contents.findIndex((c) => c.includes('PIN'));
+      const noteIdx = contents.findIndex((c) => c.includes('MEM_NOTE'));
+      const summaryIdx = contents.findIndex((c) => c.includes('MEM_SUMMARY'));
+      const attachmentIdx = contents.findIndex((c) =>
+        c.includes('КОНТЕКСТ З ВКЛАДЕНЬ')
+      );
+      expect(pinIdx).toBeGreaterThanOrEqual(0);
+      expect(noteIdx).toBeGreaterThan(pinIdx);
+      expect(summaryIdx).toBeGreaterThan(noteIdx);
+      expect(attachmentIdx).toBeGreaterThan(summaryIdx);
+      expect(mockedBuildMemory).toHaveBeenCalledWith(10);
+    });
+
     it('builds multimodal user message and strips image from options', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
       mockedPrisma.message.findMany.mockResolvedValue([

@@ -2,6 +2,7 @@ import prisma from '../../config/prisma';
 import logger from '../../logger';
 import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
+import { buildMemorySystemMessages } from '../conversationMemoryService';
 import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
@@ -9,7 +10,8 @@ import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
 export async function buildSystemContext(
   userId: number,
   options: ChatOptions = {},
-  userMessage = ''
+  userMessage = '',
+  conversationId?: number
 ): Promise<{
   messages: ChatMessage[];
   sources: RagSource[];
@@ -55,6 +57,17 @@ export async function buildSystemContext(
         role: 'system',
         content: `📌 ЗАКРІПЛЕНІ ІНСТРУКЦІЇ:\n\n${pinnedBlock}`,
       });
+    }
+    if (typeof conversationId === 'number' && Number.isInteger(conversationId)) {
+      try {
+        const memoryMessages = await buildMemorySystemMessages(conversationId);
+        if (memoryMessages.length > 0) {
+          systemMessages.push(...memoryMessages);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Conversation memory load skipped: ${message}`);
+      }
     }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

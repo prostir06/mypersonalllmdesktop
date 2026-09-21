@@ -121,7 +121,8 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
   const { messages: systemMessages, sources, ragStatus } = await buildSystemContext(
     input.userId,
     options,
-    input.message
+    input.message,
+    convId
   );
   const currentUserMessage = userMessage(input, options);
 
