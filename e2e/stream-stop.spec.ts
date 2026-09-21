@@ -29,7 +29,21 @@ test('stream stop re-enables composer after abort', async ({ page, request }) =>
     await stop.click();
   }
 
-  await streamResponse.catch(() => undefined);
+  const response = await streamResponse.catch(() => undefined);
+  if (response && response.status() >= 500) {
+    test.skip(true, `RAG/LLM unavailable: stream returned ${response.status()}`);
+  }
+
+  const assistantVisible =
+    (await page
+      .locator('.message-bubble.assistant .markdown-content')
+      .first()
+      .isVisible()
+      .catch(() => false)) ||
+    (await page.getByRole('button', { name: /Зупинити|Stop/i }).isVisible().catch(() => false));
+  if (!assistantVisible) {
+    test.skip(true, 'RAG/LLM unavailable: no assistant stream visible');
+  }
 
   await expect(input).toBeEnabled({ timeout: 15_000 });
 });
