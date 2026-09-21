@@ -52,12 +52,29 @@ model Conversation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
+  summary           String?   @db.Text
+  summaryUpdatedAt  DateTime? @map("summary_updated_at")
+  memoryNotes       ConversationMemoryNote[]
+
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages Message[]
 
   @@index([userId], map: "idx_conversations_user_id")
   @@index([userId, updatedAt(sort: Desc)], map: "idx_conversations_user_updated")
   @@map("conversations")
+}
+
+model ConversationMemoryNote {
+  id             Int      @id @default(autoincrement())
+  conversationId Int      @map("conversation_id")
+  content        String   @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId], map: "idx_memory_notes_conversation_id")
+  @@map("conversation_memory_notes")
 }
 
 model Message {
