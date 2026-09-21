@@ -39,12 +39,6 @@ async function ensureConversationAccess(userId: number, conversationId: number) 
     select: { id: true, summary: true, summaryUpdatedAt: true },
   });
   if (owned) return owned;
-
-  const exists = await prisma.conversation.findFirst({
-    where: { id: conversationId },
-    select: { id: true },
-  });
-  if (exists) throw new MemoryError(403, 'Forbidden');
   throw new MemoryError(404, 'Conversation not found');
 }
 

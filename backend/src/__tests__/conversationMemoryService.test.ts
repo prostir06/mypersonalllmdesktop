@@ -217,13 +217,11 @@ describe('conversationMemoryService', () => {
   });
 
   it('rethrows MemoryError access failures', async () => {
-    mockedPrisma.conversation.findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 7 });
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce(null);
 
     await expect(maybeRefreshSummary(9, 7, { force: true })).rejects.toMatchObject({
-      statusCode: 403,
-      message: 'Forbidden',
+      statusCode: 404,
+      message: 'Conversation not found',
     });
     expect(mockedLogger.warn).not.toHaveBeenCalled();
   });
