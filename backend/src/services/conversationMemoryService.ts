@@ -141,13 +141,15 @@ export async function buildMemorySystemMessages(
   const systemMessages: ChatMessage[] = [];
 
   if (notes.length > 0) {
+    const notesPrefix = "🧠 НОТАТКИ ПАМ'ЯТІ:\n\n";
+    const maxNotesBodyChars = Math.max(
+      0,
+      MAX_NOTES_PROMPT_CHARS - notesPrefix.length
+    );
     const notesBody = notes.map((n) => `- ${n.content}`).join('\n');
     systemMessages.push({
       role: 'system',
-      content: `🧠 НОТАТКИ ПАМ'ЯТІ:\n\n${truncate(
-        notesBody,
-        MAX_NOTES_PROMPT_CHARS
-      )}`,
+      content: `${notesPrefix}${truncate(notesBody, maxNotesBodyChars)}`,
     });
   }
 

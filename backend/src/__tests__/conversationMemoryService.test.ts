@@ -138,14 +138,34 @@ describe('conversationMemoryService', () => {
       { id: 1, content: 'x'.repeat(2100), createdAt: new Date('2026-01-01T00:00:00.000Z') },
     ]);
     const messages = await buildMemorySystemMessages(7);
-    expect(messages[0].content.length).toBeLessThanOrEqual(
-      MAX_NOTES_PROMPT_CHARS + "🧠 НОТАТКИ ПАМ'ЯТІ:\n\n".length
-    );
+    expect(messages[0].content.length).toBeLessThanOrEqual(MAX_NOTES_PROMPT_CHARS);
   });
 
   it('does not summarize when message count is <= default threshold', async () => {
     mockedPrisma.message.count.mockResolvedValue(40);
     await maybeRefreshSummary(9, 7);
+    expect(mockedProviderFactory.sendMessage).not.toHaveBeenCalled();
+    expect(mockedPrisma.conversation.update).not.toHaveBeenCalled();
+  });
+
+  it('does not summarize for non-force when messagesSince < SUMMARY_EVERY_N', async () => {
+    process.env.SUMMARY_THRESHOLD = '10';
+    process.env.SUMMARY_EVERY_N = '20';
+    const summaryUpdatedAt = new Date('2026-01-03T00:00:00.000Z');
+
+    mockedPrisma.conversation.findFirst.mockResolvedValue({
+      id: 7,
+      userId: 9,
+      summary: 'existing',
+      summaryUpdatedAt,
+    });
+    mockedPrisma.message.count
+      .mockResolvedValueOnce(100)
+      .mockResolvedValueOnce(5);
+
+    await maybeRefreshSummary(9, 7);
+
+    expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
     expect(mockedProviderFactory.sendMessage).not.toHaveBeenCalled();
     expect(mockedPrisma.conversation.update).not.toHaveBeenCalled();
   });
