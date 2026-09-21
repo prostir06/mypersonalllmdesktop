@@ -190,7 +190,14 @@
 |----|------|-----:|--------------|--------------|
 | (none) | | | | |
 
-Backend G: pending Task 2 confirmation.
-Frontend G: pending Task 3 confirmation.
-Desktop G: pending Task 4 confirmation.
+Backend G: none (verified Task 2).
+Frontend G: none (verified Task 3).
+Desktop G: none (verified Task 4).
+
+## Gate
+
+- Backend tests: green (52 suites / 345)
+- Frontend tests: green (35 files / 109)
+- Desktop tests: green (22)
+- G remaining: 0
 

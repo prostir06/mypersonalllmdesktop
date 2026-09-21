@@ -1,7 +1,7 @@
 # Error Handling Hygiene — Real try/catch Gaps + Fix Tests
 
 **Date:** 2026-09-21  
-**Status:** Inventory complete — see `2026-09-21-error-handling-inventory.md`  
+**Status:** Done — inventory complete; all confirmed G closed (G=0)  
 **Parent:** Post-v14; complements reliability without new product features  
 **Scope:** Full `src` — `backend/src`, `frontend/src`, `desktop/src`  
 **Approach:** Audit inventory → fix pass (A)  
