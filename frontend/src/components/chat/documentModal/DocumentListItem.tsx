@@ -103,6 +103,7 @@ export default function DocumentListItem({
         size="sm"
         disabled={uploadingDoc || isBusy}
         onClick={() => onDeleteDoc(doc.id)}
+        aria-label={`Видалити файл ${doc.filename}`}
       >
         🗑
       </Button>

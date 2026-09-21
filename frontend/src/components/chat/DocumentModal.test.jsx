@@ -138,6 +138,19 @@ describe('DocumentModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('adds filename to delete aria-label', () => {
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={docs}
+      />
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Видалити файл notes.pdf' })
+    ).toBeInTheDocument();
+  });
+
   it('calls onLoadMore when Показати ще is clicked', async () => {
     const onLoadMore = vi.fn();
     const user = userEvent.setup();
