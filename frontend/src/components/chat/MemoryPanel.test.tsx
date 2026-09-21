@@ -68,7 +68,7 @@ describe('MemoryPanel', () => {
     const panels = await screen.findAllByTestId('memory-panel');
     const panel = panels[0];
 
-    await user.type(within(panel).getByPlaceholderText('Нова note'), 'new memory note');
+    await user.type(within(panel).getByPlaceholderText('Нова нотатка'), 'new memory note');
     await user.click(within(panel).getByRole('button', { name: 'Додати' }));
 
     await waitFor(() => {

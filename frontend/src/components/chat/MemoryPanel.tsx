@@ -80,7 +80,7 @@ const MemoryPanel = React.memo(function MemoryPanel({
         )}
 
         <div className="d-flex align-items-center justify-content-between mb-2">
-          <h6 className="mb-0 text-uppercase text-muted small">Summary</h6>
+          <h6 className="mb-0 text-uppercase text-muted small">Підсумок</h6>
           <Button
             variant="outline-info"
             size="sm"
@@ -95,17 +95,17 @@ const MemoryPanel = React.memo(function MemoryPanel({
           rows={5}
           readOnly
           value={summary || ''}
-          placeholder="Summary ще порожній"
+          placeholder="Підсумок ще порожній"
           className="bg-black text-light border-secondary mb-3"
           data-testid="memory-summary"
         />
 
-        <h6 className="mb-2 text-uppercase text-muted small">Notes</h6>
+        <h6 className="mb-2 text-uppercase text-muted small">Нотатки</h6>
         <div className="d-flex gap-2 mb-3">
           <Form.Control
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
-            placeholder="Нова note"
+            placeholder="Нова нотатка"
             className="bg-black text-light border-secondary"
             disabled={loading || mutating}
           />

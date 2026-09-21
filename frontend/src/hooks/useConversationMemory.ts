@@ -31,7 +31,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
       const res = await conversationAPI.getMemory(conversationId);
       setMemory(res.data);
     } catch (e: unknown) {
-      setError(readApiError(e, 'Не вдалося завантажити memory'));
+      setError(readApiError(e, 'Не вдалося завантажити памʼять розмови'));
     } finally {
       setLoading(false);
     }
@@ -52,7 +52,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
         setMemory((prev) => ({ ...prev, notes: [...prev.notes, res.data] }));
         return res.data;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося створити note'));
+        setError(readApiError(e, 'Не вдалося створити нотатку'));
         return null;
       } finally {
         setMutating(false);
@@ -74,7 +74,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
         }));
         return res.data;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося оновити note'));
+        setError(readApiError(e, 'Не вдалося оновити нотатку'));
         return null;
       } finally {
         setMutating(false);
@@ -96,7 +96,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
         }));
         return true;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося видалити note'));
+        setError(readApiError(e, 'Не вдалося видалити нотатку'));
         return false;
       } finally {
         setMutating(false);
@@ -114,7 +114,7 @@ export function useConversationMemory(conversationId?: string | number | null) {
       await loadMemory();
       return true;
     } catch (e: unknown) {
-      setError(readApiError(e, 'Не вдалося оновити summary'));
+      setError(readApiError(e, 'Не вдалося оновити підсумок'));
       return false;
     } finally {
       setMutating(false);
