@@ -1,7 +1,7 @@
 # Project Evolution v14 — Memory, UX Polish, Deep E2E
 
 **Date:** 2026-09-21  
-**Status:** Approved design (awaiting implementation plan)  
+**Status:** Implemented P47–P48; P49 specs landed (full Docker E2E green deferred — UI login env blocker)  
 **Parent:** Post v13 code-quality hygiene; continues reliability/product thread deferred since v9–v12  
 **Scope:** Full wave — conversation memory (summary + editable notes), UX audit→polish, deep E2E suite  
 **Approach:** Phased monolith (A) — hard gates P47 → P48 → P49  
