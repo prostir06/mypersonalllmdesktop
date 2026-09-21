@@ -13,33 +13,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
-import type { ChatAttachmentPayload, Message, RagSource } from '../types/api';
+import type { Message, RagSource } from '../types/api';
 import { queryKeys } from './queryKeys';
+import {
+  appendOrReplaceAssistant,
+  buildChatRequestOptions,
+  type AttachedImage,
+  type UseChatStreamArgs,
+  type SendOptions,
+} from './chatStreamHelpers';
 
-export type AttachedImage = {
-  url: string;
-  base64: string;
-} | null;
-
-export type UseChatStreamArgs = {
-  conversationId: string | number | null | undefined;
-  onNewMessage?: (conversationId?: string | number) => void;
-  selectedModel: string;
-  selectedProvider: string;
-  temperature: number;
-  maxTokens?: number;
-  selectedDocIds: Array<string | number>;
-  attachedImage: AttachedImage;
-  setAttachedImage: Dispatch<SetStateAction<AttachedImage>>;
-  chatAttachments?: ChatAttachmentPayload[];
-  setChatAttachments?: Dispatch<SetStateAction<ChatAttachmentPayload[]>>;
-};
-
-type SendOptions = {
-  regenerateFromMessageId?: number;
-  skipOptimisticUser?: boolean;
-  replaceAssistantIndex?: number;
-};
+export type { AttachedImage, UseChatStreamArgs };
 
 export function useChatStream({
   conversationId,
@@ -83,25 +67,16 @@ export function useChatStream({
   }, []);
 
   const buildRequestOptions = useCallback(
-    (extra?: { regenerateFromMessageId?: number }) => ({
-      temperature,
-      ...(typeof maxTokens === 'number' && Number.isFinite(maxTokens)
-        ? { max_tokens: maxTokens }
-        : {}),
-      documentIds: selectedDocIds,
-      ragEnabled: selectedDocIds.length > 0,
-      image: attachedImage?.base64 || null,
-      attachments:
-        (chatAttachments?.length ?? 0) > 0 ? chatAttachments : undefined,
-      ...extra,
-    }),
-    [
-      attachedImage,
-      chatAttachments,
-      maxTokens,
-      selectedDocIds,
-      temperature,
-    ]
+    (extra?: { regenerateFromMessageId?: number }) =>
+      buildChatRequestOptions({
+        temperature,
+        maxTokens,
+        selectedDocIds,
+        attachedImage,
+        chatAttachments,
+        extra,
+      }),
+    [attachedImage, chatAttachments, maxTokens, selectedDocIds, temperature]
   );
 
   const sendMessage = useCallback(
@@ -165,23 +140,18 @@ export function useChatStream({
           rafRef.current = null;
         }
         setStreamedText('');
-        setMessages((prev) => {
-          const assistantMsg: Message = {
-            role: 'assistant',
-            content: currentStreamText,
-            sources: doneSourcesRef.current,
-            created_at: new Date().toISOString(),
-          };
-          if (
-            typeof opts.replaceAssistantIndex === 'number' &&
-            opts.replaceAssistantIndex >= 0
-          ) {
-            const next = [...prev];
-            next[opts.replaceAssistantIndex] = assistantMsg;
-            return next;
-          }
-          return [...prev, assistantMsg];
-        });
+        setMessages((prev) =>
+          appendOrReplaceAssistant(
+            prev,
+            {
+              role: 'assistant',
+              content: currentStreamText,
+              sources: doneSourcesRef.current,
+              created_at: new Date().toISOString(),
+            },
+            opts.replaceAssistantIndex
+          )
+        );
         if (onNewMessage) onNewMessage();
         sentOk = true;
         void queryClient.invalidateQueries({
@@ -228,28 +198,23 @@ export function useChatStream({
             requestOptions
           );
           const data = response.data;
-          setMessages((prev) => {
-            const assistantMsg: Message = {
-              role: 'assistant',
-              content: data.content,
-              sources: data.sources,
-              created_at:
-                typeof data.timestamp === 'string'
-                  ? data.timestamp
-                  : data.timestamp
-                    ? String(data.timestamp)
-                    : undefined,
-            };
-            if (
-              typeof opts.replaceAssistantIndex === 'number' &&
-              opts.replaceAssistantIndex >= 0
-            ) {
-              const next = [...prev];
-              next[opts.replaceAssistantIndex] = assistantMsg;
-              return next;
-            }
-            return [...prev, assistantMsg];
-          });
+          setMessages((prev) =>
+            appendOrReplaceAssistant(
+              prev,
+              {
+                role: 'assistant',
+                content: data.content,
+                sources: data.sources,
+                created_at:
+                  typeof data.timestamp === 'string'
+                    ? data.timestamp
+                    : data.timestamp
+                      ? String(data.timestamp)
+                      : undefined,
+              },
+              opts.replaceAssistantIndex
+            )
+          );
           if (onNewMessage) onNewMessage(data.conversationId);
           sentOk = true;
           void queryClient.invalidateQueries({

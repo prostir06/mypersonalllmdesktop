@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import { Alert } from 'react-bootstrap';
 import { toast } from 'react-toastify';
-import type { AxiosError } from 'axios';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
@@ -24,8 +23,8 @@ import type { Message } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
-import DocumentModal from './chat/DocumentModal';
-import PromptLibraryModal from './PromptLibraryModal';
+import ChatHiddenFileInputs from './chat/ChatHiddenFileInputs';
+import ChatBoxModals from './chat/ChatBoxModals';
 
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
@@ -256,68 +255,38 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         supportsVision={modelSupportsVision(activeModel, catalogModels)}
       />
 
-      <input
-        type="file"
-        ref={chatFileInputRef}
-        accept=".pdf,.xlsx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown"
-        style={{ display: 'none' }}
-        onChange={handleFileAttach}
+      <ChatHiddenFileInputs
+        chatFileInputRef={chatFileInputRef}
+        imageInputRef={imageInputRef}
+        onFileAttach={handleFileAttach}
+        onImageAttach={handleImageAttach}
       />
 
-      <input
-        type="file"
-        ref={imageInputRef}
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={handleImageAttach}
-      />
-
-      <DocumentModal
-        show={showDocModal}
-        onHide={() => setShowDocModal(false)}
+      <ChatBoxModals
+        showDocModal={showDocModal}
+        setShowDocModal={setShowDocModal}
+        showPromptModal={showPromptModal}
+        setShowPromptModal={setShowPromptModal}
         userDocuments={userDocuments}
         selectedDocIds={selectedDocIds}
-        onToggleDoc={handleToggleDoc}
-        onDeleteDoc={handleDeleteDoc}
-        onRetryDoc={handleRetryDoc}
-        onReindexDoc={handleReindexDoc}
+        handleToggleDoc={handleToggleDoc}
+        handleDeleteDoc={handleDeleteDoc}
+        handleRetryDoc={handleRetryDoc}
+        handleReindexDoc={handleReindexDoc}
         retryingDocId={retryingDocId}
         reindexingDocId={reindexingDocId}
-        onUploadClick={() =>
-          fileInputRef.current && fileInputRef.current.click()
-        }
         uploadingDoc={uploadingDoc}
         fileInputRef={fileInputRef}
-        onFileChange={handleFileUpload}
-        hasMore={hasMoreDocuments}
-        onLoadMore={loadMoreDocuments}
-        loadingMore={loadingMoreDocuments}
+        handleFileUpload={handleFileUpload}
+        hasMoreDocuments={hasMoreDocuments}
+        loadMoreDocuments={loadMoreDocuments}
+        loadingMoreDocuments={loadingMoreDocuments}
         ragEmbeddingMode={
           settings?.rag_embedding_mode ||
           (settings?.has_openai_api_key ? 'openai' : 'fallback')
         }
-      />
-
-      <PromptLibraryModal
-        show={showPromptModal}
-        onHide={() => setShowPromptModal(false)}
-        onSelectPrompt={async (promptText: string) => {
-          try {
-            await updateSettings.mutateAsync({ system_prompt: promptText });
-            toast.success('Нову роль AI успішно встановлено! 💡');
-          } catch (e: unknown) {
-            const ax = e as AxiosError<{
-              error?: string;
-              errors?: Array<{ msg?: string }>;
-            }> & { message?: string };
-            const msg =
-              ax?.response?.data?.error ||
-              ax?.response?.data?.errors?.[0]?.msg ||
-              ax?.message ||
-              'невідома помилка';
-            toast.error(`Помилка збереження ролі: ${msg}`);
-            throw e;
-          }
+        onApplySystemPrompt={async (promptText) => {
+          await updateSettings.mutateAsync({ system_prompt: promptText });
         }}
       />
     </div>

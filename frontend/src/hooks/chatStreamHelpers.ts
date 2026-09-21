@@ -1,0 +1,106 @@
+import type { Dispatch, SetStateAction } from 'react';
+import type { Message, RagSource, ChatAttachmentPayload } from '../types/api';
+
+export type AttachedImage = {
+  url: string;
+  base64: string;
+} | null;
+
+export type UseChatStreamArgs = {
+  conversationId: string | number | null | undefined;
+  onNewMessage?: (conversationId?: string | number) => void;
+  selectedModel: string;
+  selectedProvider: string;
+  temperature: number;
+  maxTokens?: number;
+  selectedDocIds: Array<string | number>;
+  attachedImage: AttachedImage;
+  setAttachedImage: Dispatch<SetStateAction<AttachedImage>>;
+  chatAttachments?: ChatAttachmentPayload[];
+  setChatAttachments?: Dispatch<SetStateAction<ChatAttachmentPayload[]>>;
+};
+
+export type SendOptions = {
+  regenerateFromMessageId?: number;
+  skipOptimisticUser?: boolean;
+  replaceAssistantIndex?: number;
+};
+
+export function appendOrReplaceAssistant(
+  prev: Message[],
+  assistantMsg: Message,
+  replaceAssistantIndex?: number
+): Message[] {
+  if (
+    typeof replaceAssistantIndex === 'number' &&
+    replaceAssistantIndex >= 0
+  ) {
+    const next = [...prev];
+    next[replaceAssistantIndex] = assistantMsg;
+    return next;
+  }
+  return [...prev, assistantMsg];
+}
+
+export function createStreamBatcher(
+  setStreamedText: Dispatch<SetStateAction<string>>
+) {
+  let rafRef: number | null = null;
+  let pendingText = '';
+
+  const flush = () => {
+    rafRef = null;
+    setStreamedText(pendingText);
+  };
+
+  return {
+    queueToken(token: string) {
+      pendingText += token;
+      if (rafRef == null) {
+        rafRef = requestAnimationFrame(flush);
+      }
+    },
+    getPending() {
+      return pendingText;
+    },
+    reset() {
+      pendingText = '';
+    },
+    cancel() {
+      if (rafRef != null) {
+        cancelAnimationFrame(rafRef);
+        rafRef = null;
+      }
+    },
+    flushNow() {
+      this.cancel();
+      setStreamedText(pendingText);
+    },
+  };
+}
+
+export function buildChatRequestOptions(args: {
+  temperature: number;
+  maxTokens?: number;
+  selectedDocIds: Array<string | number>;
+  attachedImage: AttachedImage;
+  chatAttachments: ChatAttachmentPayload[];
+  extra?: { regenerateFromMessageId?: number };
+}) {
+  return {
+    temperature: args.temperature,
+    ...(typeof args.maxTokens === 'number' && Number.isFinite(args.maxTokens)
+      ? { max_tokens: args.maxTokens }
+      : {}),
+    documentIds: args.selectedDocIds,
+    ragEnabled: args.selectedDocIds.length > 0,
+    image: args.attachedImage?.base64 || null,
+    attachments:
+      (args.chatAttachments?.length ?? 0) > 0
+        ? args.chatAttachments
+        : undefined,
+    ...args.extra,
+  };
+}
+
+export type { RagSource };
