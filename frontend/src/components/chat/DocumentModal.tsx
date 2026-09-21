@@ -1,16 +1,11 @@
 /**
  * RAG documents manager modal.
  */
-import React, {
-  type ChangeEvent,
-  type RefObject,
-  useCallback,
-  useState,
-} from 'react';
-import { Modal, Button, Form, ListGroup, Spinner, Badge, Collapse } from 'react-bootstrap';
-import { documentsAPI } from '../../services/api';
-import type { DocumentChunkRecord, DocumentRecord } from '../../types/api';
-import { parseSheetName, stripSheetHeader } from '../../utils/sheetContext';
+import React, { type ChangeEvent, type RefObject } from 'react';
+import { Modal, Button, ListGroup, Spinner } from 'react-bootstrap';
+import type { DocumentRecord } from '../../types/api';
+import RagModeBadge from './documentModal/RagModeBadge';
+import DocumentListItem from './documentModal/DocumentListItem';
 
 export type DocumentModalProps = {
   show: boolean;
@@ -32,105 +27,6 @@ export type DocumentModalProps = {
   loadingMore?: boolean;
   ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
 };
-
-function RagModeBadge({
-  ragEmbeddingMode = 'fallback',
-}: {
-  ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
-}) {
-  if (ragEmbeddingMode === 'openai') {
-    return (
-      <Badge bg="success" className="ms-2">
-        RAG: semantic (OpenAI)
-      </Badge>
-    );
-  }
-  if (ragEmbeddingMode === 'ollama') {
-    return (
-      <Badge bg="success" className="ms-2">
-        RAG: semantic (Ollama)
-      </Badge>
-    );
-  }
-  return (
-    <Badge bg="warning" text="dark" className="ms-2">
-      RAG: fallback (без embeddings)
-    </Badge>
-  );
-}
-
-function fileKindLabel(doc: DocumentRecord): string | null {
-  const name = String(doc.filename || '').toLowerCase();
-  const mime = String(doc.file_type || '').toLowerCase();
-  if (name.endsWith('.xlsx') || mime.includes('spreadsheet')) return 'XLSX';
-  if (name.endsWith('.pdf') || mime.includes('pdf')) return 'PDF';
-  if (name.endsWith('.docx') || mime.includes('wordprocessing')) return 'DOCX';
-  if (name.endsWith('.md')) return 'MD';
-  if (name.endsWith('.txt') || mime.startsWith('text/')) return 'TXT';
-  return null;
-}
-
-function ChunkPreview({ docId }: { docId: string | number }) {
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [chunks, setChunks] = useState<DocumentChunkRecord[]>([]);
-  const [error, setError] = useState('');
-
-  const loadChunks = useCallback(async () => {
-    if (chunks.length > 0) {
-      setOpen((v) => !v);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await documentsAPI.getChunks(docId, { limit: 3, offset: 0 });
-      setChunks(res.data.items);
-      setOpen(true);
-    } catch (err) {
-      console.warn('Document chunk preview failed:', err);
-      setError('Не вдалося завантажити фрагменти');
-    } finally {
-      setLoading(false);
-    }
-  }, [chunks.length, docId]);
-
-  return (
-    <div className="mt-1">
-      <Button
-        variant="link"
-        size="sm"
-        className="p-0 text-info"
-        disabled={loading}
-        onClick={() => void loadChunks()}
-      >
-        {loading ? 'Завантаження…' : open ? 'Сховати фрагменти' : 'Переглянути фрагменти'}
-      </Button>
-      {error && <div className="text-danger small">{error}</div>}
-      <Collapse in={open}>
-        <div className="mt-1">
-          {chunks.map((chunk) => {
-            const sheet = parseSheetName(chunk.content);
-            const body = stripSheetHeader(chunk.content);
-            const preview = body.slice(0, 280);
-            const sheetLine = sheet ? `Аркуш: ${sheet}\n` : '';
-            return (
-            <pre
-              key={chunk.chunk_index}
-              className="small text-muted mb-1 p-2 rounded border border-secondary"
-              style={{ whiteSpace: 'pre-wrap', fontSize: '0.7rem' }}
-            >
-              #{chunk.chunk_index + 1}: {sheetLine}
-              {preview}
-              {body.length > 280 ? '…' : ''}
-            </pre>
-            );
-          })}
-        </div>
-      </Collapse>
-    </div>
-  );
-}
 
 const DocumentModal = React.memo(function DocumentModal({
   show,
@@ -172,10 +68,7 @@ const DocumentModal = React.memo(function DocumentModal({
             </>
           )}
           {ragEmbeddingMode === 'ollama' && (
-            <>
-              {' '}
-              Embeddings через Ollama (nomic-embed-text).
-            </>
+            <> Embeddings через Ollama (nomic-embed-text).</>
           )}
         </p>
 
@@ -215,92 +108,20 @@ const DocumentModal = React.memo(function DocumentModal({
           </p>
         ) : (
           <ListGroup variant="flush">
-            {userDocuments.map((doc) => {
-              const isSelected = selectedDocIds.includes(doc.id);
-              const status = doc.status || 'ready';
-              const isReady = status === 'ready';
-              const isFailed = status === 'failed';
-              const isRetrying = retryingDocId === doc.id;
-              const isReindexing = reindexingDocId === doc.id;
-              const isBusy = isRetrying || isReindexing;
-              const kind = fileKindLabel(doc);
-              const statusLabel =
-                status === 'pending'
-                  ? 'індексація…'
-                  : isFailed
-                    ? 'помилка індексації'
-                    : null;
-              return (
-                <ListGroup.Item
-                  key={doc.id}
-                  className="bg-dark text-light border-secondary d-flex justify-content-between align-items-start"
-                >
-                  <div className="flex-grow-1 pe-2">
-                    <Form.Check
-                      type="checkbox"
-                      id={`doc-${doc.id}`}
-                      label={doc.filename}
-                      checked={isSelected}
-                      disabled={uploadingDoc || !isReady}
-                      onChange={(e) => onToggleDoc(doc.id, e.target.checked)}
-                    />
-                    <small className="text-muted" style={{ fontSize: '0.75rem' }}>
-                      {kind ? `${kind} | ` : ''}
-                      {statusLabel ? `${statusLabel} | ` : ''}
-                      {doc.chunks_count ?? 0} фрагментів |{' '}
-                      {((doc.file_size || 0) / 1024).toFixed(1)} KB
-                      {isReady && doc.has_embeddings === false && ' | без embeddings'}
-                      {isReady && doc.embedding_provider && ` | ${doc.embedding_provider}`}
-                    </small>
-                    {isFailed && doc.failure_reason && (
-                      <div className="text-danger small mt-1">{doc.failure_reason}</div>
-                    )}
-                    {isReady && (doc.chunks_count ?? 0) > 0 && (
-                      <ChunkPreview docId={doc.id} />
-                    )}
-                    {isReady && doc.needs_reindex && (
-                      <Button
-                        variant="outline-info"
-                        size="sm"
-                        className="mt-2 me-2"
-                        disabled={uploadingDoc || isBusy}
-                        onClick={() => onReindexDoc(doc.id)}
-                      >
-                        {isReindexing ? (
-                          <Spinner size="sm" animation="border" />
-                        ) : (
-                          'Переіндексувати'
-                        )}
-                      </Button>
-                    )}
-                    {isFailed && (
-                      <Button
-                        variant="outline-warning"
-                        size="sm"
-                        className="mt-2"
-                        disabled={uploadingDoc || isBusy}
-                        onClick={() => onRetryDoc(doc.id)}
-                      >
-                        {isRetrying ? (
-                          <Spinner size="sm" animation="border" />
-                        ) : (
-                          'Повторити індексацію'
-                        )}
-                      </Button>
-                    )}
-                  </div>
-
-                  <Button
-                    variant="outline-danger"
-                    size="sm"
-                    disabled={uploadingDoc || isBusy}
-                    onClick={() => onDeleteDoc(doc.id)}
-                  >
-                    🗑
-                  </Button>
-                </ListGroup.Item>
-              );
-            })}
+            {userDocuments.map((doc) => (
+              <DocumentListItem
+                key={doc.id}
+                doc={doc}
+                isSelected={selectedDocIds.includes(doc.id)}
+                uploadingDoc={uploadingDoc}
+                retryingDocId={retryingDocId}
+                reindexingDocId={reindexingDocId}
+                onToggleDoc={onToggleDoc}
+                onDeleteDoc={onDeleteDoc}
+                onRetryDoc={onRetryDoc}
+                onReindexDoc={onReindexDoc}
+              />
+            ))}
           </ListGroup>
         )}
         {hasMore && (
