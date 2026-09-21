@@ -1,6 +1,5 @@
 /**
  * Thin HTTP/SSE adapters over ChatService. Rate limits stay in server.js.
- * Controllers catch ChatError → 4xx JSON; unexpected errors → 500 (or SSE error).
  */
 import { Response, NextFunction } from 'express';
 import ChatService from '../services/ChatService';
@@ -10,64 +9,28 @@ import {
   isAbortError,
 } from '../utils/requestAbort';
 import { jsonError } from '../utils/httpJson';
+import { writeSse } from '../utils/sse';
+import {
+  isChatError,
+  validateChatMessage,
+  publicErrorJson,
+  publicStreamErrorText,
+} from '../services/chat/httpHelpers';
 import type { AuthRequest } from '../types/express';
 
-function isChatError(error: unknown): error is Error & { statusCode: number } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'statusCode' in error &&
-    typeof (error as { statusCode: unknown }).statusCode === 'number'
-  );
-}
-
-/** Write one SSE frame; ignore client disconnect so the handler can finish cleanly. */
-function writeSse(res: Response, payload: unknown): void {
-  try {
-    if (res.writableEnded) return;
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`SSE write skipped (client closed?): ${message}`);
-  }
-}
-
-function validateChatMessage(
-  message: unknown,
+function respondChatError(
   req: AuthRequest,
-  res: Response
-): message is string {
-  if (!message || !String(message).trim()) {
-    jsonError(res, req, 400, 'Message is required');
-    return false;
+  res: Response,
+  error: unknown,
+  public500: string
+): void {
+  if (isChatError(error)) {
+    jsonError(res, req, error.statusCode, error.message);
+    return;
   }
-  if (String(message).length > 4000) {
-    jsonError(res, req, 400, 'Message too long (max 4000 characters)');
-    return false;
-  }
-  return true;
-}
-
-function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
-}
-
-/** Public JSON body — never leak internals in production. */
-function publicErrorJson(
-  req: AuthRequest,
-  publicError: string,
-  details: string
-): { error: string; requestId?: string; details?: string } {
-  const base: { error: string; requestId?: string; details?: string } = {
-    error: publicError,
-    requestId: req.id,
-  };
-  if (!isProduction()) base.details = details;
-  return base;
-}
-
-function publicStreamErrorText(details: string): string {
-  return isProduction() ? 'Stream failed' : details;
+  const message = error instanceof Error ? error.message : String(error);
+  logger.error(`${public500}: ${message} requestId=${req.id || '-'}`);
+  res.status(500).json(publicErrorJson(req, public500, message));
 }
 
 export async function sendMessage(
@@ -77,12 +40,8 @@ export async function sendMessage(
 ): Promise<void> {
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
-
     if (!validateChatMessage(message, req, res)) return;
-
-    // Never let clients enable tools on /send (parity with /stream).
     const safeOptions = { ...options, enableTools: false, requestId: req.id };
-
     const result = await ChatService.sendMessage({
       userId: req.userId!,
       conversationId,
@@ -93,15 +52,7 @@ export async function sendMessage(
     });
     res.json(result);
   } catch (error: unknown) {
-    if (isChatError(error)) {
-      jsonError(res, req, error.statusCode, error.message);
-      return;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Error in sendMessage: ${message} requestId=${req.id || '-'}`);
-    res
-      .status(500)
-      .json(publicErrorJson(req, 'Failed to send message', message));
+    respondChatError(req, res, error, 'Failed to send message');
   }
 }
 
@@ -113,17 +64,13 @@ export async function streamMessage(
   const signal = bindClientAbortSignal(req, res);
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
-
     if (!validateChatMessage(message, req, res)) return;
-
-    // Tools disabled on SSE path (interactive tools need a non-stream round-trip)
     const streamOptions = {
       ...(options || {}),
       tools: undefined,
       enableTools: false,
       requestId: req.id,
     };
-
     const result = await ChatService.streamMessage(
       {
         userId: req.userId!,
@@ -138,7 +85,6 @@ export async function streamMessage(
         writeSse(res, { type: 'token', token });
       },
       (convId: number, ragStatus?: string) => {
-        // Headers after ownership/prep so 403 stays JSON (not half-open SSE)
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
@@ -149,7 +95,6 @@ export async function streamMessage(
         });
       }
     );
-
     writeSse(res, {
       type: 'done',
       messageId: result.messageId,
@@ -189,26 +134,11 @@ export async function getHistory(
     const conversationId = Number(req.params.conversationId);
     const limit = Math.min(parseInt(String(req.query.limit), 10) || 100, 500);
     const offset = Math.max(parseInt(String(req.query.offset), 10) || 0, 0);
-
-    const result = await ChatService.getHistory(
-      req.userId!,
-      conversationId,
-      limit,
-      offset
+    res.json(
+      await ChatService.getHistory(req.userId!, conversationId, limit, offset)
     );
-    res.json(result);
   } catch (error: unknown) {
-    if (isChatError(error)) {
-      jsonError(res, req, error.statusCode, error.message);
-      return;
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    logger.error(`Error in getHistory: ${message} requestId=${req.id || '-'}`);
-    res
-      .status(500)
-      .json(
-        publicErrorJson(req, 'Failed to fetch conversation history', message)
-      );
+    respondChatError(req, res, error, 'Failed to fetch conversation history');
   }
 }
 
@@ -218,22 +148,17 @@ export async function searchMessages(
 ): Promise<void> {
   const { q, conversationId } = req.query;
   if (!q || String(q).trim().length < 2) {
-    jsonError(
-      res,
-      req,
-      400,
-      'Пошуковий запит має бути не менше 2 символів'
-    );
+    jsonError(res, req, 400, 'Пошуковий запит має бути не менше 2 символів');
     return;
   }
-
   try {
-    const result = await ChatService.searchMessages(
-      req.userId!,
-      String(q),
-      conversationId !== undefined ? String(conversationId) : undefined
+    res.json(
+      await ChatService.searchMessages(
+        req.userId!,
+        String(q),
+        conversationId !== undefined ? String(conversationId) : undefined
+      )
     );
-    res.json(result);
   } catch (error: unknown) {
     if (isChatError(error)) {
       jsonError(res, req, error.statusCode, error.message);
