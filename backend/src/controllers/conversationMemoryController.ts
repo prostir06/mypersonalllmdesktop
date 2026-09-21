@@ -165,8 +165,10 @@ export async function refreshSummary(
   }
 
   try {
-    await maybeRefreshSummary(req.userId!, conversationId, { force: true });
-    res.json({ success: true });
+    const refreshResult = await maybeRefreshSummary(req.userId!, conversationId, {
+      force: true,
+    });
+    res.json({ success: true, refreshed: refreshResult.refreshed });
   } catch (error: unknown) {
     handleMemoryError(
       req,

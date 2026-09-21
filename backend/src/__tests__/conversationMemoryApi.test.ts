@@ -203,16 +203,29 @@ describe('Conversation memory API', () => {
   });
 
   it('POST /:conversationId/memory/refresh-summary triggers force summary', async () => {
-    mockedMemoryService.maybeRefreshSummary.mockResolvedValue(undefined);
+    mockedMemoryService.maybeRefreshSummary.mockResolvedValue({ refreshed: true });
 
     const res = await request(app)
       .post('/api/conversations/7/memory/refresh-summary')
       .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ success: true });
+    expect(res.body).toEqual({ success: true, refreshed: true });
     expect(mockedMemoryService.maybeRefreshSummary).toHaveBeenCalledWith(9, 7, {
       force: true,
     });
+  });
+
+  it('POST /:conversationId/memory/refresh-summary returns 404 for missing conversation', async () => {
+    mockedMemoryService.maybeRefreshSummary.mockRejectedValue(
+      new memoryService.MemoryError(404, 'Conversation not found')
+    );
+
+    const res = await request(app)
+      .post('/api/conversations/7/memory/refresh-summary')
+      .set('Authorization', `Bearer ${tokenFor(9)}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Conversation not found');
   });
 });

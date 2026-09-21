@@ -143,7 +143,8 @@ describe('conversationMemoryService', () => {
 
   it('does not summarize when message count is <= default threshold', async () => {
     mockedPrisma.message.count.mockResolvedValue(40);
-    await maybeRefreshSummary(9, 7);
+    const result = await maybeRefreshSummary(9, 7);
+    expect(result).toEqual({ refreshed: false });
     expect(mockedProviderFactory.sendMessage).not.toHaveBeenCalled();
     expect(mockedPrisma.conversation.update).not.toHaveBeenCalled();
   });
@@ -163,8 +164,9 @@ describe('conversationMemoryService', () => {
       .mockResolvedValueOnce(100)
       .mockResolvedValueOnce(5);
 
-    await maybeRefreshSummary(9, 7);
+    const result = await maybeRefreshSummary(9, 7);
 
+    expect(result).toEqual({ refreshed: false });
     expect(mockedPrisma.message.findMany).not.toHaveBeenCalled();
     expect(mockedProviderFactory.sendMessage).not.toHaveBeenCalled();
     expect(mockedPrisma.conversation.update).not.toHaveBeenCalled();
@@ -184,8 +186,9 @@ describe('conversationMemoryService', () => {
       content: 'y'.repeat(4500),
     });
 
-    await maybeRefreshSummary(9, 7, { force: true });
+    const result = await maybeRefreshSummary(9, 7, { force: true });
 
+    expect(result).toEqual({ refreshed: true });
     expect(mockedProviderFactory.sendMessage).toHaveBeenCalled();
     expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
       where: { id: 7 },
@@ -207,7 +210,21 @@ describe('conversationMemoryService', () => {
     });
     mockedProviderFactory.sendMessage.mockRejectedValue(new Error('llm-down'));
 
-    await expect(maybeRefreshSummary(9, 7, { force: true })).resolves.toBeUndefined();
+    await expect(maybeRefreshSummary(9, 7, { force: true })).resolves.toEqual({
+      refreshed: false,
+    });
     expect(mockedLogger.warn).toHaveBeenCalled();
+  });
+
+  it('rethrows MemoryError access failures', async () => {
+    mockedPrisma.conversation.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 7 });
+
+    await expect(maybeRefreshSummary(9, 7, { force: true })).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Forbidden',
+    });
+    expect(mockedLogger.warn).not.toHaveBeenCalled();
   });
 });

@@ -170,7 +170,7 @@ export async function maybeRefreshSummary(
   userId: number,
   conversationId: number,
   opts: { force?: boolean } = {}
-): Promise<void> {
+): Promise<{ refreshed: boolean }> {
   try {
     const conversation = await ensureConversationAccess(userId, conversationId);
     const force = Boolean(opts.force);
@@ -184,7 +184,7 @@ export async function maybeRefreshSummary(
     );
 
     const totalMessages = await prisma.message.count({ where: { conversationId } });
-    if (!force && totalMessages <= summaryThreshold) return;
+    if (!force && totalMessages <= summaryThreshold) return { refreshed: false };
 
     if (!force) {
       let messagesSince = totalMessages;
@@ -196,7 +196,7 @@ export async function maybeRefreshSummary(
           },
         });
       }
-      if (messagesSince < summaryEveryN) return;
+      if (messagesSince < summaryEveryN) return { refreshed: false };
     }
 
     const recentMessages = await prisma.message.findMany({
@@ -205,7 +205,7 @@ export async function maybeRefreshSummary(
       take: SUMMARY_RECENT_MESSAGES_CAP,
       select: { role: true, content: true },
     });
-    if (recentMessages.length === 0) return;
+    if (recentMessages.length === 0) return { refreshed: false };
 
     const settings = await prisma.userSettings.findUnique({
       where: { userId },
@@ -236,7 +236,7 @@ export async function maybeRefreshSummary(
       {}
     );
     const summary = truncate((result?.content || '').trim(), MAX_SUMMARY_CHARS);
-    if (!summary) return;
+    if (!summary) return { refreshed: false };
 
     await prisma.conversation.update({
       where: { id: conversationId },
@@ -245,10 +245,15 @@ export async function maybeRefreshSummary(
         summaryUpdatedAt: new Date(),
       },
     });
+    return { refreshed: true };
   } catch (error: unknown) {
+    if (error instanceof MemoryError) {
+      throw error;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.warn(
       `conversationMemoryService.maybeRefreshSummary skipped: ${message}`
     );
+    return { refreshed: false };
   }
 }
