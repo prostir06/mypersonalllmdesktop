@@ -1,6 +1,8 @@
 import type { AxiosResponse } from 'axios';
 import type {
   Conversation,
+  ConversationMemory,
+  ConversationMemoryNote,
   ConversationExportResponse,
   ListQueryParams,
   PaginatedList,
@@ -24,4 +26,24 @@ export const conversationAPI = {
     format: string = 'md'
   ): Promise<AxiosResponse<ConversationExportResponse>> =>
     api.get(`/conversations/${id}/export`, { params: { format } }),
+  getMemory: (id: string | number): Promise<AxiosResponse<ConversationMemory>> =>
+    api.get(`/conversations/${id}/memory`),
+  createMemoryNote: (
+    id: string | number,
+    content: string
+  ): Promise<AxiosResponse<ConversationMemoryNote>> =>
+    api.post(`/conversations/${id}/memory-notes`, { content }),
+  updateMemoryNote: (
+    id: string | number,
+    noteId: string | number,
+    content: string
+  ): Promise<AxiosResponse<ConversationMemoryNote>> =>
+    api.patch(`/conversations/${id}/memory-notes/${noteId}`, { content }),
+  deleteMemoryNote: (
+    id: string | number,
+    noteId: string | number
+  ): Promise<AxiosResponse<SuccessResponse>> =>
+    api.delete(`/conversations/${id}/memory-notes/${noteId}`),
+  refreshSummary: (id: string | number): Promise<AxiosResponse<SuccessResponse>> =>
+    api.post(`/conversations/${id}/memory/refresh-summary`),
 };

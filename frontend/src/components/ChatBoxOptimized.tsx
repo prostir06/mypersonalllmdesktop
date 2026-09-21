@@ -208,6 +208,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onExportChat={exportMarkdown}
         onExportPdf={exportPdf}
         messagesCount={messages.length}
+        conversationId={conversationId}
       />
 
       {error && (

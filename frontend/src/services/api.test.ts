@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
+    patch: vi.fn(),
     delete: vi.fn(),
     interceptors: {
       request: { use: vi.fn() },
@@ -50,6 +51,7 @@ describe('api service wrappers', () => {
     mocks.apiInstance.get.mockClear();
     mocks.apiInstance.post.mockClear();
     mocks.apiInstance.put.mockClear();
+    mocks.apiInstance.patch.mockClear();
     mocks.apiInstance.delete.mockClear();
     mocks.axiosPost.mockClear();
     mocks.toastWarn.mockClear();
@@ -86,6 +88,11 @@ describe('api service wrappers', () => {
     conversationAPI.update(7, 'Renamed');
     conversationAPI.delete(7);
     conversationAPI.export(7, 'json');
+    conversationAPI.getMemory(7);
+    conversationAPI.createMemoryNote(7, 'keep this');
+    conversationAPI.updateMemoryNote(7, 3, 'updated');
+    conversationAPI.deleteMemoryNote(7, 3);
+    conversationAPI.refreshSummary(7);
 
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/auth/login', {
       email: 'a@example.com',
@@ -111,6 +118,17 @@ describe('api service wrappers', () => {
     expect(mocks.apiInstance.get).toHaveBeenCalledWith('/conversations/7/export', {
       params: { format: 'json' },
     });
+    expect(mocks.apiInstance.get).toHaveBeenCalledWith('/conversations/7/memory');
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith('/conversations/7/memory-notes', {
+      content: 'keep this',
+    });
+    expect(mocks.apiInstance.patch).toHaveBeenCalledWith('/conversations/7/memory-notes/3', {
+      content: 'updated',
+    });
+    expect(mocks.apiInstance.delete).toHaveBeenCalledWith('/conversations/7/memory-notes/3');
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith(
+      '/conversations/7/memory/refresh-summary'
+    );
   });
 
   it('calls chat and document endpoints with expected payloads', async () => {

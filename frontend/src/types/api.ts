@@ -35,6 +35,20 @@ export interface Conversation {
   [key: string]: unknown;
 }
 
+export interface ConversationMemoryNote {
+  id: string | number;
+  conversation_id: string | number;
+  content: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ConversationMemory {
+  summary: string | null;
+  summary_updated_at: string | null;
+  notes: ConversationMemoryNote[];
+}
+
 export interface PaginatedList<T> {
   items: T[];
   total: number;
