@@ -15,6 +15,11 @@ const chatStreamState = {
   stopStreaming: vi.fn(),
 };
 
+const chatAttachmentsState = {
+  attachedImage: null as { url: string; base64: string } | null,
+  chatAttachments: [] as unknown[],
+};
+
 const settingsData = {
   default_provider: 'openai',
   default_model: 'gpt-4o-mini',
@@ -83,6 +88,21 @@ vi.mock('../hooks/useChatStream', () => ({
   useChatStream: () => chatStreamState,
 }));
 
+vi.mock('../hooks/useChatAttachments', () => ({
+  useChatAttachments: () => ({
+    attachedImage: chatAttachmentsState.attachedImage,
+    setAttachedImage: vi.fn(),
+    chatAttachments: chatAttachmentsState.chatAttachments,
+    setChatAttachments: vi.fn(),
+    handleImageAttach: vi.fn(),
+    handleFileAttach: vi.fn(),
+    clearAttachedImage: vi.fn(),
+    removeAttachment: vi.fn(),
+    imageInputRef: { current: null },
+    chatFileInputRef: { current: null },
+  }),
+}));
+
 vi.mock('../hooks/useConversationHistory', () => ({
   useConversationHistory: () => ({
     messages: [],
@@ -112,6 +132,8 @@ vi.mock('react-router-dom', async () => {
 describe('ChatBoxOptimized', () => {
   afterEach(() => {
     chatStreamState.error = null;
+    chatAttachmentsState.attachedImage = null;
+    chatAttachmentsState.chatAttachments = [];
     cleanup();
   });
 
@@ -138,6 +160,20 @@ describe('ChatBoxOptimized', () => {
       expect.any(Function)
     );
     expect(navigateMock).toHaveBeenCalledWith('/settings');
+  });
+
+  it('sends attachment fallback when only attachedImage is present', async () => {
+    const user = userEvent.setup();
+    chatAttachmentsState.attachedImage = { url: 'blob:test', base64: 'abc' };
+    chatStreamState.sendMessage.mockClear();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    await user.click(screen.getByRole('button', { name: /надіслати/i }));
+
+    expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
+      'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.',
+      expect.any(Function)
+    );
   });
 
   it('shows catalog model for provider and switches to ollama catalog', async () => {

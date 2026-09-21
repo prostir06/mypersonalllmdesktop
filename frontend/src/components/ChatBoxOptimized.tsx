@@ -163,7 +163,13 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
   const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault();
-    if ((!inputMessage.trim() && chatAttachments.length === 0) || streaming || loading) {
+    if (
+      (!inputMessage.trim() &&
+        chatAttachments.length === 0 &&
+        !attachedImage) ||
+      streaming ||
+      loading
+    ) {
       return;
     }
     const userContent =
