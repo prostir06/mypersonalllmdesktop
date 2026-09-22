@@ -17,7 +17,7 @@ import usersRoutes from './routes/users';
 import documentsRoutes from './routes/documents';
 import promptsRoutes from './routes/prompts';
 import prisma from './config/prisma';
-import './types/express';
+import type { RequestWithId } from './types/express';
 
 dotenv.config();
 
@@ -82,7 +82,9 @@ app.use('/api/chat/stream', chatLimiter);
 
 // Logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  logger.info(`${req.method} ${req.url} requestId=${req.id || '-'}`);
+  logger.info(
+    `${req.method} ${req.url} requestId=${(req as RequestWithId).id || '-'}`
+  );
   next();
 });
 
@@ -145,7 +147,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'Endpoint not found',
-    requestId: req.id,
+    requestId: (req as RequestWithId).id,
   });
 });
 

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../logger';
+import type { RequestWithId } from '../types/express';
 
 type HttpError = Error & { statusCode?: number };
 
@@ -9,12 +10,13 @@ const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
+  const requestId = (req as RequestWithId).id;
   logger.error({
     message: err.message,
     stack: err.stack,
     url: req.url,
     method: req.method,
-    requestId: req.id,
+    requestId,
     timestamp: new Date().toISOString(),
   });
 
@@ -26,7 +28,7 @@ const errorHandler = (
 
   res.status(statusCode).json({
     error: message,
-    requestId: req.id,
+    requestId,
     ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
   });
 };

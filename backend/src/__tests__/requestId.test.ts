@@ -4,13 +4,14 @@ import type { Request } from 'express';
 const request = require('supertest');
 import requestId from '../middleware/requestId';
 import errorHandler from '../middleware/errorHandler';
+import type { RequestWithId } from '../types/express';
 
 describe('requestId middleware', () => {
   it('generates X-Request-Id when client omits header', async () => {
     const app = express();
     app.use(requestId);
     app.get('/ping', (req: Request, res) => {
-      res.json({ id: req.id });
+      res.json({ id: (req as RequestWithId).id });
     });
 
     const res = await request(app).get('/ping');
@@ -23,7 +24,7 @@ describe('requestId middleware', () => {
     const app = express();
     app.use(requestId);
     app.get('/ping', (req: Request, res) => {
-      res.json({ id: req.id });
+      res.json({ id: (req as RequestWithId).id });
     });
 
     const res = await request(app)

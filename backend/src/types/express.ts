@@ -1,12 +1,11 @@
 import type { Request } from 'express';
 
-declare module 'express-serve-static-core' {
-  interface Request {
-    id?: string;
-  }
-}
+/** Express Request plus middleware-attached request id (no global namespace merge). */
+export type RequestWithId = Request & {
+  id?: string;
+};
 
-export type AuthRequest = Request & {
+export type AuthRequest = RequestWithId & {
   userId?: number;
   file?: { path: string; mimetype: string; originalname: string };
 };

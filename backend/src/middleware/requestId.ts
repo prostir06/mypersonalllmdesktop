@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import type { RequestWithId } from '../types/express';
 
 /**
  * Attach a request id (from X-Request-Id or generated UUID) and echo it on the response.
@@ -10,7 +11,7 @@ function requestId(req: Request, res: Response, next: NextFunction): void {
     incoming && typeof incoming === 'string' && incoming.trim()
       ? incoming.trim().slice(0, 128)
       : crypto.randomUUID();
-  req.id = id;
+  (req as RequestWithId).id = id;
   res.setHeader('X-Request-Id', id);
   next();
 }
