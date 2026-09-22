@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Button, Collapse, Spinner } from 'react-bootstrap';
+import { Button, Collapse } from 'react-bootstrap';
 import { documentsAPI } from '../../../services/api';
 import type { DocumentChunkRecord } from '../../../types/api';
 import { parseSheetName, stripSheetHeader } from '../../../utils/sheetContext';

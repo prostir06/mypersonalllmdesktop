@@ -5,7 +5,6 @@ import { conversationAPI } from '../services/api';
 import type { Message } from '../types/api';
 import {
   buildPdfFromMessages,
-  buildPdfFromMarkdown,
   downloadTextFile,
   useChatExport,
 } from './useChatExport';

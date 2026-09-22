@@ -20,6 +20,8 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // Form hydration / data-load effects still common; keep as warn (same as JSX).
+      'react-hooks/set-state-in-effect': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',

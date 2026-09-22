@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, type FormEvent, type MouseEvent } from 'react';
+import React, { useCallback, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { Row, Col } from 'react-bootstrap';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -17,10 +17,15 @@ import { isSameConversation } from './dashboard/isSameConversation';
 import DashboardSidebar from './dashboard/DashboardSidebar';
 import NewConversationModal from './dashboard/NewConversationModal';
 
+function conversationIdFromSearch(
+  searchParams: URLSearchParams
+): number | null {
+  const cid = searchParams.get('conversation');
+  if (cid && /^\d+$/.test(cid)) return Number(cid);
+  return null;
+}
+
 const Dashboard: React.FC = () => {
-  const [activeConversation, setActiveConversation] = useState<
-    string | number | null
-  >(null);
   const [showNewConvModal, setShowNewConvModal] = useState(false);
   const [newConvTitle, setNewConvTitle] = useState('');
   const [renamingId, setRenamingId] = useState<string | number | null>(null);
@@ -28,20 +33,18 @@ const Dashboard: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    const cid = searchParams.get('conversation');
-    if (cid && /^\d+$/.test(cid)) {
-      // Keep numeric id so /chat/stream body matches backend Number.isInteger checks.
-      setActiveConversation(Number(cid));
-    }
-  }, [searchParams]);
+  // URL is the source of truth — avoids syncing searchParams into state via effect.
+  const activeConversation = useMemo(
+    () => conversationIdFromSearch(searchParams),
+    [searchParams]
+  );
 
   const selectConversation = useCallback(
     (id: string | number | null) => {
-      setActiveConversation(id);
       if (id == null) {
-        searchParams.delete('conversation');
-        setSearchParams(searchParams, { replace: true });
+        const next = new URLSearchParams(searchParams);
+        next.delete('conversation');
+        setSearchParams(next, { replace: true });
         return;
       }
       setSearchParams({ conversation: String(id) }, { replace: true });

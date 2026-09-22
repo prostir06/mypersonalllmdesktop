@@ -1,7 +1,7 @@
 /**
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-import React, { useState, useEffect, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
@@ -40,6 +40,7 @@ const Settings: React.FC = () => {
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'error' | null>(null);
+  const [hydratedKey, setHydratedKey] = useState('');
 
   const settingsFingerprint = settingsData
     ? [
@@ -53,8 +54,9 @@ const Settings: React.FC = () => {
       ].join('|')
     : '';
 
-  useEffect(() => {
-    if (!settingsData) return;
+  // Adjust form when server settings change (React “adjust state during render”).
+  if (settingsData && settingsFingerprint !== hydratedKey) {
+    setHydratedKey(settingsFingerprint);
     setProvider(normalizeProvider(settingsData.default_provider));
     setModel(settingsData.default_model || '');
     setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
@@ -67,8 +69,7 @@ const Settings: React.FC = () => {
     setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
     setOpenaiApiKey('');
     setClearOpenaiKey(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsFingerprint]);
+  }
 
   const catalogOptions = useMemo(
     () => catalogModelsToOptions(catalogModels, provider),

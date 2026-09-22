@@ -33,8 +33,26 @@ export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
   }, []);
 
   useEffect(() => {
-    if (show) void loadUserPrompts();
-  }, [show, loadUserPrompts]);
+    if (!show) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await promptsAPI.getAll();
+        if (cancelled) return;
+        setUserPrompts(Array.isArray(res.data) ? res.data : []);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const ax = err as AxiosError<{ error?: string }>;
+        toast.error(ax.response?.data?.error || 'Не вдалося завантажити промпти');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [show]);
 
   const handleCreate = async () => {
     if (!newTitle.trim() || !newPrompt.trim()) {

@@ -26,6 +26,7 @@ export function useChatModelSelection({
   const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
+  const [hydratedKey, setHydratedKey] = useState('');
 
   const catalogOptions = useMemo(
     () => catalogModelsToOptions(catalogModels, selectedProvider),
@@ -72,11 +73,11 @@ export function useChatModelSelection({
   }, []);
 
   const settingsFingerprint = settings
-    ? `${settings.default_provider}|${settings.default_model}|${settings.temperature}|${settings.max_tokens}`
+    ? `${settings.default_provider}|${settings.default_model}|${settings.temperature}|${settings.max_tokens}|${settings.default_ollama_host}`
     : '';
 
-  useEffect(() => {
-    if (!settings) return;
+  if (settings && settingsFingerprint !== hydratedKey) {
+    setHydratedKey(settingsFingerprint);
     setSelectedProvider(settings.default_provider || 'openai');
     setSelectedModel(settings.default_model || '');
     if (settings.temperature !== undefined) {
@@ -86,17 +87,36 @@ export function useChatModelSelection({
       const n = parseInt(String(settings.max_tokens), 10);
       if (Number.isFinite(n) && n > 0) setMaxTokens(n);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settingsFingerprint]);
+  }
 
   useEffect(() => {
-    if (settings?.default_provider !== 'ollama') return;
-    void fetchRemoteModels(settings.default_ollama_host);
-  }, [
-    settings?.default_provider,
-    settings?.default_ollama_host,
-    fetchRemoteModels,
-  ]);
+    if (selectedProvider !== 'ollama') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await modelsAPI.getRemote(
+          'ollama',
+          settings?.default_ollama_host
+        );
+        if (cancelled) return;
+        const raw = Array.isArray(response.data)
+          ? response.data
+          : response.data?.models || [];
+        const fetched = raw.map((m) => ({
+          value: String(m.id || m.name || ''),
+          label: `${m.name || m.id} (Локальна)`,
+        }));
+        if (fetched.length > 0) setRemoteModels(fetched);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('Could not fetch remote Ollama models:', message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProvider, settings?.default_ollama_host]);
 
   const handleProviderChange = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {

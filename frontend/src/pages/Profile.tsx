@@ -18,24 +18,28 @@ const Profile: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    void loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-      const response = await usersAPI.getMe();
-      const data = response.data;
-      setName(data.name || '');
-      setEmail(data.email || '');
-      setUser(data);
-    } catch (err) {
-      console.error('Profile load error:', err);
-      setError('Не вдалося завантажити профіль');
-    } finally {
-      setLoading(false);
-    }
-  };
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const response = await usersAPI.getMe();
+        if (cancelled) return;
+        const data = response.data;
+        setName(data.name || '');
+        setEmail(data.email || '');
+        setUser(data);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Profile load error:', err);
+        setError('Не вдалося завантажити профіль');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setUser]);
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();

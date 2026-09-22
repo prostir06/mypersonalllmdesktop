@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MemoryPanel from './MemoryPanel';
@@ -14,6 +15,15 @@ vi.mock('../../services/api', () => ({
     refreshSummary: vi.fn(),
   },
 }));
+
+function renderWithQuery(ui: React.ReactElement) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={qc}>{ui}</QueryClientProvider>
+  );
+}
 
 describe('MemoryPanel', () => {
   afterEach(() => {
@@ -52,7 +62,7 @@ describe('MemoryPanel', () => {
   });
 
   it('renders summary and notes from memory API', async () => {
-    render(<MemoryPanel show onHide={vi.fn()} conversationId={7} />);
+    renderWithQuery(<MemoryPanel show onHide={vi.fn()} conversationId={7} />);
 
     expect(await screen.findByTestId('memory-panel')).toBeInTheDocument();
     expect(await screen.findByTestId('memory-summary')).toHaveValue('existing summary');
@@ -62,7 +72,7 @@ describe('MemoryPanel', () => {
 
   it('calls create note API on submit', async () => {
     const user = userEvent.setup();
-    render(<MemoryPanel show onHide={vi.fn()} conversationId={7} />);
+    renderWithQuery(<MemoryPanel show onHide={vi.fn()} conversationId={7} />);
 
     await screen.findByText('remember user timezone');
     const panels = await screen.findAllByTestId('memory-panel');
@@ -78,7 +88,7 @@ describe('MemoryPanel', () => {
   });
 
   it('does not prefetch memory when panel is hidden', async () => {
-    render(<MemoryPanel show={false} onHide={vi.fn()} conversationId={7} />);
+    renderWithQuery(<MemoryPanel show={false} onHide={vi.fn()} conversationId={7} />);
 
     await waitFor(() => {
       expect(conversationAPI.getMemory).not.toHaveBeenCalled();

@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { conversationAPI } from '../services/api';
 import type { ConversationMemory, ConversationMemoryNote } from '../types/api';
+import { queryKeys } from './queryKeys';
+
+const EMPTY_MEMORY: ConversationMemory = {
+  summary: null,
+  summary_updated_at: null,
+  notes: [],
+};
 
 function readApiError(error: unknown, fallback: string): string {
   const ax = error as AxiosError<{ error?: string; errors?: Array<{ msg?: string }> }>;
@@ -18,120 +26,140 @@ export function useConversationMemory(
   opts: { enabled?: boolean } = {}
 ) {
   const enabled = opts.enabled ?? true;
-  const [memory, setMemory] = useState<ConversationMemory>({
-    summary: null,
-    summary_updated_at: null,
-    notes: [],
-  });
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
   const [mutating, setMutating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const query = useQuery({
+    queryKey:
+      conversationId != null
+        ? queryKeys.conversationMemory(conversationId)
+        : (['conversation-memory', 'none'] as const),
+    queryFn: async () => {
+      const res = await conversationAPI.getMemory(conversationId!);
+      return res.data;
+    },
+    enabled: conversationId != null && enabled,
+  });
+
+  const memory = query.data ?? EMPTY_MEMORY;
+
+  const setMemoryCache = useCallback(
+    (updater: (prev: ConversationMemory) => ConversationMemory) => {
+      if (conversationId == null) return;
+      queryClient.setQueryData<ConversationMemory>(
+        queryKeys.conversationMemory(conversationId),
+        (prev) => updater(prev ?? EMPTY_MEMORY)
+      );
+    },
+    [conversationId, queryClient]
+  );
 
   const loadMemory = useCallback(async () => {
     if (conversationId == null || !enabled) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await conversationAPI.getMemory(conversationId);
-      setMemory(res.data);
-    } catch (e: unknown) {
-      setError(readApiError(e, 'Не вдалося завантажити памʼять розмови'));
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId, enabled]);
-
-  useEffect(() => {
-    if (conversationId == null || !enabled) return;
-    void loadMemory();
-  }, [conversationId, enabled, loadMemory]);
+    await query.refetch();
+  }, [conversationId, enabled, query]);
 
   const createNote = useCallback(
     async (content: string) => {
       if (conversationId == null) return null;
       setMutating(true);
-      setError(null);
+      setMutationError(null);
       try {
         const res = await conversationAPI.createMemoryNote(conversationId, content);
-        setMemory((prev) => ({ ...prev, notes: [...prev.notes, res.data] }));
+        setMemoryCache((prev) => ({
+          ...prev,
+          notes: [...prev.notes, res.data],
+        }));
         return res.data;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося створити нотатку'));
+        setMutationError(readApiError(e, 'Не вдалося створити нотатку'));
         return null;
       } finally {
         setMutating(false);
       }
     },
-    [conversationId]
+    [conversationId, setMemoryCache]
   );
 
   const updateNote = useCallback(
     async (noteId: string | number, content: string) => {
       if (conversationId == null) return null;
       setMutating(true);
-      setError(null);
+      setMutationError(null);
       try {
-        const res = await conversationAPI.updateMemoryNote(conversationId, noteId, content);
-        setMemory((prev) => ({
+        const res = await conversationAPI.updateMemoryNote(
+          conversationId,
+          noteId,
+          content
+        );
+        setMemoryCache((prev) => ({
           ...prev,
-          notes: prev.notes.map((note) => (note.id === noteId ? res.data : note)),
+          notes: prev.notes.map((note) =>
+            note.id === noteId ? res.data : note
+          ),
         }));
         return res.data;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося оновити нотатку'));
+        setMutationError(readApiError(e, 'Не вдалося оновити нотатку'));
         return null;
       } finally {
         setMutating(false);
       }
     },
-    [conversationId]
+    [conversationId, setMemoryCache]
   );
 
   const deleteNote = useCallback(
     async (noteId: string | number) => {
       if (conversationId == null) return false;
       setMutating(true);
-      setError(null);
+      setMutationError(null);
       try {
         await conversationAPI.deleteMemoryNote(conversationId, noteId);
-        setMemory((prev) => ({
+        setMemoryCache((prev) => ({
           ...prev,
           notes: prev.notes.filter((note) => note.id !== noteId),
         }));
         return true;
       } catch (e: unknown) {
-        setError(readApiError(e, 'Не вдалося видалити нотатку'));
+        setMutationError(readApiError(e, 'Не вдалося видалити нотатку'));
         return false;
       } finally {
         setMutating(false);
       }
     },
-    [conversationId]
+    [conversationId, setMemoryCache]
   );
 
   const refreshSummary = useCallback(async () => {
     if (conversationId == null) return false;
     setMutating(true);
-    setError(null);
+    setMutationError(null);
     try {
       await conversationAPI.refreshSummary(conversationId);
-      await loadMemory();
+      await query.refetch();
       return true;
     } catch (e: unknown) {
-      setError(readApiError(e, 'Не вдалося оновити підсумок'));
+      setMutationError(readApiError(e, 'Не вдалося оновити підсумок'));
       return false;
     } finally {
       setMutating(false);
     }
-  }, [conversationId, loadMemory]);
+  }, [conversationId, query]);
+
+  const queryError =
+    query.error != null
+      ? readApiError(query.error, 'Не вдалося завантажити памʼять розмови')
+      : null;
 
   return {
     summary: memory.summary,
     summaryUpdatedAt: memory.summary_updated_at,
     notes: memory.notes,
-    loading,
+    loading: query.isFetching,
     mutating,
-    error,
+    error: mutationError ?? queryError,
     loadMemory,
     createNote,
     updateNote,

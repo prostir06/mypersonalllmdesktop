@@ -71,7 +71,9 @@ export const chatAPI = {
         response = await doFetch(token);
       } catch (err) {
         console.warn('Stream session refresh failed:', err);
-        throw new Error('Сесія закінчилася. Будь ласка, увійдіть знову.');
+        throw new Error('Сесія закінчилася. Будь ласка, увійдіть знову.', {
+          cause: err,
+        });
       }
     }
 
