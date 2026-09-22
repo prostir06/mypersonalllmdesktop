@@ -2,6 +2,9 @@
   "name": "llm-assistant-frontend",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26"
+  },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
     "axios": "^1.6.5",
