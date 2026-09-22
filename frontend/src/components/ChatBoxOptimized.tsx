@@ -295,9 +295,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           settings?.rag_embedding_mode ||
           (settings?.has_openai_api_key ? 'openai' : 'fallback')
         }
-        onApplySystemPrompt={(promptText) =>
-          updateSettings.mutateAsync({ system_prompt: promptText })
-        }
+        onApplySystemPrompt={async (promptText) => {
+          await updateSettings.mutateAsync({ system_prompt: promptText });
+        }}
       />
     </div>
   );
