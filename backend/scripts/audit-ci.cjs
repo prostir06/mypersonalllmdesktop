@@ -5,15 +5,14 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
+/** Residual high/critical after non-breaking `npm audit fix` (no Prisma major / no xlsx patch). */
 const ALLOWED_GHSA = new Set([
-  'GHSA-3jxr-9vmj-r5cp',
-  'GHSA-mh99-v99m-4gvg',
-  'GHSA-rgw5-rvv9-x895',
+  // deepmerge-ts via Prisma CLI (fix wants Prisma 6 major)
   'GHSA-ggr8-5vv4-36mx',
-  'GHSA-7p8r-x3mc-p8w7',
-  'GHSA-h67p-54hq-rp68',
-  'GHSA-52cp-r559-cp3m',
-  'GHSA-5p4m-2wfm-xmqj',
+  // mysql2 via Prisma CLI (fix wants Prisma 6 major)
+  'GHSA-3f6p-5ww8-9rcr',
+  'GHSA-rgwj-5xj2-c3m3',
+  // SheetJS community xlsx — no patched release
   'GHSA-4r6h-8v6p-xvw6',
   'GHSA-5pgg-2g8v-p4x9',
 ]);
