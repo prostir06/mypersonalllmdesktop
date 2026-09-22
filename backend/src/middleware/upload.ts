@@ -2,7 +2,6 @@ import path from 'path';
 import fs from 'fs';
 import { getMaxUploadBytes } from '../utils/fileMagic';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const multer = require('multer');
 
 export type UploadMiddlewareOptions = {
