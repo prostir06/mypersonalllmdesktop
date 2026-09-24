@@ -35,6 +35,7 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 USER root
 RUN chmod +x /app/docker-entrypoint.sh \
+  && mkdir -p /app/logs \
   && npm run build \
   && addgroup -S appgroup && adduser -S appuser -G appgroup \
   && chown -R appuser:appgroup /app
