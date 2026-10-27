@@ -90,6 +90,8 @@ Waves through v14 and hygiene closed modularity, memory UX, thin controllers, an
 
 ## 4. Wave 1 — P49 E2E / CI
 
+**Implementation status:** Done — Docker E2E green (2026-10-27); LLM-dependent specs skip with reason when provider missing.
+
 ### 4.1 Intent
 
 Close the deferred v14 P49 runtime gap: deep Playwright coverage against the real compose stack.
