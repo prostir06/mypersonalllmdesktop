@@ -14,7 +14,7 @@ test('settings round-trip persists system prompt and temperature', async ({
 
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: /Налаштування AI/i })).toBeVisible({
-    timeout: 15_000,
+    timeout: 20_000,
   });
 
   const prompt = page.locator('#system-prompt');

@@ -39,5 +39,17 @@ export async function loginViaUi(page: Page, user: TestUser): Promise<void> {
   await page.getByTestId('login-email').fill(user.email);
   await page.getByTestId('login-password').fill(user.password);
   await page.getByTestId('login-submit').click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  try {
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  } catch (err) {
+    const alertText = await page
+      .getByRole('alert')
+      .textContent()
+      .catch(() => null);
+    throw new Error(
+      `loginViaUi failed for ${user.email}; still at ${page.url()}` +
+        (alertText ? `; alert: ${alertText}` : ''),
+      { cause: err }
+    );
+  }
 }

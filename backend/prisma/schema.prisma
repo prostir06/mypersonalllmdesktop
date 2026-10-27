@@ -133,7 +133,7 @@ model Document {
   id               Int      @id @default(autoincrement())
   userId           Int      @map("user_id")
   filename         String   @db.VarChar(255)
-  fileType         String   @map("file_type") @db.VarChar(50)
+  fileType         String   @map("file_type") @db.VarChar(120)
   fileSize         Int      @map("file_size")
   status           String   @default("ready") @db.VarChar(20)
   failureReason    String?  @map("failure_reason") @db.VarChar(500)
