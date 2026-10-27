@@ -1,7 +1,7 @@
 # Project Evolution Roadmap v15 — Reliability, Debt, UX, Memory 2.0
 
 **Date:** 2026-10-27  
-**Status:** Approved (design dialogue); awaiting implementation plans  
+**Status:** Approved — implementation plans written (`docs/superpowers/plans/2026-10-27-v15-w{1-4}-*.md`)  
 **Parent:** Post v14 (P47–P48 done; P49 E2E deferred) + error-handling hygiene G=0 + performance P0/SLI closeout  
 **Scope:** Four gated waves for further development and targeted code optimization; roadmap analysis of current project state  
 **Approach:** Classical sequence (stability → hygiene → UX → Memory 2.0)  
