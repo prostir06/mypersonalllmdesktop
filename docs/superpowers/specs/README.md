@@ -4,6 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
+| [2026-10-27-project-evolution-roadmap-v15-design.md](./2026-10-27-project-evolution-roadmap-v15-design.md) | Approved — 4 waves (P49 → debt → UX → Memory 2.0); plans next |
 | [2026-09-21-error-handling-hygiene-design.md](./2026-09-21-error-handling-hygiene-design.md) | Done — inventory G=0 ([inventory](./2026-09-21-error-handling-inventory.md)) |
 | [2026-09-21-project-evolution-v14-memory-ux-e2e-design.md](./2026-09-21-project-evolution-v14-memory-ux-e2e-design.md) | Implemented (P47–P48; P49 E2E runtime deferred) |
 | [2026-09-21-code-quality-v13-thin-controllers-fe-split-design.md](./2026-09-21-code-quality-v13-thin-controllers-fe-split-design.md) | Implemented |
