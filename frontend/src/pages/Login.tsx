@@ -66,6 +66,7 @@ const Login: React.FC = () => {
                   required
                   disabled={loading}
                   autoComplete="email"
+                  data-testid="login-email"
                   className="bg-dark text-light border-secondary shadow-none py-2"
                 />
               </Form.Group>
@@ -80,6 +81,7 @@ const Login: React.FC = () => {
                   required
                   disabled={loading}
                   autoComplete="current-password"
+                  data-testid="login-password"
                   className="bg-dark text-light border-secondary shadow-none py-2"
                 />
               </Form.Group>
@@ -88,6 +90,7 @@ const Login: React.FC = () => {
                 type="submit"
                 className="btn-accent py-2 mt-2 d-flex justify-content-center align-items-center gap-2"
                 disabled={loading}
+                data-testid="login-submit"
               >
                 {loading ? <Spinner size="sm" animation="border" /> : <span>Увійти в кабінет 🚀</span>}
               </Button>
