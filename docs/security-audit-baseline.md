@@ -1,7 +1,7 @@
 # npm audit baseline
 
-**Recorded:** 2026-09-22 (post non-breaking `npm audit fix`)  
-**Policy:** CI fails on **new** high/critical GHSA IDs only. Known IDs live in `backend/scripts/audit-ci.cjs`. Frontend audit is recorded here and run in CI with `continue-on-error`. Do not `npm audit fix --force` (Prisma 6 / Electron major). Apply non-breaking `npm audit fix` in a dedicated PR after tests.
+**Recorded:** 2026-10-27 (v15 wave 2 — non-breaking `npm audit fix` + vite 8.3.5)  
+**Policy:** CI fails on **new** high/critical GHSA IDs only (backend `audit:ci`). Frontend audit is recorded here and run in CI with `continue-on-error`. Do not `npm audit fix --force` (vitest 5 / react-router 7 / Electron majors). Apply non-breaking `npm audit fix` in a dedicated PR after tests.
 
 This is a **personal** single-user app. Untrusted multi-tenant workbook upload is out of scope; RAG still sniffs magic bytes before parse.
 
@@ -9,23 +9,26 @@ This is a **personal** single-user app. Untrusted multi-tenant workbook upload i
 
 | Package | Severity | GHSA | Notes |
 |---------|----------|------|-------|
-| `deepmerge-ts` | high | GHSA-ggr8-5vv4-36mx | Transitive via Prisma CLI; fix wants Prisma 6 major |
-| `mysql2` | high | GHSA-3f6p-5ww8-9rcr, GHSA-rgwj-5xj2-c3m3 | Transitive via Prisma CLI; fix wants Prisma 6 major |
 | `xlsx` | high | GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9 | SheetJS community `xlsx@0.18.5`: prototype pollution + ReDoS. **No fix.** Magic-byte check in `fileMagic.ts`; do not `eval` formulas |
 
-**Cleared by `npm audit fix` (2026-09-22):** `brace-expansion`, `browserslist`, `fast-uri`, `js-yaml`, `@xmldom/xmldom` (and related transitive highs).
+**Cleared (2026-10-27):** Prisma CLI transitive highs (`deepmerge-ts`, `mysql2`) no longer reported after lockfile refresh.
 
-**CI:** `npm run audit:ci` (allowlisted GHSAs above). Raw `npm audit --audit-level=high` **will fail** until SheetJS/Prisma upgrades.
+**Cleared earlier (2026-09-22):** `brace-expansion`, `browserslist`, `fast-uri`, `js-yaml`, `@xmldom/xmldom` (and related transitive highs).
+
+**CI:** `npm run audit:ci` (allowlisted GHSAs above). Raw `npm audit --audit-level=high` **will fail** until SheetJS upgrade/replacement.
 
 ## Frontend (`frontend/`)
 
 | Package | Severity | Notes |
 |---------|----------|-------|
-| `nanoid` | high | Infinite loop on zero-size generator — transitive |
-| `react-router` / `react-router-dom` | moderate | Open redirect + SSR hydration (6.x). App is CSR |
+| `tinypool` (via `vitest`) | critical | Prototype pollution → RCE in worker options. Fix wants `vitest@5` (`--force`) |
+| `@vitest/mocker` / `vitest` | moderate | Path traversal / mock injection — same vitest 5 bump |
+| `react-router` / `react-router-dom` | moderate | Open redirect + SSR hydration (6.x). App is CSR. Fix wants v7 major |
+
+**Cleared (2026-10-27):** `vite` high advisories via bump to `8.3.5` (non-breaking within v8). Prior `nanoid` high no longer reported.
 
 **Summary:** informational in CI (`continue-on-error`).  
-**CI:** `npm audit --audit-level=high` with `continue-on-error` (until router bump is verified).
+**CI:** `npm audit --audit-level=high` with `continue-on-error` (until vitest/router majors verified).
 
 ## Desktop (`desktop/`)
 
