@@ -1,27 +1,31 @@
 import { expect, test } from '@playwright/test';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { loginViaUi, registerViaApi, uniqueUser } from './test-helpers';
 
-const xlsxMime =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
 test('upload xlsx document appears in list', async ({ page, request }) => {
   const user = uniqueUser('rag-xlsx');
-  const fileName = `e2e-sheet-${Date.now()}.xlsx`;
-  const buffer = readFileSync(join(__dirname, 'fixtures', 'tiny.xlsx'));
+  const fixturePath = join(__dirname, 'fixtures', 'tiny.xlsx');
+  const fileName = 'tiny.xlsx';
 
   await registerViaApi(request, user);
   await loginViaUi(page, user);
 
   await page.getByRole('button', { name: /Документи|RAG/i }).click();
-  await page.locator('.modal input[type=file]').setInputFiles({
-    name: fileName,
-    mimeType: xlsxMime,
-    buffer,
-  });
+  await expect(page.getByRole('dialog')).toBeVisible();
 
-  await expect(page.getByText(fileName, { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  const uploadResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/documents/upload') &&
+      response.request().method() === 'POST',
+    { timeout: 30_000 }
+  );
+
+  // Real path: Playwright buffer+custom name uploads were not reaching the API here.
+  await page.locator('.modal input[type=file]').setInputFiles(fixturePath);
+
+  const response = await uploadResponse;
+  expect(response.ok(), await response.text()).toBeTruthy();
+
+  const docCheckbox = page.getByRole('checkbox', { name: fileName, exact: true });
+  await expect(docCheckbox).toBeVisible({ timeout: 30_000 });
 });

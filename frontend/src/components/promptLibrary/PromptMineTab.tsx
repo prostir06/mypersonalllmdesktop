@@ -186,6 +186,7 @@ export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
                           await onSelectPrompt(p.prompt);
                           onHide();
                         } catch (err) {
+                          // Caller (ChatBoxModals) already toasted; swallow to keep modal open.
                           console.warn('Saved prompt apply failed:', err);
                         }
                       }}

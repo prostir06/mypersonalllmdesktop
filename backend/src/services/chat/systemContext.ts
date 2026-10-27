@@ -3,6 +3,7 @@ import logger from '../../logger';
 import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { buildMemorySystemMessages } from '../conversationMemoryService';
+import { buildUserMemorySystemMessages } from '../userMemoryService';
 import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
@@ -58,6 +59,16 @@ export async function buildSystemContext(
         content: `📌 ЗАКРІПЛЕНІ ІНСТРУКЦІЇ:\n\n${pinnedBlock}`,
       });
     }
+    try {
+      const userMemoryMessages = await buildUserMemorySystemMessages(userId);
+      if (userMemoryMessages.length > 0) {
+        systemMessages.push(...userMemoryMessages);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn(`User memory load skipped: ${message}`);
+    }
+
     if (typeof conversationId === 'number' && Number.isInteger(conversationId)) {
       try {
         const memoryMessages = await buildMemorySystemMessages(conversationId);

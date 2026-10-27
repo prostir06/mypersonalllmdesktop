@@ -26,6 +26,7 @@ import {
   parseDeepLink,
   type DeepLinkPayload,
 } from './deepLinks';
+import { fireAndForget } from './asyncFire';
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
@@ -108,14 +109,18 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    fireAndForget(shell.openExternal(url), (err) => {
+      console.warn('openExternal failed:', err);
+    });
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isAllowedAppOrigin(url, allowedOrigins)) return;
     event.preventDefault();
-    void shell.openExternal(url);
+    fireAndForget(shell.openExternal(url), (err) => {
+      console.warn('openExternal failed:', err);
+    });
   });
 
   if (isDev) {
@@ -188,7 +193,9 @@ if (!gotSingleInstanceLock) {
       onCheckForUpdates: () => {
         const win = showMainWindow();
         emitCheckForUpdatesRequested(win);
-        void checkForUpdates();
+        fireAndForget(checkForUpdates(), (err) => {
+          console.warn('checkForUpdates failed:', err);
+        });
       },
     });
 
@@ -198,7 +205,9 @@ if (!gotSingleInstanceLock) {
         if (launchLink) handleDeepLinkUrl(launchLink);
 
         if (app.isPackaged) {
-          void checkForUpdates();
+          fireAndForget(checkForUpdates(), (err) => {
+            console.warn('checkForUpdates failed:', err);
+          });
         }
       })
       .catch((err) => {
@@ -208,7 +217,10 @@ if (!gotSingleInstanceLock) {
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        void createWindow();
+        // Same failure path as cold start — log; do not quit (user may reopen).
+        fireAndForget(createWindow(), (err) => {
+          console.error('Failed to recreate Electron UI on activate:', err);
+        });
       } else {
         showMainWindow();
       }
@@ -224,7 +236,12 @@ if (!gotSingleInstanceLock) {
   app.on('before-quit', () => {
     (app as AppWithQuitFlag).isQuitting = true;
     destroyTray();
-    void uiServer?.close();
+    const closing = uiServer?.close();
+    if (closing) {
+      fireAndForget(closing, (err) => {
+        console.warn('UI server close failed:', err);
+      });
+    }
     uiServer = null;
   });
 }

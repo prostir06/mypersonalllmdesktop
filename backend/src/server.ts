@@ -55,7 +55,8 @@ app.use(requestId);
 // Rate Limiting
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
+  // Dev/E2E: one shared IP for Playwright suite; keep production tighter.
+  max: process.env.NODE_ENV === 'production' ? 200 : 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' }
@@ -63,7 +64,8 @@ const globalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30, // 30 attempts per 15 minutes for auth endpoints
+  // Dev/E2E compose shares one IP across Playwright tests; keep prod tighter.
+  max: process.env.NODE_ENV === 'production' ? 30 : 200,
   message: { error: 'Too many authentication attempts, please try again later.' }
 });
 

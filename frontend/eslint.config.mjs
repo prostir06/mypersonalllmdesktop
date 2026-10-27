@@ -23,6 +23,11 @@ export default tseslint.config(
       // Form hydration / data-load effects still common; keep as warn (same as JSX).
       'react-hooks/set-state-in-effect': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
+      'max-lines': [
+        'warn',
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      'no-empty': ['warn', { allowEmptyCatch: false }],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
@@ -50,6 +55,11 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       // Remaining JSX still hydrates forms in effects; warn while migrating to TSX.
       'react-hooks/set-state-in-effect': 'warn',
+      'max-lines': [
+        'warn',
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      'no-empty': ['warn', { allowEmptyCatch: false }],
       'no-unused-vars': [
         'error',
         {

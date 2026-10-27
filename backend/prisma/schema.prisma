@@ -16,12 +16,13 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  settings      UserSettings?
-  conversations Conversation[]
-  documents     Document[]
-  llmModels     LlmModel[]
-  refreshTokens RefreshToken[]
-  userPrompts   UserPrompt[]
+  settings         UserSettings?
+  conversations    Conversation[]
+  documents        Document[]
+  llmModels        LlmModel[]
+  refreshTokens    RefreshToken[]
+  userPrompts      UserPrompt[]
+  userMemoryNotes  UserMemoryNote[]
 
   @@map("users")
 }
@@ -75,6 +76,19 @@ model ConversationMemoryNote {
 
   @@index([conversationId], map: "idx_memory_notes_conversation_id")
   @@map("conversation_memory_notes")
+}
+
+model UserMemoryNote {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  content   String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "idx_user_memory_notes_user_id")
+  @@map("user_memory_notes")
 }
 
 model Message {
@@ -133,7 +147,7 @@ model Document {
   id               Int      @id @default(autoincrement())
   userId           Int      @map("user_id")
   filename         String   @db.VarChar(255)
-  fileType         String   @map("file_type") @db.VarChar(50)
+  fileType         String   @map("file_type") @db.VarChar(120)
   fileSize         Int      @map("file_size")
   status           String   @default("ready") @db.VarChar(20)
   failureReason    String?  @map("failure_reason") @db.VarChar(500)

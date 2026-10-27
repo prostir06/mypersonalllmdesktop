@@ -14,6 +14,7 @@ import ProviderAndModelCard from '../components/settings/ProviderAndModelCard';
 import RagStatusCard from '../components/settings/RagStatusCard';
 import GenerationParamsCard from '../components/settings/GenerationParamsCard';
 import SystemPromptCard from '../components/settings/SystemPromptCard';
+import UserMemoryCard from '../components/settings/UserMemoryCard';
 import DesktopUpdatesCard from '../components/settings/DesktopUpdatesCard';
 import type { SettingsUpdatePayload } from '../types/api';
 
@@ -220,6 +221,8 @@ const Settings: React.FC = () => {
           systemPrompt={systemPrompt}
           onSystemPromptChange={setSystemPrompt}
         />
+
+        <UserMemoryCard />
 
         <Button
           type="submit"

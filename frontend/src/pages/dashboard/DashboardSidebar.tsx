@@ -62,8 +62,9 @@ export default function DashboardSidebar({
         aria-label="Список розмов"
       >
         {isLoading && conversations.length === 0 ? (
-          <div className="text-center p-4">
+          <div className="text-center p-4" aria-live="polite" aria-busy="true">
             <Spinner animation="border" size="sm" variant="primary" />
+            <div className="small text-muted mt-2">Завантаження розмов…</div>
           </div>
         ) : conversations.length === 0 ? (
           <div className="text-center text-muted p-4">

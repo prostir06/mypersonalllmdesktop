@@ -24,6 +24,7 @@ export default function PromptPresetsTab({ onSelectPrompt, onHide }: Props) {
                   await onSelectPrompt(item.prompt);
                   onHide();
                 } catch (err) {
+                  // Caller (ChatBoxModals) already toasted; swallow to keep modal open.
                   console.warn('Preset prompt apply failed:', err);
                 }
               }}

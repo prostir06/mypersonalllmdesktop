@@ -5,13 +5,8 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-/** Residual high/critical after non-breaking `npm audit fix` (no Prisma major / no xlsx patch). */
+/** Residual high/critical after non-breaking `npm audit fix` (no xlsx / no vitest major). */
 const ALLOWED_GHSA = new Set([
-  // deepmerge-ts via Prisma CLI (fix wants Prisma 6 major)
-  'GHSA-ggr8-5vv4-36mx',
-  // mysql2 via Prisma CLI (fix wants Prisma 6 major)
-  'GHSA-3f6p-5ww8-9rcr',
-  'GHSA-rgwj-5xj2-c3m3',
   // SheetJS community xlsx — no patched release
   'GHSA-4r6h-8v6p-xvw6',
   'GHSA-5pgg-2g8v-p4x9',
@@ -40,11 +35,14 @@ const result = spawnSync('npm', ['audit', '--json'], {
 });
 
 const stdout = result.stdout || '';
+const jsonStart = stdout.indexOf('{');
 let report;
 try {
-  report = JSON.parse(stdout);
-} catch {
+  if (jsonStart < 0) throw new Error('no JSON object in stdout');
+  report = JSON.parse(stdout.slice(jsonStart));
+} catch (err) {
   console.error('npm audit did not return JSON');
+  console.error(err instanceof Error ? err.message : String(err));
   console.error(stdout || result.stderr);
   process.exit(1);
 }

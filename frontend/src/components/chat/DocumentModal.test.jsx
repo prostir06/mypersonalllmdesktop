@@ -79,6 +79,9 @@ describe('DocumentModal', () => {
     );
 
     expect(screen.getByText(/індексація…/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Документ індексується — вибір недоступний/i)
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('pending.txt')).toBeDisabled();
   });
 
@@ -100,6 +103,9 @@ describe('DocumentModal', () => {
     );
 
     expect(screen.getByText(/PDF corrupt/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Індексація не вдалася — вибір недоступний/i)
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: /Повторити індексацію/i })
     ).toBeInTheDocument();

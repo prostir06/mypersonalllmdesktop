@@ -48,7 +48,8 @@ const MessageList = React.memo(function MessageList({
         <div className="text-center py-5 text-muted">
           <h4>👋 Ласкаво просимо!</h4>
           <p>
-            Введіть запитання нижче або оберіть роль AI, щоб розпочати діалог.
+            Введіть запитання нижче, оберіть модель або додайте документи, щоб
+            розпочати діалог.
           </p>
         </div>
       </div>

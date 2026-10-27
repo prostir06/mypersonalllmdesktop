@@ -5,6 +5,7 @@ export const queryKeys = {
   history: (id: string | number) => ['history', id] as const,
   conversationMemory: (id: string | number) =>
     ['conversation-memory', id] as const,
+  userMemoryNotes: ['user-memory-notes'] as const,
   documents: ['documents'] as const,
   models: ['models'] as const,
 };

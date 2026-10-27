@@ -18,6 +18,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-require-imports': 'off',
       'preserve-caught-error': 'off',
+      'max-lines': [
+        'warn',
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      'no-empty': ['warn', { allowEmptyCatch: false }],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {

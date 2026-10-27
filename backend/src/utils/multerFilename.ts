@@ -25,6 +25,7 @@ export function decodeMulterFilename(
     }
     return name;
   } catch {
+    // Buffer/encoding edge case — keep the original name rather than fail upload.
     return name;
   }
 }

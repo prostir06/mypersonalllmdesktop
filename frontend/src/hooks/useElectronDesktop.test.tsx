@@ -60,6 +60,35 @@ describe('useElectronDesktop hooks', () => {
     expect(unsubscribeDeepLink).toHaveBeenCalledOnce();
   });
 
+  it('logs when pending deep link IPC rejects', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    window.electron = {
+      getBackendUrl: vi.fn(),
+      openExternal: vi.fn(),
+      isDesktopApp: vi.fn(),
+      getPendingDeepLink: vi.fn().mockRejectedValue(new Error('ipc down')),
+      checkForUpdates: vi.fn(),
+      getUpdateStatus: vi.fn(),
+      quitAndInstall: vi.fn(),
+      onDeepLink: vi.fn(() => vi.fn()),
+      onNavigate: vi.fn(),
+      onCheckForUpdates: vi.fn(),
+      onUpdateStatus: vi.fn(),
+    };
+
+    renderHook(() => useElectronDeepLinks(true));
+
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(
+        'Pending deep link read failed:',
+        expect.any(Error)
+      );
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it('subscribes to tray shell events independently of auth', () => {
     const unsubscribeNavigate = vi.fn();
     const unsubscribeCheckForUpdates = vi.fn();
@@ -123,5 +152,35 @@ describe('useElectronDesktop hooks', () => {
 
     unmount();
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('logs when initial update status IPC rejects', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onStatus = vi.fn();
+
+    window.electron = {
+      getBackendUrl: vi.fn(),
+      openExternal: vi.fn(),
+      isDesktopApp: vi.fn(),
+      getPendingDeepLink: vi.fn(),
+      checkForUpdates: vi.fn(),
+      getUpdateStatus: vi.fn().mockRejectedValue(new Error('ipc down')),
+      quitAndInstall: vi.fn(),
+      onDeepLink: vi.fn(),
+      onNavigate: vi.fn(),
+      onCheckForUpdates: vi.fn(),
+      onUpdateStatus: vi.fn(() => vi.fn()),
+    };
+
+    renderHook(() => useElectronUpdateStatus(onStatus));
+
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(
+        'Update status read failed:',
+        expect.any(Error)
+      );
+    });
+    expect(onStatus).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
