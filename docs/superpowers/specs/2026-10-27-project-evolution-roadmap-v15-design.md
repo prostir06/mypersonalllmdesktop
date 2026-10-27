@@ -141,6 +141,8 @@ Prisma major upgrades, SheetJS replacement, wide FE hook/service refactor, H1–
 
 ## 6. Wave 3 — UX polish
 
+**Implementation status:** Done — U3/U7/U9 (2026-10-27); see `2026-10-27-v15-w3-ux-ids.md`.
+
 ### 6.1 Intent
 
 Finish product polish from `2026-09-21-v14-ux-audit.md` without new subsystems.
