@@ -116,6 +116,8 @@ Electron E2E; hard-fail when LLM probe unavailable as permanent policy.
 
 ## 5. Wave 2 — Targeted debt / optimization
 
+**Implementation status:** Done — soft lint + audit hygiene (2026-10-27).
+
 ### 5.1 Intent
 
 Reduce regression risk and dependency noise **without** large refactors (user constraint: targeted only).
