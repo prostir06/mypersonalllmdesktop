@@ -134,6 +134,17 @@ export async function buildMemorySystemMessages(
 
   const systemMessages: ChatMessage[] = [];
 
+  // Order: conversation summary, then conversation notes (user notes injected earlier).
+  if (conversation?.summary) {
+    systemMessages.push({
+      role: 'system',
+      content: `🧾 ПІДСУМОК РОЗМОВИ:\n\n${truncate(
+        conversation.summary,
+        MAX_SUMMARY_CHARS
+      )}`,
+    });
+  }
+
   if (notes.length > 0) {
     const notesPrefix = "🧠 НОТАТКИ ПАМ'ЯТІ:\n\n";
     const maxNotesBodyChars = Math.max(
@@ -144,16 +155,6 @@ export async function buildMemorySystemMessages(
     systemMessages.push({
       role: 'system',
       content: `${notesPrefix}${truncate(notesBody, maxNotesBodyChars)}`,
-    });
-  }
-
-  if (conversation?.summary) {
-    systemMessages.push({
-      role: 'system',
-      content: `🧾 ПІДСУМОК РОЗМОВИ:\n\n${truncate(
-        conversation.summary,
-        MAX_SUMMARY_CHARS
-      )}`,
     });
   }
 

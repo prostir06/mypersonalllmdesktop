@@ -49,6 +49,10 @@ jest.mock('../services/conversationMemoryService', () => ({
   maybeRefreshSummary: jest.fn(),
 }));
 
+jest.mock('../services/userMemoryService', () => ({
+  buildUserMemorySystemMessages: jest.fn().mockResolvedValue([]),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),

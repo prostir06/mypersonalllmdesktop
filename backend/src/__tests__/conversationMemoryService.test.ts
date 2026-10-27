@@ -110,7 +110,7 @@ describe('conversationMemoryService', () => {
     await expect(createNote(9, 7, 'x'.repeat(501))).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('buildMemorySystemMessages emits notes block before summary block', async () => {
+  it('buildMemorySystemMessages emits summary block before notes block', async () => {
     mockedPrisma.conversationMemoryNote.findMany.mockResolvedValue([
       { id: 1, content: 'A', createdAt: new Date('2026-01-01T00:00:00.000Z') },
       { id: 2, content: 'B', createdAt: new Date('2026-01-01T00:00:01.000Z') },
@@ -126,11 +126,11 @@ describe('conversationMemoryService', () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]).toMatchObject({ role: 'system' });
     expect(messages[1]).toMatchObject({ role: 'system' });
-    expect(messages[0].content).toContain("🧠 НОТАТКИ ПАМ'ЯТІ:");
-    expect(messages[1].content).toContain('🧾 ПІДСУМОК РОЗМОВИ:');
-    expect(messages[0].content).toContain('A');
-    expect(messages[0].content).toContain('B');
-    expect(messages[1].content).toContain('SUM');
+    expect(messages[0].content).toContain('🧾 ПІДСУМОК РОЗМОВИ:');
+    expect(messages[1].content).toContain("🧠 НОТАТКИ ПАМ'ЯТІ:");
+    expect(messages[0].content).toContain('SUM');
+    expect(messages[1].content).toContain('A');
+    expect(messages[1].content).toContain('B');
   });
 
   it('caps notes prompt block to <= 2000 chars', async () => {
