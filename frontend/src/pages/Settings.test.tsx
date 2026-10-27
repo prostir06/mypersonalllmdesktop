@@ -43,6 +43,19 @@ vi.mock('../components/settings/ModelCatalog', () => ({
   default: () => <div>Model catalog</div>,
 }));
 
+vi.mock('../hooks/useUserMemory', () => ({
+  useUserMemory: () => ({
+    notes: [],
+    loading: false,
+    mutating: false,
+    error: null,
+    maxNotes: 30,
+    createNote: vi.fn(),
+    updateNote: vi.fn(),
+    deleteNote: vi.fn(),
+  }),
+}));
+
 vi.mock('react-toastify', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
