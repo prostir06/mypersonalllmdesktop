@@ -7,6 +7,7 @@ Personal LLM assistant control panel: Express + Prisma backend, React (Vite) fro
 - Multi-model chat (OpenAI, Ollama) with streaming and Stop
 - Conversation history, rename, message search, Markdown / PDF export
 - Conversation memory: auto summary + editable notes (RAG context)
+- Cross-conversation user memory notes (Settings → inject into chat context)
 - Settings (system prompt / roles, model params, encrypted OpenAI keys)
 - JWT authentication (access + httpOnly refresh cookie)
 - Document upload for RAG (PDF, DOCX, XLSX, TXT, MD)
@@ -199,6 +200,12 @@ VITE_API_URL=/api
 - `POST /api/documents/:id/reindex`
 - `DELETE /api/documents/:id`
 
+### User memory (cross-conversation)
+- `GET /api/users/me/memory-notes`
+- `POST /api/users/me/memory-notes`
+- `PATCH /api/users/me/memory-notes/:noteId`
+- `DELETE /api/users/me/memory-notes/:noteId`
+
 ### Models / Settings / Users
 - `/api/models`, `/api/settings`, `/api/users/me`
 
@@ -255,11 +262,12 @@ cd frontend && npm run build:analyze
 
 ## Pre-upload checklist
 
-- [ ] Working tree clean (`git status`)
-- [ ] No `.env` / secrets staged
+- [ ] Working tree clean (`git status`); clear local `backend/uploads/` if present
+- [ ] No `.env` / secrets staged (only `*.env.example` tracked)
 - [ ] `backend` / `frontend` / `desktop` unit tests green
-- [ ] Docker stack healthy: `docker compose up -d --build` → http://localhost:3000
-- [ ] Push only when ready: `git push -u origin master` (or open a PR from a feature branch)
+- [ ] Docker stack healthy: `docker compose up -d --build` → http://localhost:3000 (`/api/health` OK)
+- [ ] After new backend npm deps: `--renew-anon-volumes backend`
+- [ ] Push via PR from a feature branch → `master` (never commit real `.env`)
 
 ## License
 
