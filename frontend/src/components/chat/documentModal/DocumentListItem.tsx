@@ -52,6 +52,15 @@ export default function DocumentListItem({
           disabled={uploadingDoc || !isReady}
           onChange={(e) => onToggleDoc(doc.id, e.target.checked)}
         />
+        {!isReady && (
+          <div className="small mt-1" role="status">
+            {status === 'pending'
+              ? 'Документ індексується — вибір недоступний до готовності.'
+              : isFailed
+                ? 'Індексація не вдалася — вибір недоступний. Можна повторити.'
+                : null}
+          </div>
+        )}
         <small className="text-muted" style={{ fontSize: '0.75rem' }}>
           {kind ? `${kind} | ` : ''}
           {statusLabel ? `${statusLabel} | ` : ''}
