@@ -46,9 +46,14 @@ export function useElectronDeepLinks(enabled: boolean): void {
       );
     };
 
-    void window.electron.getPendingDeepLink().then((pending) => {
-      if (pending) apply(pending);
-    });
+    void window.electron
+      .getPendingDeepLink()
+      .then((pending) => {
+        if (pending) apply(pending);
+      })
+      .catch((err: unknown) => {
+        console.warn('Pending deep link read failed:', err);
+      });
 
     const unsubDeepLink = window.electron.onDeepLink(apply);
     return () => {
@@ -63,7 +68,9 @@ export function useElectronUpdateStatus(
   useEffect(() => {
     if (!isElectronApp() || !window.electron || !onStatus) return;
 
-    void window.electron.getUpdateStatus().then(onStatus);
+    void window.electron.getUpdateStatus().then(onStatus).catch((err: unknown) => {
+      console.warn('Update status read failed:', err);
+    });
     return window.electron.onUpdateStatus(onStatus);
   }, [onStatus]);
 }

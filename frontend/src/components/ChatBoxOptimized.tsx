@@ -11,6 +11,7 @@ import { useChatExport } from '../hooks/useChatExport';
 import { useChatAttachments } from '../hooks/useChatAttachments';
 import { useChatModelSelection } from '../hooks/useChatModelSelection';
 import { modelSupportsVision } from '../utils/modelSupportsVision';
+import { copyTextWithToast } from '../utils/clipboard';
 import type { Message } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
@@ -116,8 +117,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   }, [messages, streamedText, scrollToBottom]);
 
   const copyMessage = useCallback((text: string) => {
-    void navigator.clipboard.writeText(text);
-    toast.success('Скопійовано! 📋', { autoClose: 1500 });
+    copyTextWithToast(text, 'Скопійовано! 📋');
   }, []);
 
   const handleRegenerate = useCallback(

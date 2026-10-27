@@ -4,8 +4,8 @@
 import React, { Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
-import { toast } from 'react-toastify';
 import type { RagSource } from '../../types/api';
+import { copyTextWithToast } from '../../utils/clipboard';
 import { MessageSources } from './MessageSources';
 
 const LazyHighlighter = lazy(() => import('./CodeHighlighter'));
@@ -21,8 +21,7 @@ const CodeBlock = ({ inline, className, children, ...props }: CodeBlockProps) =>
   const codeString = String(children).replace(/\n$/, '');
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(codeString);
-    toast.success('Код скопійовано! 📋', { autoClose: 1500 });
+    copyTextWithToast(codeString, 'Код скопійовано! 📋');
   };
 
   if (!inline && match) {

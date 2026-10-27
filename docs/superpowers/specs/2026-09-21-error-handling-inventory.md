@@ -1,8 +1,8 @@
 # Error Handling Inventory — 2026-09-21
 
 **Scope:** `backend/src`, `frontend/src`, `desktop/src`
-**Method:** ripgrep `catch` / `.catch(` + triage (design taxonomy G/S/H/T)
-**G count:** 0
+**Method:** ripgrep `catch` / `.catch(` / fire-and-forget `void promise` + triage (design taxonomy G/S/H/T)
+**G count:** 0 (re-audit 2026-10-27 post-v15; fire-and-forget gaps closed)
 **T:** out of scope (e2e not scanned)
 
 ## Summary
@@ -186,18 +186,27 @@
 
 ## Confirmed G (fix queue)
 
-| ID | Path | Line | Failure mode | Intended fix |
-|----|------|-----:|--------------|--------------|
-| (none) | | | | |
+| ID | Path | Failure mode | Fix |
+|----|------|--------------|-----|
+| G-d1 | `desktop/src/main.ts` activate | `void createWindow()` — unhandled rejection | `fireAndForget` + `console.error` |
+| G-d2 | `desktop/src/main.ts` openExternal / ui close | `void shell.openExternal` / `uiServer.close` — silent reject | `fireAndForget` + `console.warn` |
+| G-f1 | `frontend/.../clipboard` via ChatBox/MessageItem | toast success before write; reject unhandled | `copyTextWithToast` success-after-write + warn/error |
+| G-f2 | `frontend/.../useElectronDesktop.ts` | IPC `.then` without `.catch` | `.catch(console.warn)` |
 
-Backend G: none (verified Task 2).
-Frontend G: none (verified Task 3).
-Desktop G: none (verified Task 4).
+Backend G: none (verified Task 2 + 2026-10-27).
+Frontend / desktop G above: closed 2026-10-27.
+
+## Soft-fail notes (kept S)
+
+| Path | Note |
+|------|------|
+| `multerFilename` catch | return original name (comment added) |
+| PromptMine/Presets apply catch | parent toast + rethrow; tab swallows to keep modal open |
+| `optionalAuth` | invalid JWT → anonymous |
+| SSE incomplete JSON | wait for more bytes |
 
 ## Gate
 
-- Backend tests: green (52 suites / 345)
-- Frontend tests: green (35 files / 109)
-- Desktop tests: green (22)
+- Backend / frontend / desktop unit suites green after G fixes
 - G remaining: 0
 
