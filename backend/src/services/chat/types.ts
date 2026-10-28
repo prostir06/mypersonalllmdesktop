@@ -43,8 +43,14 @@ export type RagSource = {
   filename: string;
   similarity?: number;
   sheet?: string;
+  id?: string;
+  document_id?: number;
+  chunk_index?: number;
+  snippet?: string;
+  url?: string;
+  score?: number;
+  source_type?: string;
 };
 
 /** RAG retrieval outcome for UI (additive on SSE/API). */
 export type RagStatus = 'ok' | 'empty' | 'error' | 'skipped';
-

@@ -35,6 +35,18 @@ jest.mock('../services/ollamaService', () => ({
   },
 }));
 
+jest.mock('../services/geminiService', () => ({
+  __esModule: true,
+  default: {
+    sendGeminiMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Gemini Test Response', model: 'gemini-2.0-flash' }),
+    streamGeminiMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Gemini Stream Response', model: 'gemini-2.0-flash' }),
+  },
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -44,6 +56,7 @@ jest.mock('../logger', () => ({
 import ProviderFactory from '../services/providerFactory';
 import openaiService from '../services/openaiService';
 import ollamaService from '../services/ollamaService';
+import geminiService from '../services/geminiService';
 
 describe('ProviderFactory', () => {
   afterEach(() => jest.clearAllMocks());
@@ -54,6 +67,9 @@ describe('ProviderFactory', () => {
     );
     expect(ProviderFactory.getProvider('ollama').send).toBe(
       ollamaService.sendOllamaMessage
+    );
+    expect(ProviderFactory.getProvider('gemini').send).toBe(
+      geminiService.sendGeminiMessage
     );
     expect(ProviderFactory.getProvider('unknown-provider').send).toBe(
       openaiService.sendOpenAIMessage
@@ -86,6 +102,21 @@ describe('ProviderFactory', () => {
     expect(result.content).toBe('OpenAI Test Response');
   });
 
+  it('sendMessage wires to gemini', async () => {
+    const messages = [{ role: 'user', content: 'Привіт' }];
+    const result = await ProviderFactory.sendMessage(
+      'gemini',
+      messages,
+      'gemini-2.0-flash'
+    );
+    expect(geminiService.sendGeminiMessage).toHaveBeenCalledWith(
+      messages,
+      'gemini-2.0-flash',
+      {}
+    );
+    expect(result.content).toBe('Gemini Test Response');
+  });
+
   it('streamMessage wires onChunk', async () => {
     const onChunkMock = jest.fn();
     const result = await ProviderFactory.streamMessage(
@@ -100,8 +131,26 @@ describe('ProviderFactory', () => {
     expect(result.content).toBe('Hello World');
   });
 
+  it('streamMessage wires to gemini', async () => {
+    const onChunkMock = jest.fn();
+    const result = await ProviderFactory.streamMessage(
+      'gemini',
+      [{ role: 'user', content: 'Привіт' }],
+      'gemini-2.0-flash',
+      {},
+      onChunkMock
+    );
+    expect(geminiService.streamGeminiMessage).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'Привіт' }],
+      'gemini-2.0-flash',
+      {},
+      onChunkMock
+    );
+    expect(result.content).toBe('Gemini Stream Response');
+  });
+
   it('lists only honest available providers', () => {
     const providers = ProviderFactory.getAvailableProviders();
-    expect(providers).toEqual(['openai', 'ollama']);
+    expect(providers).toEqual(['openai', 'ollama', 'gemini']);
   });
 });

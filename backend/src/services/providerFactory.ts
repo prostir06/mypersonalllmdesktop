@@ -1,5 +1,6 @@
 import openaiService from './openaiService';
 import ollamaService from './ollamaService';
+import geminiService from './geminiService';
 import logger from '../logger';
 
 type SendFn = (
@@ -27,6 +28,10 @@ class ProviderFactory {
     ollama: {
       send: ollamaService.sendOllamaMessage as SendFn,
       stream: ollamaService.streamOllamaMessage as StreamFn,
+    },
+    gemini: {
+      send: geminiService.sendGeminiMessage as SendFn,
+      stream: geminiService.streamGeminiMessage as StreamFn,
     },
   };
 
