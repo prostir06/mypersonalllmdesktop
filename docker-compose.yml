@@ -45,6 +45,7 @@ services:
       JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-30d}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
       OLLAMA_URL_ALLOWLIST: ${OLLAMA_URL_ALLOWLIST:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
