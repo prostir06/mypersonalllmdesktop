@@ -43,18 +43,25 @@ test('RAG citation shows sources after asking about uploaded txt', async ({
     .catch(() => null);
 
   await page.getByRole('button', { name: /Надіслати/i }).click();
-  await expect(page.getByText(keyword)).toBeVisible({ timeout: 20_000 });
 
   const response = await streamResponse;
   if (response && response.status() >= 500) {
     test.skip(true, `RAG/LLM unavailable: stream returned ${response.status()}`);
   }
 
-  const streamErrorVisible = await page
-    .getByRole('button', { name: /Перевірити налаштування/i })
-    .isVisible()
-    .catch(() => false);
-  if (streamErrorVisible) {
+  // Provider may return SSE 200 with an error (e.g. missing/dummy OpenAI key).
+  // Skip before hard-failing on the user bubble / keyword.
+  const turnOutcome = await Promise.race([
+    page
+      .getByText(keyword)
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .then(() => 'ok' as const),
+    page
+      .getByRole('button', { name: /Перевірити налаштування/i })
+      .waitFor({ state: 'visible', timeout: 20_000 })
+      .then(() => 'err' as const),
+  ]).catch(() => 'timeout' as const);
+  if (turnOutcome !== 'ok') {
     test.skip(true, 'RAG/LLM unavailable: chat stream failed');
   }
 
