@@ -50,6 +50,13 @@ vi.mock('../hooks/useModels', () => ({
         provider: 'ollama',
         supports_vision: false,
       },
+      {
+        id: 3,
+        name: 'Gemini 2.0 Flash',
+        model_id: 'gemini-2.0-flash',
+        provider: 'gemini',
+        supports_vision: true,
+      },
     ],
   }),
 }));
@@ -187,5 +194,27 @@ describe('ChatBoxOptimized', () => {
     await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'ollama');
     expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('llama3');
     expect(screen.getByRole('option', { name: 'llama3' })).toBeInTheDocument();
+  });
+
+  it('enables web search toggle and passes enableWebSearch when provider is gemini', async () => {
+    const user = userEvent.setup();
+    chatStreamState.sendMessage.mockClear();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'gemini');
+    const webSearchBtn = screen.getByRole('button', {
+      name: /Перемикач пошуку в інтернеті/i,
+    });
+    expect(webSearchBtn).toBeEnabled();
+
+    await user.click(webSearchBtn);
+    await user.type(screen.getByLabelText(/Введення повідомлення/i), 'search query');
+    await user.click(screen.getByRole('button', { name: /надіслати/i }));
+
+    expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
+      'search query',
+      expect.any(Function),
+      { enableWebSearch: true }
+    );
   });
 });

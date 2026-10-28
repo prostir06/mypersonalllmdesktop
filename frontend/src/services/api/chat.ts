@@ -22,7 +22,16 @@ export const chatAPI = {
     provider: string,
     options?: ChatSendOptions
   ): Promise<AxiosResponse<ChatSendResponse>> =>
-    api.post('/chat/send', { conversationId, message, model, provider, options }),
+    api.post('/chat/send', {
+      conversationId,
+      message,
+      model,
+      provider,
+      options,
+      ...(options?.enableWebSearch !== undefined
+        ? { enableWebSearch: options.enableWebSearch }
+        : {}),
+    }),
 
   streamMessage: async (
     conversationId: string | number | null | undefined,
@@ -46,7 +55,16 @@ export const chatAPI = {
           'Content-Type': 'application/json',
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ conversationId, message, model, provider, options }),
+        body: JSON.stringify({
+          conversationId,
+          message,
+          model,
+          provider,
+          options,
+          ...(options?.enableWebSearch !== undefined
+            ? { enableWebSearch: options.enableWebSearch }
+            : {}),
+        }),
         signal,
         credentials: 'include',
       });

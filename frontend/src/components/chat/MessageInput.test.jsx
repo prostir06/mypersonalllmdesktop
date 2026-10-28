@@ -63,4 +63,52 @@ describe('MessageInput', () => {
     expect(screen.getByRole('button', { name: 'Видалити зображення' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Видалити вкладення plan.pdf' })).toBeInTheDocument();
   });
+
+  it('renders web search toggle button when provider is gemini', async () => {
+    const user = userEvent.setup();
+    const onToggleWebSearch = vi.fn();
+
+    render(
+      <MessageInput
+        {...baseProps}
+        isGeminiProvider
+        webSearchEnabled={false}
+        onToggleWebSearch={onToggleWebSearch}
+      />
+    );
+
+    const webSearchBtn = screen.getByRole('button', { name: /Перемикач пошуку в інтернеті/i });
+    expect(webSearchBtn).toBeEnabled();
+    expect(webSearchBtn).toHaveAttribute('title', 'Увімкнути веб-пошук (Google Search Grounding)');
+
+    await user.click(webSearchBtn);
+    expect(onToggleWebSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables web search toggle button when provider is not gemini', () => {
+    render(
+      <MessageInput
+        {...baseProps}
+        isGeminiProvider={false}
+        webSearchEnabled={false}
+      />
+    );
+
+    const webSearchBtn = screen.getByRole('button', { name: /Перемикач пошуку в інтернеті/i });
+    expect(webSearchBtn).toBeDisabled();
+    expect(webSearchBtn).toHaveAttribute('title', 'Веб-пошук доступний для Google Gemini');
+  });
+
+  it('shows active title on web search toggle button when enabled', () => {
+    render(
+      <MessageInput
+        {...baseProps}
+        isGeminiProvider
+        webSearchEnabled={true}
+      />
+    );
+
+    const webSearchBtn = screen.getByRole('button', { name: /Перемикач пошуку в інтернеті/i });
+    expect(webSearchBtn).toHaveAttribute('title', 'Вимкнути веб-пошук');
+  });
 });

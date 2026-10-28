@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatControls from './ChatControls';
 
 describe('ChatControls', () => {
+  afterEach(() => cleanup());
+
   it('renders provider/model and notifies on provider change', async () => {
     const onProviderChange = vi.fn();
     const user = userEvent.setup();
@@ -30,5 +32,30 @@ describe('ChatControls', () => {
     expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('gpt-4');
     await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'ollama');
     expect(onProviderChange).toHaveBeenCalled();
+  });
+
+  it('includes Google Gemini in provider select options', async () => {
+    const onProviderChange = vi.fn();
+    render(
+      <ChatControls
+        selectedProvider="gemini"
+        onProviderChange={onProviderChange}
+        selectedModel="gemini-2.0-flash"
+        onModelChange={vi.fn()}
+        availableModels={[{ value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }]}
+        temperature={0.7}
+        onTemperatureChange={vi.fn()}
+        selectedDocIds={[]}
+        streaming={false}
+        onShowPromptModal={vi.fn()}
+        onShowDocModal={vi.fn()}
+        onExportChat={vi.fn()}
+        messagesCount={0}
+      />
+    );
+
+    const providerSelect = screen.getByLabelText(/Провайдер AI/i);
+    expect(providerSelect).toHaveValue('gemini');
+    expect(screen.getByRole('option', { name: /Google Gemini/i })).toBeInTheDocument();
   });
 });

@@ -77,6 +77,14 @@ export interface RagSource {
   filename: string;
   similarity?: number;
   sheet?: string;
+  url?: string;
+  source_type?: string;
+  score?: number;
+  id?: string | number;
+  document_id?: number;
+  chunk_index?: number;
+  snippet?: string;
+  [key: string]: unknown;
 }
 
 export interface MessageBranch {
@@ -112,6 +120,7 @@ export interface ChatSendOptions {
   regenerateFromMessageId?: number;
   activeBranchIds?: Record<number, number>;
   attachments?: ChatAttachmentPayload[];
+  enableWebSearch?: boolean;
   [key: string]: unknown;
 }
 

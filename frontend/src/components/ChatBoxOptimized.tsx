@@ -30,6 +30,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 }) => {
   const navigate = useNavigate();
   const [inputMessage, setInputMessage] = useState('');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const lastUserContentRef = useRef('');
@@ -135,9 +136,12 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         toast.warn('Неможливо перегенерувати — оновіть історію чату');
         return;
       }
-      await regenerateMessage(userMsg, assistantIdx, setMessages);
+      const regenOpts = webSearchEnabled ? { enableWebSearch: true } : undefined;
+      await (regenOpts
+        ? regenerateMessage(userMsg, assistantIdx, setMessages, regenOpts)
+        : regenerateMessage(userMsg, assistantIdx, setMessages));
     },
-    [messages, regenerateMessage, setMessages]
+    [messages, regenerateMessage, setMessages, webSearchEnabled]
   );
 
   const handleSwitchBranch = useCallback(
@@ -177,7 +181,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.';
     lastUserContentRef.current = userContent;
     setInputMessage('');
-    await sendMessage(userContent, setMessages);
+    const sendOpts = webSearchEnabled ? { enableWebSearch: true } : undefined;
+    await (sendOpts
+      ? sendMessage(userContent, setMessages, sendOpts)
+      : sendMessage(userContent, setMessages));
   };
 
   return (
@@ -215,12 +222,16 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
             <button
               type="button"
               className="btn btn-sm btn-outline-light"
-              onClick={() =>
-                lastUserContentRef.current &&
-                !streaming &&
-                !loading &&
-                void sendMessage(lastUserContentRef.current, setMessages)
-              }
+              onClick={() => {
+                if (lastUserContentRef.current && !streaming && !loading) {
+                  const sendOpts = webSearchEnabled
+                    ? { enableWebSearch: true }
+                    : undefined;
+                  void (sendOpts
+                    ? sendMessage(lastUserContentRef.current, setMessages, sendOpts)
+                    : sendMessage(lastUserContentRef.current, setMessages));
+                }
+              }}
             >
               Повторити
             </button>
@@ -263,6 +274,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onRemoveAttachment={removeAttachment}
         onAttachFile={() => chatFileInputRef.current && chatFileInputRef.current.click()}
         supportsVision={modelSupportsVision(activeModel, catalogModels)}
+        webSearchEnabled={webSearchEnabled}
+        onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
+        isGeminiProvider={selectedProvider === 'gemini'}
       />
 
       <ChatHiddenFileInputs

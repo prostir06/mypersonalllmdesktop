@@ -32,4 +32,24 @@ describe('MessageSources', () => {
     const { container } = render(<MessageSources sources={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('renders web search sources as external links with noopener', () => {
+    const sources = [
+      {
+        id: 'web-0',
+        document_id: 0,
+        filename: 'Google Cloud Documentation',
+        chunk_index: 0,
+        snippet: 'Google Cloud Documentation',
+        url: 'https://cloud.google.com/docs',
+        score: 1.0,
+        source_type: 'web_search',
+      },
+    ];
+    render(<MessageSources sources={sources} />);
+    const link = screen.getByRole('link', { name: /Google Cloud Documentation/i });
+    expect(link).toHaveAttribute('href', 'https://cloud.google.com/docs');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
 });

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { catalogModelsToOptions } from './catalogModelOptions';
+import {
+  catalogModelsToOptions,
+  DEFAULT_GEMINI_MODEL_OPTIONS,
+} from './catalogModelOptions';
 
 describe('catalogModelsToOptions', () => {
   const catalog = [
@@ -12,6 +15,27 @@ describe('catalogModelsToOptions', () => {
     expect(catalogModelsToOptions(catalog, 'openai')).toEqual([
       { value: 'gpt-4', label: 'GPT-4' },
       { value: 'gpt-4o', label: 'gpt-4o' },
+    ]);
+  });
+
+  it('returns default gemini models when catalog has no gemini models', () => {
+    expect(catalogModelsToOptions(catalog, 'gemini')).toEqual(
+      DEFAULT_GEMINI_MODEL_OPTIONS
+    );
+    expect(catalogModelsToOptions(null, 'gemini')).toEqual(
+      DEFAULT_GEMINI_MODEL_OPTIONS
+    );
+    expect(catalogModelsToOptions([], 'gemini')).toEqual(
+      DEFAULT_GEMINI_MODEL_OPTIONS
+    );
+  });
+
+  it('uses catalog models for gemini when present', () => {
+    const customCatalog = [
+      { model_id: 'gemini-custom', name: 'Custom Gemini', provider: 'gemini' },
+    ];
+    expect(catalogModelsToOptions(customCatalog, 'gemini')).toEqual([
+      { value: 'gemini-custom', label: 'Custom Gemini' },
     ]);
   });
 

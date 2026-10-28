@@ -1,5 +1,5 @@
 /**
- * Message composer with STT, vision attach, and stop-while-streaming.
+ * Message composer with STT, vision attach, web search toggle, and stop-while-streaming.
  */
 import React, { type FormEvent, type KeyboardEvent } from 'react';
 import { Form, Button } from 'react-bootstrap';
@@ -21,6 +21,9 @@ export type MessageInputProps = {
   onRemoveAttachment?: (index: number) => void;
   onAttachFile?: () => void;
   supportsVision: boolean;
+  webSearchEnabled?: boolean;
+  onToggleWebSearch?: () => void;
+  isGeminiProvider?: boolean;
 };
 
 const MessageInput = React.memo(function MessageInput({
@@ -38,6 +41,9 @@ const MessageInput = React.memo(function MessageInput({
   onRemoveAttachment = () => {},
   onAttachFile = () => {},
   supportsVision,
+  webSearchEnabled = false,
+  onToggleWebSearch,
+  isGeminiProvider = false,
 }: MessageInputProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -149,6 +155,22 @@ const MessageInput = React.memo(function MessageInput({
           className="py-3 px-3"
         >
           📎
+        </Button>
+
+        <Button
+          type="button"
+          variant={webSearchEnabled ? 'primary' : 'outline-secondary'}
+          onClick={onToggleWebSearch}
+          disabled={streaming || !isGeminiProvider}
+          title={
+            isGeminiProvider
+              ? (webSearchEnabled ? 'Вимкнути веб-пошук' : 'Увімкнути веб-пошук (Google Search Grounding)')
+              : 'Веб-пошук доступний для Google Gemini'
+          }
+          aria-label="Перемикач пошуку в інтернеті"
+          className="py-3 px-3"
+        >
+          🌐
         </Button>
 
         <Button

@@ -10,16 +10,34 @@ export type CatalogModelLike = {
 
 export type ModelOption = { value: string; label: string };
 
+export const DEFAULT_GEMINI_MODEL_OPTIONS: ModelOption[] = [
+  { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+];
+
 export function catalogModelsToOptions(
   catalogModels: CatalogModelLike[] | null | undefined,
   provider: string
 ): ModelOption[] {
-  if (!Array.isArray(catalogModels) || !provider) return [];
-  return catalogModels
-    .filter((m) => m && m.provider === provider)
-    .map((m) => ({
-      value: m.model_id || '',
-      label: m.name || m.model_id || '',
-    }))
-    .filter((opt) => Boolean(opt.value));
+  if (!provider) return [];
+  const fromCatalog = Array.isArray(catalogModels)
+    ? catalogModels
+        .filter((m) => m && m.provider === provider)
+        .map((m) => ({
+          value: m.model_id || '',
+          label: m.name || m.model_id || '',
+        }))
+        .filter((opt) => Boolean(opt.value))
+    : [];
+
+  if (fromCatalog.length > 0) {
+    return fromCatalog;
+  }
+
+  if (provider === 'gemini') {
+    return [...DEFAULT_GEMINI_MODEL_OPTIONS];
+  }
+
+  return [];
 }

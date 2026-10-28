@@ -22,13 +22,31 @@ export function MessageSources({ sources, ragStatus }: MessageSourcesProps) {
       <div className="fw-semibold">Джерела</div>
       <ul className="mb-0 ps-3">
         {sources.map((s, i) => {
+          if (s.url || s.source_type === 'web_search') {
+            return (
+              <li
+                key={s.id != null ? String(s.id) : (s.url || `${s.filename}-${i}`)}
+                className="my-1"
+              >
+                <a
+                  href={s.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="badge bg-primary text-decoration-none d-inline-flex align-items-center gap-1"
+                >
+                  🌐 {s.filename || s.url}
+                </a>
+              </li>
+            );
+          }
+
           const pct = formatSimilarityPercent(s.similarity);
           const label = s.sheet ? `${s.filename} · ${s.sheet}` : s.filename;
           return (
-          <li key={`${s.filename}-${i}`}>
-            {label}
-            {pct ? ` (${pct})` : ''}
-          </li>
+            <li key={`${s.filename}-${i}`}>
+              {label}
+              {pct ? ` (${pct})` : ''}
+            </li>
           );
         })}
       </ul>

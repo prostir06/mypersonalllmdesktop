@@ -143,6 +143,28 @@ describe('useChatStream', () => {
     expect(opts.max_tokens).toBe(1500);
   });
 
+  it('propagates enableWebSearch option to streamMessage', async () => {
+    chatAPI.streamMessage.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), {
+      wrapper,
+    });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages, {
+        enableWebSearch: true,
+      });
+    });
+
+    expect(chatAPI.streamMessage).toHaveBeenCalled();
+    const opts = chatAPI.streamMessage.mock.calls[0][4];
+    expect(opts.enableWebSearch).toBe(true);
+  });
+
   it('attaches sources from stream done payload to the final assistant message', async () => {
     chatAPI.streamMessage.mockImplementation(
       async (

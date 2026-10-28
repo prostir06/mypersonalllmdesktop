@@ -58,6 +58,7 @@ const ChatControls = React.memo(function ChatControls({
             style={{ width: 'auto' }}
           >
             <option value="openai">⚡ OpenAI</option>
+            <option value="gemini">✨ Google Gemini</option>
             <option value="ollama">🦙 Ollama (Local)</option>
           </Form.Select>
 
