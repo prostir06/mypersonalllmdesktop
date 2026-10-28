@@ -57,8 +57,9 @@ services:
       #   docker compose up -d --build --force-recreate --renew-anon-volumes backend
       - ./backend:/app
       - /app/node_modules
-      # Writable logs for non-root appuser (bind-mount ./backend hides image /app/logs).
+      # Writable dirs for non-root appuser (bind-mount ./backend hides image paths).
       - backend_logs:/app/logs
+      - backend_uploads:/app/uploads
     entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
     mem_limit: 1g
     cpus: 1.0
@@ -92,6 +93,7 @@ services:
 volumes:
   postgres_data:
   backend_logs:
+  backend_uploads:
 
 networks:
   db-network:

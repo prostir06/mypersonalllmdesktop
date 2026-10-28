@@ -125,6 +125,7 @@ Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend con
 - **Entrypoint `set: illegal option -`:** bind-mounted `docker-entrypoint.sh` with Windows CRLF line endings. Fix: ensure LF (`.gitattributes` sets `*.sh eol=lf`) or rebuild without bind-mount (`docker-compose.prod.yml`).
 - **Stale API after code change (dev bind-mount):** `docker compose exec backend npm run build && docker compose restart backend` (entrypoint runs `prisma generate` on start; re-run if schema changed).
 - **`Cannot find module` after adding an npm dependency:** anonymous `/app/node_modules` volume is stale. Recreate: `docker compose up -d --force-recreate --renew-anon-volumes backend`.
+- **`EACCES mkdir /app/uploads`:** default compose mounts named volume `backend_uploads` and entrypoint chowns it for `appuser`. Recreate: `docker compose up -d --build --force-recreate backend`.
 - **RAG embeddings:** auto mode — OpenAI key (settings/env) uses OpenAI embeddings (768 dim); else if provider is Ollama, local `nomic-embed-text` via Ollama `/api/embeddings`. Without either, fallback chunk selection. Pull model: `ollama pull nomic-embed-text`. Re-index existing docs via «Переіндексувати» in RAG manager.
 
 ## Auth

@@ -34,12 +34,14 @@ COPY tsconfig.json ./
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 USER root
-RUN chmod +x /app/docker-entrypoint.sh \
-  && mkdir -p /app/logs \
+RUN apk add --no-cache su-exec \
+  && chmod +x /app/docker-entrypoint.sh \
+  && mkdir -p /app/logs /app/uploads/chat-temp \
   && npm run build \
   && addgroup -S appgroup && adduser -S appuser -G appgroup \
   && chown -R appuser:appgroup /app
-USER appuser
+# Entrypoint starts as root to chown named volumes, then drops to appuser via su-exec.
+USER root
 
 EXPOSE 5000
 

@@ -27,6 +27,19 @@ if [ "${NODE_ENV}" = "production" ]; then
   fi
 fi
 
+# Named volumes / bind mounts may be root-owned; ensure appuser can write uploads+logs.
+mkdir -p /app/logs /app/uploads/chat-temp
+if [ "$(id -u)" = "0" ]; then
+  chown -R appuser:appgroup /app/logs /app/uploads || true
+fi
+
+run_as_app() {
+  if [ "$(id -u)" = "0" ] && command -v su-exec >/dev/null 2>&1; then
+    exec su-exec appuser "$@"
+  fi
+  exec "$@"
+}
+
 echo "Waiting for database and applying Prisma migrations..."
 npx prisma migrate deploy --config prisma/prisma.config.ts
 npx prisma generate --config prisma/prisma.config.ts
@@ -43,8 +56,8 @@ fi
 
 if [ -f dist/server.js ]; then
   echo "Starting backend from dist/..."
-  exec node dist/server.js
+  run_as_app node dist/server.js
 fi
 
 echo "Starting backend via ts-node (dev bind-mount fallback)..."
-exec node -r ts-node/register src/server.ts
+run_as_app node -r ts-node/register src/server.ts
