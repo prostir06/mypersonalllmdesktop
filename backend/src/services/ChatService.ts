@@ -63,6 +63,11 @@ class ChatService {
       options
     );
 
+    const mergedSources = [
+      ...(sources || []),
+      ...((response as any).sources || []),
+    ];
+
     const assistant = await this.persistTurn(
       convId,
       input.message,
@@ -70,7 +75,7 @@ class ChatService {
       {
         skipUserMessage: isRegenerate,
         regenerateFromMessageId,
-        sources,
+        sources: mergedSources,
       }
     );
 
@@ -91,7 +96,7 @@ class ChatService {
       role: 'assistant' as const,
       timestamp: assistant.createdAt,
       usage: response.usage,
-      sources,
+      sources: mergedSources,
       ragStatus,
     };
   }
@@ -120,6 +125,11 @@ class ChatService {
       onToken
     );
 
+    const mergedSources = [
+      ...(sources || []),
+      ...((response as any).sources || []),
+    ];
+
     const assistant = await this.persistTurn(
       convId,
       input.message,
@@ -127,7 +137,7 @@ class ChatService {
       {
         skipUserMessage: isRegenerate,
         regenerateFromMessageId,
-        sources,
+        sources: mergedSources,
       }
     );
 
@@ -141,7 +151,7 @@ class ChatService {
       conversationId: convId,
       messageId: assistant.id,
       content: response.content,
-      sources,
+      sources: mergedSources,
       ragStatus,
     };
   }

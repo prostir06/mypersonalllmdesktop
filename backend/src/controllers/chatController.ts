@@ -41,7 +41,16 @@ export async function sendMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
     if (!validateChatMessage(message, req, res)) return;
-    const safeOptions = { ...options, enableTools: false, requestId: req.id };
+    const enableWebSearch =
+      req.body.enableWebSearch !== undefined
+        ? req.body.enableWebSearch
+        : options?.enableWebSearch;
+    const safeOptions = {
+      ...options,
+      ...(enableWebSearch !== undefined ? { enableWebSearch: Boolean(enableWebSearch) } : {}),
+      enableTools: false,
+      requestId: req.id,
+    };
     const result = await ChatService.sendMessage({
       userId: req.userId!,
       conversationId,
@@ -65,8 +74,13 @@ export async function streamMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
     if (!validateChatMessage(message, req, res)) return;
+    const enableWebSearch =
+      req.body.enableWebSearch !== undefined
+        ? req.body.enableWebSearch
+        : options?.enableWebSearch;
     const streamOptions = {
       ...(options || {}),
+      ...(enableWebSearch !== undefined ? { enableWebSearch: Boolean(enableWebSearch) } : {}),
       tools: undefined,
       enableTools: false,
       requestId: req.id,

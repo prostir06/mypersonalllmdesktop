@@ -15,6 +15,8 @@ export type ChatOptions = {
   regenerateFromMessageId?: number;
   activeBranchIds?: Record<number, number>;
   attachments?: Array<{ filename: string; content: string }>;
+  apiKey?: string;
+  enableWebSearch?: boolean;
   [key: string]: unknown;
 };
 

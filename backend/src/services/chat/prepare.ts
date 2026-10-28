@@ -1,6 +1,7 @@
 import prisma from '../../config/prisma';
 import { assertChatImage } from '../../utils/chatImage';
 import { resolveOpenAiApiKey } from '../../utils/openaiKeyResolver';
+import { resolveGeminiApiKey } from '../../utils/geminiKeyResolver';
 import {
   linearHistoryUpTo,
   toProviderMessages,
@@ -128,9 +129,20 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
 
   if (options.image) delete options.image;
 
-  const openaiKey = await resolveOpenAiApiKey(input.userId);
-  if (openaiKey) {
-    options.apiKey = openaiKey;
+  if (input.provider === 'gemini') {
+    const geminiKey = await resolveGeminiApiKey(input.userId);
+    if (geminiKey) {
+      options.apiKey = geminiKey;
+    }
+  } else {
+    const openaiKey = await resolveOpenAiApiKey(input.userId);
+    if (openaiKey) {
+      options.apiKey = openaiKey;
+    }
+  }
+
+  if (input.options?.enableWebSearch === true) {
+    options.enableWebSearch = true;
   }
 
   return {

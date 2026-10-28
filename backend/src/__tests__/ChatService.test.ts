@@ -489,6 +489,58 @@ describe('ChatService', () => {
       });
     });
 
+    it('merges provider grounding sources with RAG sources in sendMessage', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'rag.pdf', similarity: 0.95 },
+      ]);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Grounding reply',
+        usage: { total_tokens: 20 },
+        sources: [
+          {
+            id: 'web-0',
+            filename: 'Google News',
+            snippet: 'Google News',
+            url: 'https://news.google.com',
+            score: 1.0,
+            source_type: 'web_search',
+          },
+        ],
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        message: 'What is happening',
+        provider: 'gemini',
+        model: 'gemini-2.0-flash',
+        options: { ragEnabled: true, enableWebSearch: true },
+      });
+
+      expect(result.sources).toEqual([
+        { filename: 'rag.pdf', similarity: 0.95 },
+        {
+          id: 'web-0',
+          filename: 'Google News',
+          snippet: 'Google News',
+          url: 'https://news.google.com',
+          score: 1.0,
+          source_type: 'web_search',
+        },
+      ]);
+    });
+
     it('returns success result when maybeRefreshSummary throws', async () => {
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
       mockedPrisma.message.findMany.mockResolvedValue([]);
@@ -931,6 +983,53 @@ describe('ChatService', () => {
       );
 
       expect(result.sources).toEqual([{ filename: 'a.txt', similarity: 0.9 }]);
+    });
+
+    it('merges provider grounding sources with RAG sources in streamMessage', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(true);
+      mockedEmbed.generateEmbedding.mockResolvedValue([0.1]);
+      mockedEmbed.findRelevantChunks.mockResolvedValue([
+        { content: 'chunk', filename: 'rag.pdf', similarity: 0.9 },
+      ]);
+      mockedProvider.streamMessage.mockResolvedValue({
+        content: 'stream ok',
+        sources: [
+          {
+            id: 'web-0',
+            filename: 'Wiki',
+            url: 'https://wikipedia.org',
+            source_type: 'web_search',
+          },
+        ],
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 2, createdAt: new Date() });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.streamMessage(
+        {
+          userId: 1,
+          conversationId: 10,
+          message: 'Hi',
+          provider: 'gemini',
+          options: { ragEnabled: true },
+        },
+        () => undefined
+      );
+
+      expect(result.sources).toEqual([
+        { filename: 'rag.pdf', similarity: 0.9 },
+        {
+          id: 'web-0',
+          filename: 'Wiki',
+          url: 'https://wikipedia.org',
+          source_type: 'web_search',
+        },
+      ]);
     });
   });
 });
