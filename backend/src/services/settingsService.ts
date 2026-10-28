@@ -25,6 +25,8 @@ export type UpdateSettingsBody = {
   system_prompt?: string;
   openai_api_key?: string;
   clear_openai_api_key?: boolean;
+  gemini_api_key?: string;
+  clear_gemini_api_key?: boolean;
 };
 
 export class InvalidOpenAiKeyError extends Error {
@@ -43,12 +45,17 @@ export function defaultSettings() {
     default_ollama_host: FALLBACK_OLLAMA,
     system_prompt: '',
     has_openai_api_key: false,
+    has_gemini_api_key: false,
     rag_embedding_mode: 'fallback' as const,
   };
 }
 
 function hasEncKey(row: { openaiApiKeyEnc?: string | null }): boolean {
   return Boolean(row.openaiApiKeyEnc && row.openaiApiKeyEnc.length > 0);
+}
+
+function hasGeminiKey(row: { geminiApiKeyEnc?: string | null }): boolean {
+  return Boolean(row.geminiApiKeyEnc && row.geminiApiKeyEnc.length > 0);
 }
 
 /** GET public subset — never returns key material */
@@ -60,6 +67,7 @@ export async function toPublicSettingsAsync(row: {
   defaultOllamaHost: string | null;
   systemPrompt: string;
   openaiApiKeyEnc?: string | null;
+  geminiApiKeyEnc?: string | null;
   userId?: number;
 }) {
   const base = {
@@ -70,6 +78,7 @@ export async function toPublicSettingsAsync(row: {
     default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
     system_prompt: row.systemPrompt ?? '',
     has_openai_api_key: hasEncKey(row),
+    has_gemini_api_key: hasGeminiKey(row),
     rag_embedding_mode: 'fallback' as 'openai' | 'ollama' | 'fallback',
   };
 
@@ -92,6 +101,7 @@ export function toSettingsRow(row: {
   defaultOllamaHost: string | null;
   systemPrompt: string;
   openaiApiKeyEnc?: string | null;
+  geminiApiKeyEnc?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -105,6 +115,7 @@ export function toSettingsRow(row: {
     default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
     system_prompt: row.systemPrompt ?? '',
     has_openai_api_key: hasEncKey(row),
+    has_gemini_api_key: hasGeminiKey(row),
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   };
@@ -139,6 +150,8 @@ export async function updateSettingsForUser(
     system_prompt,
     openai_api_key,
     clear_openai_api_key,
+    gemini_api_key,
+    clear_gemini_api_key,
   } = body;
 
   const existing = await prisma.userSettings.findUnique({
@@ -153,6 +166,7 @@ export async function updateSettingsForUser(
     defaultOllamaHost: string;
     systemPrompt: string;
     openaiApiKeyEnc?: string | null;
+    geminiApiKeyEnc?: string | null;
   } = {
     defaultModel: default_model || existing?.defaultModel || 'gpt-3.5-turbo',
     temperature: temperature ?? (existing ? numTemp(existing.temperature) : 0.7),
@@ -177,6 +191,24 @@ export async function updateSettingsForUser(
     }
     try {
       data.openaiApiKeyEnc = encryptSecret(trimmed, userId);
+    } catch (err: unknown) {
+      if (err instanceof EncryptionConfigError) {
+        throw err;
+      }
+      throw err;
+    }
+  }
+
+  const clearGemini =
+    clear_gemini_api_key === true ||
+    (typeof gemini_api_key === 'string' && gemini_api_key.trim() === '');
+
+  if (clearGemini && (clear_gemini_api_key === true || gemini_api_key !== undefined)) {
+    data.geminiApiKeyEnc = null;
+  } else if (typeof gemini_api_key === 'string' && gemini_api_key.trim()) {
+    const trimmed = gemini_api_key.trim();
+    try {
+      data.geminiApiKeyEnc = encryptSecret(trimmed, userId);
     } catch (err: unknown) {
       if (err instanceof EncryptionConfigError) {
         throw err;

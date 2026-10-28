@@ -62,6 +62,7 @@ describe('Settings API (Prisma)', () => {
       default_provider: 'openai',
       system_prompt: '',
       has_openai_api_key: false,
+      has_gemini_api_key: false,
       rag_embedding_mode: 'fallback',
     });
     expect(res.body).toHaveProperty('default_ollama_host');
@@ -97,6 +98,7 @@ describe('Settings API (Prisma)', () => {
       default_ollama_host: 'http://ollama.local/v1',
       system_prompt: 'Be concise',
       has_openai_api_key: false,
+      has_gemini_api_key: false,
       rag_embedding_mode: 'fallback',
     });
     expect(mockedPrisma.userSettings.findUnique).toHaveBeenCalledWith({

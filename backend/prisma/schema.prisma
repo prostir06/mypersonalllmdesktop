@@ -37,6 +37,7 @@ model UserSettings {
   maxTokens         Int      @default(2000) @map("max_tokens")
   systemPrompt      String   @default("") @map("system_prompt") @db.Text
   openaiApiKeyEnc   String?  @map("openai_api_key_enc") @db.Text
+  geminiApiKeyEnc   String?  @map("gemini_api_key_enc") @db.Text
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at")
 
