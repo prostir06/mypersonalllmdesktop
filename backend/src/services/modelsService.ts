@@ -21,6 +21,78 @@ type LlmModelRow = {
   createdAt: Date;
 };
 
+export const DEFAULT_GEMINI_MODELS = [
+  {
+    name: 'Gemini 2.0 Flash',
+    modelId: 'gemini-2.0-flash',
+    provider: 'gemini',
+    maxTokens: 4000,
+    temperature: 0.7,
+  },
+  {
+    name: 'Gemini 1.5 Flash',
+    modelId: 'gemini-1.5-flash',
+    provider: 'gemini',
+    maxTokens: 4000,
+    temperature: 0.7,
+  },
+  {
+    name: 'Gemini 1.5 Pro',
+    modelId: 'gemini-1.5-pro',
+    provider: 'gemini',
+    maxTokens: 4000,
+    temperature: 0.7,
+  },
+] as const;
+
+export const DEFAULT_MODELS = [
+  {
+    name: 'GPT-3.5 Turbo',
+    modelId: 'gpt-3.5-turbo',
+    description: 'Fast and efficient model',
+    provider: 'openai',
+    maxTokens: 2000,
+    temperature: 0.7,
+    isDefault: true,
+  },
+  {
+    name: 'GPT-4',
+    modelId: 'gpt-4',
+    description: 'Most capable model',
+    provider: 'openai',
+    maxTokens: 2000,
+    temperature: 0.7,
+    isDefault: true,
+  },
+  {
+    name: 'GPT-4 Turbo',
+    modelId: 'gpt-4-turbo-preview',
+    description: 'Improved version of GPT-4',
+    provider: 'openai',
+    maxTokens: 2000,
+    temperature: 0.7,
+    isDefault: true,
+  },
+  {
+    name: 'Llama 2',
+    modelId: 'llama2',
+    description: 'Local Ollama model',
+    provider: 'ollama',
+    maxTokens: 2000,
+    temperature: 0.7,
+    isDefault: true,
+  },
+  ...DEFAULT_GEMINI_MODELS.map((m) => ({
+    name: m.name,
+    modelId: m.modelId,
+    description: null,
+    provider: m.provider,
+    maxTokens: m.maxTokens,
+    temperature: m.temperature,
+    isDefault: true,
+  })),
+];
+
 export function parseModelId(raw: string): number | null {
   if (!/^\d+$/.test(raw)) return null;
   return Number(raw);

@@ -19,7 +19,15 @@ const VISION_MODEL_IDS = new Set(
   ].map((id) => id.toLowerCase())
 );
 
-export function modelSupportsVision(modelId: string | null | undefined): boolean {
+export function modelSupportsVision(modelId?: string | null): boolean {
   if (!modelId || typeof modelId !== 'string') return false;
-  return VISION_MODEL_IDS.has(modelId.trim().toLowerCase());
+  const m = modelId.trim().toLowerCase();
+  if (m.startsWith('gemini-')) return true;
+  return (
+    VISION_MODEL_IDS.has(m) ||
+    m.includes('vision') ||
+    m.includes('gpt-4o') ||
+    m.includes('gpt-4-turbo') ||
+    m.includes('llava')
+  );
 }

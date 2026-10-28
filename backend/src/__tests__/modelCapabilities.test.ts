@@ -14,4 +14,10 @@ describe('modelSupportsVision', () => {
     expect(modelSupportsVision('')).toBe(false);
     expect(modelSupportsVision(null)).toBe(false);
   });
+
+  it('recognizes gemini models as supporting vision', () => {
+    expect(modelSupportsVision('gemini-2.0-flash')).toBe(true);
+    expect(modelSupportsVision('gemini-1.5-flash')).toBe(true);
+    expect(modelSupportsVision('gemini-1.5-pro')).toBe(true);
+  });
 });
