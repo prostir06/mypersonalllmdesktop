@@ -1,9 +1,12 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { MessageSources } from './MessageSources';
 
 describe('MessageSources', () => {
+  afterEach(() => {
+    cleanup();
+  });
   it('renders filenames and rounded similarity percentages', () => {
     render(
       <MessageSources
@@ -51,5 +54,23 @@ describe('MessageSources', () => {
     expect(link).toHaveAttribute('href', 'https://cloud.google.com/docs');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('renders web search sources without link if URL is not http/https', () => {
+    const sources = [
+      {
+        id: 'web-1',
+        document_id: 0,
+        filename: 'Untrusted Source',
+        chunk_index: 0,
+        snippet: 'Untrusted Source',
+        url: 'javascript:alert(1)',
+        score: 1.0,
+        source_type: 'web_search',
+      },
+    ];
+    render(<MessageSources sources={sources} />);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText(/Untrusted Source/i)).toBeInTheDocument();
   });
 });

@@ -19,6 +19,8 @@ import {
   toPublicSettingsAsync,
   toSettingsRow,
   updateSettingsForUser,
+  InvalidOpenAiKeyError,
+  InvalidGeminiKeyError,
 } from '../services/settingsService';
 
 const mockedPrisma = prisma as unknown as {
@@ -138,5 +140,21 @@ describe('settingsService mappers and updates', () => {
     expect(result.has_gemini_api_key).toBe(false);
     const updateArg = mockedPrisma.userSettings.upsert.mock.calls[0][0].update;
     expect(updateArg.geminiApiKeyEnc).toBeNull();
+  });
+
+  it('updateSettingsForUser rejects placeholder keys with typed errors', async () => {
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+
+    await expect(
+      updateSettingsForUser(5, { gemini_api_key: 'your_gemini_api_key_here' })
+    ).rejects.toBeInstanceOf(InvalidGeminiKeyError);
+
+    await expect(
+      updateSettingsForUser(5, { gemini_api_key: 'your_openai_api_key_here' })
+    ).rejects.toBeInstanceOf(InvalidGeminiKeyError);
+
+    await expect(
+      updateSettingsForUser(5, { openai_api_key: 'your_openai_api_key_here' })
+    ).rejects.toBeInstanceOf(InvalidOpenAiKeyError);
   });
 });

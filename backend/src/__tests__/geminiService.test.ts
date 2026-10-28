@@ -228,6 +228,69 @@ describe('geminiService', () => {
         message: expect.stringContaining('Помилка Gemini API: Internal network error'),
       });
     });
+
+    it('maps invalid API key errors to ChatError 401', async () => {
+      mockGenerateContent.mockRejectedValueOnce({
+        status: 403,
+        message: 'PERMISSION_DENIED: API key not valid. Please pass a valid API key.',
+      });
+
+      await expect(
+        geminiService.sendGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' }
+        )
+      ).rejects.toMatchObject({
+        statusCode: 401,
+        message: expect.stringContaining('Недійсний Google Gemini API key'),
+      });
+    });
+
+    it('re-throws abort errors without wrapping into ChatError 500', async () => {
+      const abortError = Object.assign(new Error('Aborted'), { code: 'ERR_CANCELED' });
+      mockGenerateContent.mockRejectedValueOnce(abortError);
+
+      await expect(
+        geminiService.sendGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' }
+        )
+      ).rejects.toThrow('Aborted');
+    });
+
+    it('returns safety fallback message when finishReason is SAFETY in sendGeminiMessage', async () => {
+      mockGenerateContent.mockResolvedValueOnce({
+        text: '',
+        candidates: [{ finishReason: 'SAFETY' }],
+      });
+
+      const result = await geminiService.sendGeminiMessage(
+        [{ role: 'user', content: 'Dangerous prompt' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' }
+      );
+
+      expect(result.content).toBe('Відповідь заблоковано фільтрами безпеки Google Gemini.');
+    });
+
+    it('aborts immediately in sendGeminiMessage when signal is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        geminiService.sendGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key', signal: controller.signal }
+        )
+      ).rejects.toMatchObject({
+        name: 'AbortError',
+        message: 'Generation stopped by user',
+      });
+      expect(mockGenerateContent).not.toHaveBeenCalled();
+    });
   });
 
   describe('streamGeminiMessage', () => {
@@ -306,6 +369,134 @@ describe('geminiService', () => {
         statusCode: 500,
         message: expect.stringContaining('Помилка стрімінгу Gemini: Stream broke'),
       });
+    });
+
+    it('maps invalid API key errors to ChatError 401', async () => {
+      mockGenerateContentStream.mockRejectedValueOnce({
+        status: 400,
+        message: 'API_KEY_INVALID: API key not valid. Please pass a valid API key.',
+      });
+
+      await expect(
+        geminiService.streamGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' }
+        )
+      ).rejects.toMatchObject({
+        statusCode: 401,
+        message: expect.stringContaining('Недійсний Google Gemini API key'),
+      });
+    });
+
+    it('re-throws abort errors without wrapping into ChatError 500', async () => {
+      const abortError = Object.assign(new Error('This operation was aborted'), {
+        name: 'AbortError',
+      });
+      mockGenerateContentStream.mockRejectedValueOnce(abortError);
+
+      await expect(
+        geminiService.streamGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' }
+        )
+      ).rejects.toThrow('This operation was aborted');
+    });
+
+    it('re-throws AbortError from onChunk and handles non-abort callback errors', async () => {
+      const asyncChunks = [{ text: 'Chunk 1' }, { text: 'Chunk 2' }];
+      mockGenerateContentStream.mockResolvedValueOnce({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of asyncChunks) yield chunk;
+        },
+      });
+
+      // Non-abort callback error is logged and stream continues
+      const onChunkError = jest.fn().mockImplementationOnce(() => {
+        throw new Error('Callback UI glitch');
+      });
+
+      const res = await geminiService.streamGeminiMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' },
+        onChunkError
+      );
+      expect(res.content).toBe('Chunk 1Chunk 2');
+
+      // AbortError in onChunk is rethrown
+      mockGenerateContentStream.mockResolvedValueOnce({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of asyncChunks) yield chunk;
+        },
+      });
+      const onChunkAbort = jest.fn().mockImplementationOnce(() => {
+        throw Object.assign(new Error('User clicked Stop'), { name: 'AbortError' });
+      });
+
+      await expect(
+        geminiService.streamGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' },
+          onChunkAbort
+        )
+      ).rejects.toThrow('User clicked Stop');
+    });
+
+    it('aborts during streaming iteration when signal.aborted becomes true', async () => {
+      const controller = new AbortController();
+      const asyncChunks = [
+        { text: 'Chunk 1' },
+        { text: 'Chunk 2' },
+      ];
+
+      mockGenerateContentStream.mockResolvedValueOnce({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of asyncChunks) {
+            yield chunk;
+          }
+        },
+      });
+
+      const onChunk = jest.fn().mockImplementation(() => {
+        controller.abort();
+      });
+
+      await expect(
+        geminiService.streamGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key', signal: controller.signal },
+          onChunk
+        )
+      ).rejects.toMatchObject({
+        name: 'AbortError',
+        message: 'Generation stopped by user',
+      });
+    });
+
+    it('returns safety fallback message when candidate finishReason is SAFETY in stream', async () => {
+      mockGenerateContentStream.mockResolvedValueOnce({
+        async *[Symbol.asyncIterator]() {
+          yield {
+            text: '',
+            candidates: [{ finishReason: 'SAFETY' }],
+          };
+        },
+      });
+
+      const onChunk = jest.fn();
+      const result = await geminiService.streamGeminiMessage(
+        [{ role: 'user', content: 'Dangerous prompt' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' },
+        onChunk
+      );
+
+      expect(result.content).toBe('Відповідь заблоковано фільтрами безпеки Google Gemini.');
+      expect(onChunk).toHaveBeenCalledWith('Відповідь заблоковано фільтрами безпеки Google Gemini.');
     });
   });
 });

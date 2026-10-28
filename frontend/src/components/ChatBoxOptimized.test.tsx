@@ -217,4 +217,26 @@ describe('ChatBoxOptimized', () => {
       { enableWebSearch: true }
     );
   });
+
+  it('does not pass enableWebSearch if provider is switched away from gemini', async () => {
+    const user = userEvent.setup();
+    chatStreamState.sendMessage.mockClear();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'gemini');
+    const webSearchBtn = screen.getByRole('button', {
+      name: /Перемикач пошуку в інтернеті/i,
+    });
+    await user.click(webSearchBtn);
+
+    // Switch back to openai
+    await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'openai');
+    await user.type(screen.getByLabelText(/Введення повідомлення/i), 'openai query');
+    await user.click(screen.getByRole('button', { name: /надіслати/i }));
+
+    expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
+      'openai query',
+      expect.any(Function)
+    );
+  });
 });

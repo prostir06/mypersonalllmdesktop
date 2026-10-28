@@ -2,7 +2,6 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import {
   encryptSecret,
-  EncryptionConfigError,
 } from '../utils/secretCrypto';
 import { embeddingContextToRagMode } from './embeddings/types';
 import {
@@ -33,6 +32,13 @@ export class InvalidOpenAiKeyError extends Error {
   constructor() {
     super('Invalid OpenAI API key');
     this.name = 'InvalidOpenAiKeyError';
+  }
+}
+
+export class InvalidGeminiKeyError extends Error {
+  constructor() {
+    super('Invalid Google Gemini API key');
+    this.name = 'InvalidGeminiKeyError';
   }
 }
 
@@ -189,14 +195,7 @@ export async function updateSettingsForUser(
     if (trimmed === KEY_PLACEHOLDER) {
       throw new InvalidOpenAiKeyError();
     }
-    try {
-      data.openaiApiKeyEnc = encryptSecret(trimmed, userId);
-    } catch (err: unknown) {
-      if (err instanceof EncryptionConfigError) {
-        throw err;
-      }
-      throw err;
-    }
+    data.openaiApiKeyEnc = encryptSecret(trimmed, userId);
   }
 
   const clearGemini =
@@ -207,14 +206,10 @@ export async function updateSettingsForUser(
     data.geminiApiKeyEnc = null;
   } else if (typeof gemini_api_key === 'string' && gemini_api_key.trim()) {
     const trimmed = gemini_api_key.trim();
-    try {
-      data.geminiApiKeyEnc = encryptSecret(trimmed, userId);
-    } catch (err: unknown) {
-      if (err instanceof EncryptionConfigError) {
-        throw err;
-      }
-      throw err;
+    if (trimmed === KEY_PLACEHOLDER || trimmed === 'your_gemini_api_key_here') {
+      throw new InvalidGeminiKeyError();
     }
+    data.geminiApiKeyEnc = encryptSecret(trimmed, userId);
   }
 
   invalidateEmbeddingContextCache(userId);

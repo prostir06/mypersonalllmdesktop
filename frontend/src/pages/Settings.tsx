@@ -154,6 +154,7 @@ const Settings: React.FC = () => {
       setClearOpenaiKey(false);
       toast.success('Налаштування збережено! ✅');
     } catch (err: unknown) {
+      console.error('Failed to save settings:', err);
       const ax = err as AxiosError<{ error?: string }> & { message?: string };
       const msg = ax.response?.data?.error || ax.message || 'Помилка збереження';
       setError(msg);
@@ -166,6 +167,7 @@ const Settings: React.FC = () => {
       await updateSettingsMutation.mutateAsync({ gemini_api_key: key });
       toast.success('Gemini API ключ збережено! ✅');
     } catch (err: unknown) {
+      console.error('Failed to save Gemini API key:', err);
       const ax = err as AxiosError<{ error?: string }> & { message?: string };
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося зберегти ключ Gemini';
       setError(msg);
@@ -178,6 +180,7 @@ const Settings: React.FC = () => {
       await updateSettingsMutation.mutateAsync({ clear_gemini_api_key: true });
       toast.success('Gemini API ключ видалено! ✅');
     } catch (err: unknown) {
+      console.error('Failed to clear Gemini API key:', err);
       const ax = err as AxiosError<{ error?: string }> & { message?: string };
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося видалити ключ Gemini';
       setError(msg);

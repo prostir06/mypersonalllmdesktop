@@ -23,19 +23,28 @@ export function MessageSources({ sources, ragStatus }: MessageSourcesProps) {
       <ul className="mb-0 ps-3">
         {sources.map((s, i) => {
           if (s.url || s.source_type === 'web_search') {
+            const isHttpUrl = Boolean(
+              s.url && (s.url.startsWith('http://') || s.url.startsWith('https://'))
+            );
             return (
               <li
                 key={s.id != null ? String(s.id) : (s.url || `${s.filename}-${i}`)}
                 className="my-1"
               >
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="badge bg-primary text-decoration-none d-inline-flex align-items-center gap-1"
-                >
-                  🌐 {s.filename || s.url}
-                </a>
+                {isHttpUrl ? (
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="badge bg-primary text-decoration-none d-inline-flex align-items-center gap-1"
+                  >
+                    🌐 {s.filename || s.url}
+                  </a>
+                ) : (
+                  <span className="badge bg-secondary d-inline-flex align-items-center gap-1">
+                    🌐 {s.filename || s.url}
+                  </span>
+                )}
               </li>
             );
           }

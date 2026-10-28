@@ -136,12 +136,15 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         toast.warn('Неможливо перегенерувати — оновіть історію чату');
         return;
       }
-      const regenOpts = webSearchEnabled ? { enableWebSearch: true } : undefined;
+      const regenOpts =
+        selectedProvider === 'gemini' && webSearchEnabled
+          ? { enableWebSearch: true }
+          : undefined;
       await (regenOpts
         ? regenerateMessage(userMsg, assistantIdx, setMessages, regenOpts)
         : regenerateMessage(userMsg, assistantIdx, setMessages));
     },
-    [messages, regenerateMessage, setMessages, webSearchEnabled]
+    [messages, regenerateMessage, setMessages, selectedProvider, webSearchEnabled]
   );
 
   const handleSwitchBranch = useCallback(
@@ -181,7 +184,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.';
     lastUserContentRef.current = userContent;
     setInputMessage('');
-    const sendOpts = webSearchEnabled ? { enableWebSearch: true } : undefined;
+    const sendOpts =
+      selectedProvider === 'gemini' && webSearchEnabled
+        ? { enableWebSearch: true }
+        : undefined;
     await (sendOpts
       ? sendMessage(userContent, setMessages, sendOpts)
       : sendMessage(userContent, setMessages));
@@ -224,9 +230,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
               className="btn btn-sm btn-outline-light"
               onClick={() => {
                 if (lastUserContentRef.current && !streaming && !loading) {
-                  const sendOpts = webSearchEnabled
-                    ? { enableWebSearch: true }
-                    : undefined;
+                  const sendOpts =
+                    selectedProvider === 'gemini' && webSearchEnabled
+                      ? { enableWebSearch: true }
+                      : undefined;
                   void (sendOpts
                     ? sendMessage(lastUserContentRef.current, setMessages, sendOpts)
                     : sendMessage(lastUserContentRef.current, setMessages));

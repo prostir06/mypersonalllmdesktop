@@ -30,6 +30,42 @@ describe('GeminiSettingsCard', () => {
     expect(onSave).toHaveBeenCalledWith('AIzaSy123456789');
   });
 
+  it('submits key when Enter is pressed in input', () => {
+    const onSave = vi.fn();
+    render(
+      <GeminiSettingsCard
+        hasKey={false}
+        saving={false}
+        onSaveKey={onSave}
+        onClearKey={vi.fn()}
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/Введіть Gemini API ключ/i);
+    fireEvent.change(input, { target: { value: 'AIzaSyFromEnterKey' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    expect(onSave).toHaveBeenCalledWith('AIzaSyFromEnterKey');
+  });
+
+  it('does not submit when key input is only whitespace', () => {
+    const onSave = vi.fn();
+    render(
+      <GeminiSettingsCard
+        hasKey={false}
+        saving={false}
+        onSaveKey={onSave}
+        onClearKey={vi.fn()}
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/Введіть Gemini API ключ/i);
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it('renders clear button when hasKey is true and triggers onClear', () => {
     const onSave = vi.fn();
     const onClear = vi.fn();

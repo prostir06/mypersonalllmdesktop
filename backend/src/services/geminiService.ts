@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import logger from '../logger';
+import { isAbortError } from '../utils/requestAbort';
 import { ChatError } from './chat/types';
 import type { RagSource } from './chat/types';
 
@@ -22,6 +23,7 @@ export function formatGroundingSources(chunks?: Array<{ web?: { uri?: string; ti
       try {
         fallback = new URL(uri).hostname;
       } catch {
+        // Fall back to raw URI when it is not a valid absolute URL (e.g. malformed or relative)
         fallback = uri;
       }
       const title = chunk.web.title || fallback;
@@ -89,6 +91,10 @@ export function buildGeminiPayload(
     maxOutputTokens: typeof options.max_tokens === 'number' ? options.max_tokens : 2000,
   };
 
+  if (options.signal instanceof AbortSignal) {
+    config.abortSignal = options.signal;
+  }
+
   if (systemInstructionText.trim().length > 0) {
     config.systemInstruction = { parts: [{ text: systemInstructionText.trim() }] };
   }
@@ -113,6 +119,13 @@ async function sendGeminiMessage(
     );
   }
 
+  const signal = options.signal instanceof AbortSignal ? options.signal : undefined;
+  if (signal?.aborted) {
+    const err = new Error('Generation stopped by user');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   const ai = new GoogleGenAI({ apiKey });
   const { contents, config } = buildGeminiPayload(messages, options);
 
@@ -123,16 +136,38 @@ async function sendGeminiMessage(
       config: config as any,
     });
 
-    const text = response.text || '';
-    const groundingChunks = (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks;
+    const candidate = response.candidates?.[0];
+    let text = response.text || '';
+    if (candidate?.finishReason === 'SAFETY') {
+      text = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
+    }
+
+    const groundingChunks = (candidate as any)?.groundingMetadata?.groundingChunks;
     const sources = formatGroundingSources(groundingChunks);
 
     return { content: text, sources, model };
   } catch (error: any) {
-    if (error instanceof ChatError) throw error;
+    if (
+      isAbortError(error) ||
+      error?.name === 'AbortError' ||
+      error?.code === 'ERR_CANCELED' ||
+      error?.code === 'ABORT_ERR' ||
+      error instanceof ChatError
+    ) {
+      throw error;
+    }
     logger.error(`Gemini send error: ${error?.message || error}`);
     if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
       throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.');
+    }
+    if (
+      error?.status === 400 ||
+      error?.status === 401 ||
+      error?.status === 403 ||
+      error?.message?.includes('API_KEY_INVALID') ||
+      error?.message?.includes('API key not valid')
+    ) {
+      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.');
     }
     throw new ChatError(500, `Помилка Gemini API: ${error?.message || 'Невідома помилка'}`);
   }
@@ -152,6 +187,13 @@ async function streamGeminiMessage(
     );
   }
 
+  const signal = options.signal instanceof AbortSignal ? options.signal : undefined;
+  if (signal?.aborted) {
+    const err = new Error('Generation stopped by user');
+    err.name = 'AbortError';
+    throw err;
+  }
+
   const ai = new GoogleGenAI({ apiKey });
   const { contents, config } = buildGeminiPayload(messages, options);
 
@@ -164,26 +206,95 @@ async function streamGeminiMessage(
 
     let fullText = '';
     let finalGroundingChunks: any[] = [];
+    let isSafetyBlocked = false;
 
     for await (const chunk of responseStream) {
+      if (signal?.aborted) {
+        const err = new Error('Generation stopped by user');
+        err.name = 'AbortError';
+        throw err;
+      }
+
+      const candidate = chunk.candidates?.[0];
+      if (candidate?.finishReason === 'SAFETY') {
+        isSafetyBlocked = true;
+      }
+
       const chunkText = chunk.text || '';
       if (chunkText) {
         fullText += chunkText;
-        if (onChunk) onChunk(chunkText);
+        if (onChunk) {
+          try {
+            onChunk(chunkText);
+          } catch (cbError: unknown) {
+            // Rethrow abort errors so client cancellation terminates the stream
+            if (
+              isAbortError(cbError) ||
+              (cbError &&
+                typeof cbError === 'object' &&
+                ((cbError as { name?: string }).name === 'AbortError' ||
+                  (cbError as { code?: string }).code === 'ABORT_ERR'))
+            ) {
+              throw cbError;
+            }
+            logger.error(
+              `Помилка в onChunk коллбеку: ${
+                cbError instanceof Error ? cbError.message : String(cbError)
+              }`
+            );
+          }
+        }
       }
-      const chunks = (chunk.candidates?.[0] as any)?.groundingMetadata?.groundingChunks;
+      const chunks = (candidate as any)?.groundingMetadata?.groundingChunks;
       if (Array.isArray(chunks) && chunks.length > 0) {
         finalGroundingChunks = chunks;
       }
     }
 
+    if (isSafetyBlocked) {
+      const fallback = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
+      if (!fullText && onChunk) {
+        try {
+          onChunk(fallback);
+        } catch (cbError: unknown) {
+          if (
+            isAbortError(cbError) ||
+            (cbError &&
+              typeof cbError === 'object' &&
+              ((cbError as { name?: string }).name === 'AbortError' ||
+                (cbError as { code?: string }).code === 'ABORT_ERR'))
+          ) {
+            throw cbError;
+          }
+        }
+      }
+      fullText = fallback;
+    }
+
     const sources = formatGroundingSources(finalGroundingChunks);
     return { content: fullText, sources, model };
   } catch (error: any) {
-    if (error instanceof ChatError) throw error;
+    if (
+      isAbortError(error) ||
+      error?.name === 'AbortError' ||
+      error?.code === 'ERR_CANCELED' ||
+      error?.code === 'ABORT_ERR' ||
+      error instanceof ChatError
+    ) {
+      throw error;
+    }
     logger.error(`Gemini stream error: ${error?.message || error}`);
     if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
       throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.');
+    }
+    if (
+      error?.status === 400 ||
+      error?.status === 401 ||
+      error?.status === 403 ||
+      error?.message?.includes('API_KEY_INVALID') ||
+      error?.message?.includes('API key not valid')
+    ) {
+      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.');
     }
     throw new ChatError(500, `Помилка стрімінгу Gemini: ${error?.message || 'Невідома помилка'}`);
   }
