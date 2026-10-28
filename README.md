@@ -1,14 +1,16 @@
 # LLM Personal Assistant Control Panel
 
-Personal LLM assistant control panel: Express + Prisma backend, React (Vite) frontend, OpenAI / Ollama providers.
+Personal LLM assistant control panel: Express + Prisma backend, React (Vite) frontend, OpenAI, Ollama, and Google Gemini providers.
 
 ## Features
 
-- Multi-model chat (OpenAI, Ollama) with streaming and Stop
+- Multi-model chat (OpenAI, Ollama, Google Gemini) with streaming and Stop
+- Multimodal vision support (upload and analyze images with vision-capable models like Gemini)
+- Google Search Grounding with live web search toggle and clickable source citations
 - Conversation history, rename, message search, Markdown / PDF export
 - Conversation memory: auto summary + editable notes (RAG context)
 - Cross-conversation user memory notes (Settings → inject into chat context)
-- Settings (system prompt / roles, model params, encrypted OpenAI keys)
+- Settings (system prompt / roles, model params, encrypted OpenAI and Google Gemini API keys)
 - JWT authentication (access + httpOnly refresh cookie)
 - Document upload for RAG (PDF, DOCX, XLSX, TXT, MD)
 - Semantic RAG: OpenAI embeddings or local Ollama (`nomic-embed-text`)
@@ -56,7 +58,7 @@ Use Prisma migrations from `backend/` as the only schema source of truth. Fresh 
 ```bash
 cd backend
 cp .env.example .env
-# Set DATABASE_URL, JWT_SECRET, OPENAI_API_KEY
+# Set DATABASE_URL, JWT_SECRET, OPENAI_API_KEY (or GEMINI_API_KEY)
 npm install
 npx prisma generate --config prisma/prisma.config.ts
 npx prisma migrate deploy --config prisma/prisma.config.ts
@@ -93,7 +95,7 @@ Packaged Windows build (after `frontend` production build): `cd desktop && npm r
 
 ```bash
 cp .env.example .env
-# Optional: set OPENAI_API_KEY
+# Optional: set OPENAI_API_KEY, GEMINI_API_KEY
 # Fresh clone / first up: anonymous node_modules volume is created on start.
 docker compose up -d --build
 # After adding a backend npm dependency: recreate that volume
@@ -105,7 +107,7 @@ docker compose up -d --build
 ```bash
 cp .env.example .env
 # Required: strong JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY (placeholders rejected at boot)
-# Optional: OPENAI_API_KEY, ALLOW_REGISTRATION=false (default deny when NODE_ENV=production)
+# Optional: OPENAI_API_KEY, GEMINI_API_KEY, ALLOW_REGISTRATION=false (default deny when NODE_ENV=production)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
@@ -154,6 +156,7 @@ JWT_ACCESS_EXPIRE=15m
 JWT_REFRESH_EXPIRE=30d
 ENCRYPTION_KEY=   # required in production (compose prod + entrypoint)
 OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=   # optional Google Gemini key (or set in UI Settings)
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
 # OLLAMA_EMBED_MODEL=nomic-embed-text
 # EMBEDDING_DIMENSIONS=768
@@ -167,6 +170,31 @@ CORS_ORIGIN=http://localhost:3000
 # Same-origin (Docker nginx / Vite proxy). Optional absolute URL for special setups.
 VITE_API_URL=/api
 ```
+
+### LLM Providers & Models
+
+The assistant supports three LLM providers configurable globally via environment variables or per-user in **Settings**:
+
+- **OpenAI**: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`. Configured via `OPENAI_API_KEY`.
+- **Ollama**: Local models (`llama3`, `mistral`, `qwen`, etc.) via `OLLAMA_API_URL`.
+- **Google Gemini**: Native Google Gemini models with multimodal vision and web search grounding:
+  - `gemini-2.0-flash` (recommended default — fast, multimodal, supports web search grounding)
+  - `gemini-1.5-flash` (efficient general-purpose multimodal model)
+  - `gemini-1.5-pro` (high-capacity multimodal reasoning model)
+
+#### Google Gemini Configuration & Features
+
+1. **API Key Setup**:
+   - Obtain an API key from [Google AI Studio](https://aistudio.google.com/apikey).
+   - Global default: set `GEMINI_API_KEY=AIzaSy...` in `backend/.env`.
+   - Per-user: navigate to **Settings → Google Gemini API Key** in the UI, enter the key, and click Save. The key is encrypted server-side with AES-256-GCM (`ENCRYPTION_KEY`). User key takes precedence over global key.
+2. **Multimodal Vision**:
+   - Attach image files (PNG, JPEG, WEBP, GIF, up to 5MB) directly in chat messages.
+   - Images are processed in-memory, converted to Gemini inline data parts, and analyzed natively with visual reasoning.
+3. **Google Search Grounding & Citations**:
+   - Toggle **Пошук в інтернеті** (Web Search) above the chat input when using any Gemini model.
+   - When enabled, Gemini grounds responses with Google Search results.
+   - Grounded responses include clickable source citations rendered in a dedicated **Джерела** (Sources) card below the message, linking to original external URLs.
 
 ## Main API
 

@@ -16,9 +16,11 @@ export default function GeminiSettingsCard({
 }: GeminiSettingsCardProps) {
   const [keyInput, setKeyInput] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleSubmit = (e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (keyInput.trim()) {
       onSaveKey(keyInput.trim());
       setKeyInput('');
@@ -47,22 +49,29 @@ export default function GeminiSettingsCard({
           . Ключ надійно шифрується на сервері.
         </p>
 
-        <Form onSubmit={handleSubmit}>
+        <div>
           <Form.Group className="mb-3">
             <Form.Control
               type="password"
               placeholder="Введіть Gemini API ключ (AIzaSy...)"
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
               disabled={saving}
               className="bg-dark text-light border-secondary"
             />
           </Form.Group>
           <div className="d-flex gap-2">
             <Button
-              type="submit"
+              type="button"
               variant="primary"
               disabled={saving || !keyInput.trim()}
+              onClick={handleSubmit}
             >
               {saving ? 'Збереження...' : 'Зберегти ключ'}
             </Button>
@@ -77,7 +86,7 @@ export default function GeminiSettingsCard({
               </Button>
             )}
           </div>
-        </Form>
+        </div>
       </Card.Body>
     </Card>
   );

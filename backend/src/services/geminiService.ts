@@ -18,7 +18,7 @@ export function formatGroundingSources(chunks?: Array<{ web?: { uri?: string; ti
   chunks.forEach((chunk, idx) => {
     if (chunk.web?.uri) {
       const uri = chunk.web.uri;
-      let fallback = uri;
+      let fallback: string;
       try {
         fallback = new URL(uri).hostname;
       } catch {
