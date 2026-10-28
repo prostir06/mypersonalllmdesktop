@@ -1,0 +1,84 @@
+import React, { useState } from 'react';
+import { Card, Form, Button, Badge } from 'react-bootstrap';
+
+export type GeminiSettingsCardProps = {
+  hasKey: boolean;
+  saving: boolean;
+  onSaveKey: (key: string) => void;
+  onClearKey: () => void;
+};
+
+export default function GeminiSettingsCard({
+  hasKey,
+  saving,
+  onSaveKey,
+  onClearKey,
+}: GeminiSettingsCardProps) {
+  const [keyInput, setKeyInput] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (keyInput.trim()) {
+      onSaveKey(keyInput.trim());
+      setKeyInput('');
+    }
+  };
+
+  return (
+    <Card className="bg-dark text-light border-secondary mb-4 shadow-sm">
+      <Card.Header className="d-flex justify-content-between align-items-center border-secondary">
+        <h5 className="mb-0">✨ Google Gemini API Key</h5>
+        <Badge bg={hasKey ? 'success' : 'warning'} className="text-dark">
+          {hasKey ? 'Ключ налаштовано' : 'Ключ не встановлено'}
+        </Badge>
+      </Card.Header>
+      <Card.Body>
+        <p className="text-muted small">
+          Отримайте безкоштовний API-ключ у{' '}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-info"
+          >
+            Google AI Studio
+          </a>
+          . Ключ надійно шифрується на сервері.
+        </p>
+
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Control
+              type="password"
+              placeholder="Введіть Gemini API ключ (AIzaSy...)"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              disabled={saving}
+              className="bg-dark text-light border-secondary"
+            />
+          </Form.Group>
+          <div className="d-flex gap-2">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={saving || !keyInput.trim()}
+            >
+              {saving ? 'Збереження...' : 'Зберегти ключ'}
+            </Button>
+            {hasKey && (
+              <Button
+                type="button"
+                variant="outline-danger"
+                disabled={saving}
+                onClick={onClearKey}
+              >
+                Видалити ключ
+              </Button>
+            )}
+          </div>
+        </Form>
+      </Card.Body>
+    </Card>
+  );
+}

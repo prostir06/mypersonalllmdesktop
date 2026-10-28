@@ -242,6 +242,7 @@ export interface UserSettings {
   default_ollama_host?: string;
   system_prompt?: string;
   has_openai_api_key?: boolean;
+  has_gemini_api_key?: boolean;
   rag_embedding_mode?: 'openai' | 'ollama' | 'fallback';
   [key: string]: unknown;
 }
@@ -249,6 +250,8 @@ export interface UserSettings {
 export type SettingsUpdatePayload = Partial<UserSettings> & {
   openai_api_key?: string;
   clear_openai_api_key?: boolean;
+  gemini_api_key?: string;
+  clear_gemini_api_key?: boolean;
 };
 
 export interface ConversationExportResponse {

@@ -1,18 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Settings from './Settings';
 
 const mutateAsync = vi.fn().mockResolvedValue({});
 
-const settingsData = {
+let settingsData = {
   default_provider: 'openai',
   default_model: 'gpt-4o-mini',
   temperature: 0.7,
   max_tokens: 2000,
   system_prompt: '',
   has_openai_api_key: false,
+  has_gemini_api_key: false,
 };
 
 vi.mock('../hooks/useSettings', () => ({
@@ -63,6 +64,19 @@ vi.mock('react-toastify', () => ({
 describe('Settings', () => {
   beforeEach(() => {
     mutateAsync.mockClear();
+    settingsData = {
+      default_provider: 'openai',
+      default_model: 'gpt-4o-mini',
+      temperature: 0.7,
+      max_tokens: 2000,
+      system_prompt: '',
+      has_openai_api_key: false,
+      has_gemini_api_key: false,
+    };
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('saves settings via update mutation', async () => {
@@ -87,6 +101,40 @@ describe('Settings', () => {
           default_model: 'gpt-4o-mini',
         })
       );
+    });
+  });
+
+  it('saves gemini api key via GeminiSettingsCard', async () => {
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const input = screen.getByPlaceholderText(/Введіть Gemini API ключ/i);
+    await user.type(input, 'AIzaSy123456789');
+
+    await user.click(screen.getByRole('button', { name: /Зберегти ключ/i }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        gemini_api_key: 'AIzaSy123456789',
+      });
+    });
+  });
+
+  it('clears gemini api key when key is configured', async () => {
+    settingsData = {
+      ...settingsData,
+      has_gemini_api_key: true,
+    };
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
+    await user.click(clearBtn);
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        clear_gemini_api_key: true,
+      });
     });
   });
 });
