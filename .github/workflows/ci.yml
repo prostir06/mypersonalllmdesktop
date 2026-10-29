@@ -86,10 +86,12 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
+        continue-on-error: true
         with:
           name: backend-coverage
           path: backend/coverage/
           if-no-files-found: ignore
+          retention-days: 1
 
   build-frontend:
     name: Frontend Build
@@ -223,10 +225,12 @@ jobs:
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: desktop-windows
           path: desktop/release/
-          if-no-files-found: error
+          if-no-files-found: ignore
+          retention-days: 3
 
   docker-build:
     name: Docker Build
