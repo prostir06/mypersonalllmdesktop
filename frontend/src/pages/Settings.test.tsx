@@ -79,6 +79,15 @@ describe('Settings', () => {
     cleanup();
   });
 
+  it('renders all settings tabs', () => {
+    render(<Settings />);
+    expect(screen.getByRole('tab', { name: /Загальні/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /API Ключі/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Каталог моделей/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Пам'ять/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Оновлення/i })).toBeInTheDocument();
+  });
+
   it('saves settings via update mutation', async () => {
     const user = userEvent.setup();
     render(<Settings />);
@@ -111,7 +120,7 @@ describe('Settings', () => {
     const input = screen.getByPlaceholderText(/Введіть Gemini API ключ/i);
     await user.type(input, 'AIzaSy123456789');
 
-    await user.click(screen.getByRole('button', { name: /Зберегти ключ/i }));
+    await user.click(screen.getByRole('button', { name: /^Зберегти ключ$/i }));
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith({
@@ -128,13 +137,53 @@ describe('Settings', () => {
     const user = userEvent.setup();
     render(<Settings />);
 
-    const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
+    const clearBtn = screen.getByRole('button', { name: /^Видалити ключ$/i });
     await user.click(clearBtn);
 
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith({
         clear_gemini_api_key: true,
       });
+    });
+  });
+
+  it('saves openai api key via ApiKeysTab', async () => {
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const input = screen.getByPlaceholderText(/sk-\.\.\./i);
+    await user.type(input, 'sk-proj-test123456');
+
+    await user.click(screen.getByRole('button', { name: /Зберегти ключ OpenAI/i }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openai_api_key: 'sk-proj-test123456',
+          clear_openai_key: false,
+        })
+      );
+    });
+  });
+
+  it('clears openai api key when key is configured', async () => {
+    settingsData = {
+      ...settingsData,
+      has_openai_api_key: true,
+    };
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
+    await user.click(clearBtn);
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          openai_api_key: '',
+          clear_openai_key: true,
+        })
+      );
     });
   });
 });

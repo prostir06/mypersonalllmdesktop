@@ -2,19 +2,16 @@
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
 import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
-import { Container, Form, Button, Alert, Spinner } from 'react-bootstrap';
+import { Container, Tabs, Tab, Alert, Spinner } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useModels } from '../hooks/useModels';
 import { modelsAPI } from '../services/api';
 import { catalogModelsToOptions, type ModelOption } from '../utils/catalogModelOptions';
+import GeneralSettingsTab from '../components/settings/GeneralSettingsTab';
+import ApiKeysTab from '../components/settings/ApiKeysTab';
 import ModelCatalog from '../components/settings/ModelCatalog';
-import ProviderAndModelCard from '../components/settings/ProviderAndModelCard';
-import RagStatusCard from '../components/settings/RagStatusCard';
-import GeminiSettingsCard from '../components/settings/GeminiSettingsCard';
-import GenerationParamsCard from '../components/settings/GenerationParamsCard';
-import SystemPromptCard from '../components/settings/SystemPromptCard';
 import UserMemoryCard from '../components/settings/UserMemoryCard';
 import DesktopUpdatesCard from '../components/settings/DesktopUpdatesCard';
 import type { SettingsUpdatePayload } from '../types/api';
@@ -36,8 +33,6 @@ const Settings: React.FC = () => {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
   const [systemPrompt, setSystemPrompt] = useState('');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [clearOpenaiKey, setClearOpenaiKey] = useState(false);
   const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
@@ -70,8 +65,6 @@ const Settings: React.FC = () => {
     );
     setSystemPrompt(String(settingsData.system_prompt || ''));
     setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
-    setOpenaiApiKey('');
-    setClearOpenaiKey(false);
   }
 
   const catalogOptions = useMemo(
@@ -130,7 +123,7 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSave = async (e: FormEvent) => {
+  const handleSaveGeneral = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -143,15 +136,7 @@ const Settings: React.FC = () => {
         default_ollama_host: ollamaHost,
         system_prompt: systemPrompt,
       };
-      if (clearOpenaiKey) {
-        payload.clear_openai_api_key = true;
-        payload.openai_api_key = '';
-      } else if (openaiApiKey.trim()) {
-        payload.openai_api_key = openaiApiKey.trim();
-      }
       await updateSettingsMutation.mutateAsync(payload);
-      setOpenaiApiKey('');
-      setClearOpenaiKey(false);
       toast.success('Налаштування збережено! ✅');
     } catch (err: unknown) {
       console.error('Failed to save settings:', err);
@@ -159,6 +144,25 @@ const Settings: React.FC = () => {
       const msg = ax.response?.data?.error || ax.message || 'Помилка збереження';
       setError(msg);
       toast.error('Не вдалося зберегти налаштування');
+    }
+  };
+
+  const handleSaveOpenaiKey = async (key: string, clear: boolean) => {
+    try {
+      await updateSettingsMutation.mutateAsync({
+        openai_api_key: key,
+        clear_openai_key: clear,
+        clear_openai_api_key: clear,
+      });
+      setHasOpenaiKey(!clear && Boolean(key.trim()));
+      toast.success(clear ? 'Ключ OpenAI видалено! ✅' : 'Ключ OpenAI збережено! ✅');
+    } catch (err: unknown) {
+      console.error('Failed to save OpenAI API key:', err);
+      const ax = err as AxiosError<{ error?: string }> & { message?: string };
+      const msg = ax.response?.data?.error || ax.message || 'Не вдалося зберегти ключ OpenAI';
+      setError(msg);
+      toast.error('Не вдалося зберегти ключ OpenAI');
+      throw err;
     }
   };
 
@@ -207,87 +211,74 @@ const Settings: React.FC = () => {
         </Alert>
       )}
 
-      <Form onSubmit={handleSave}>
-        <ProviderAndModelCard
-          provider={provider}
-          activeModel={activeModel}
-          currentModels={currentModels}
-          ollamaHost={ollamaHost}
-          loadingRemote={loadingRemote}
-          ollamaStatus={ollamaStatus}
-          onProviderChange={handleProviderChange}
-          onModelChange={setModel}
-          onOllamaHostChange={(value) => {
-            setOllamaHost(value);
-            setOllamaStatus(null);
-          }}
-          onFetchRemoteModels={() => void handleFetchRemoteModels()}
-        />
+      <Tabs
+        defaultActiveKey="general"
+        id="settings-tabs"
+        className="mb-4"
+        unmountOnExit={false}
+      >
+        <Tab eventKey="general" title="Загальні">
+          <GeneralSettingsTab
+            provider={provider}
+            activeModel={activeModel}
+            currentModels={currentModels}
+            ollamaHost={ollamaHost}
+            loadingRemote={loadingRemote}
+            ollamaStatus={ollamaStatus}
+            temperature={temperature}
+            maxTokens={maxTokens}
+            systemPrompt={systemPrompt}
+            isSaving={updateSettingsMutation.isPending}
+            error={error}
+            ragEmbeddingMode={settingsData?.rag_embedding_mode}
+            hasOpenaiKey={hasOpenaiKey}
+            onProviderChange={handleProviderChange}
+            onModelChange={setModel}
+            onOllamaHostChange={(value) => {
+              setOllamaHost(value);
+              setOllamaStatus(null);
+            }}
+            onFetchRemoteModels={handleFetchRemoteModels}
+            onTemperatureChange={setTemperature}
+            onMaxTokensChange={setMaxTokens}
+            onSystemPromptChange={setSystemPrompt}
+            onSubmit={handleSaveGeneral}
+          />
+        </Tab>
 
-        <RagStatusCard
-          ragEmbeddingMode={settingsData?.rag_embedding_mode}
-          hasOpenaiKey={hasOpenaiKey}
-          openaiApiKey={openaiApiKey}
-          clearOpenaiKey={clearOpenaiKey}
-          onOpenaiApiKeyChange={(value) => {
-            setOpenaiApiKey(value);
-            if (value) setClearOpenaiKey(false);
-          }}
-          onClearOpenaiKeyChange={(checked) => {
-            setClearOpenaiKey(checked);
-            if (checked) setOpenaiApiKey('');
-          }}
-        />
+        <Tab eventKey="api-keys" title="API Ключі">
+          <ApiKeysTab
+            hasOpenaiKey={hasOpenaiKey}
+            onSaveOpenaiKey={handleSaveOpenaiKey}
+            hasGeminiKey={Boolean(settingsData?.has_gemini_api_key)}
+            isSavingGemini={updateSettingsMutation.isPending}
+            onSaveGeminiKey={handleSaveGeminiKey}
+            onClearGeminiKey={handleClearGeminiKey}
+          />
+        </Tab>
 
-        <GeminiSettingsCard
-          hasKey={Boolean(settingsData?.has_gemini_api_key)}
-          saving={updateSettingsMutation.isPending}
-          onSaveKey={handleSaveGeminiKey}
-          onClearKey={handleClearGeminiKey}
-        />
+        <Tab eventKey="models" title="Каталог моделей">
+          <div className="glass-panel p-4 mb-3">
+            <h6
+              className="fw-semibold mb-3 text-muted text-uppercase"
+              style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+            >
+              Каталог моделей
+            </h6>
+            <ModelCatalog />
+          </div>
+        </Tab>
 
-        <GenerationParamsCard
-          temperature={temperature}
-          maxTokens={maxTokens}
-          onTemperatureChange={setTemperature}
-          onMaxTokensChange={setMaxTokens}
-        />
+        <Tab eventKey="memory" title="Пам'ять">
+          <UserMemoryCard />
+        </Tab>
 
-        <SystemPromptCard
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
-        />
-
-        <UserMemoryCard />
-
-        <Button
-          type="submit"
-          className="btn-accent px-4 py-2 d-flex align-items-center gap-2 mb-4"
-          disabled={updateSettingsMutation.isPending}
-        >
-          {updateSettingsMutation.isPending ? (
-            <>
-              <Spinner size="sm" animation="border" /> Збереження...
-            </>
-          ) : (
-            '💾 Зберегти налаштування'
-          )}
-        </Button>
-      </Form>
-
-      <div id="desktop-updates">
-        <DesktopUpdatesCard />
-      </div>
-
-      <div className="glass-panel p-4 mb-3">
-        <h6
-          className="fw-semibold mb-3 text-muted text-uppercase"
-          style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
-        >
-          Каталог моделей
-        </h6>
-        <ModelCatalog />
-      </div>
+        <Tab eventKey="updates" title="Оновлення">
+          <div id="desktop-updates">
+            <DesktopUpdatesCard />
+          </div>
+        </Tab>
+      </Tabs>
     </Container>
   );
 };

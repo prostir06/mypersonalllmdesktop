@@ -259,6 +259,7 @@ export interface UserSettings {
 export type SettingsUpdatePayload = Partial<UserSettings> & {
   openai_api_key?: string;
   clear_openai_api_key?: boolean;
+  clear_openai_key?: boolean;
   gemini_api_key?: string;
   clear_gemini_api_key?: boolean;
 };
