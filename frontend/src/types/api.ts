@@ -315,3 +315,11 @@ export interface UserPromptUpdatePayload {
   prompt?: string;
   is_pinned?: boolean;
 }
+
+export interface Artifact {
+  id: string;
+  type: 'html' | 'svg';
+  title: string;
+  language: string;
+  content: string;
+}
