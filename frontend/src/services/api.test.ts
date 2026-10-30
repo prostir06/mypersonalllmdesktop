@@ -93,6 +93,8 @@ describe('api service wrappers', () => {
     conversationAPI.updateMemoryNote(7, 3, 'updated');
     conversationAPI.deleteMemoryNote(7, 3);
     conversationAPI.refreshSummary(7);
+    conversationAPI.togglePin(7, true);
+    chatAPI.togglePin(7);
 
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/auth/login', {
       email: 'a@example.com',
@@ -129,6 +131,10 @@ describe('api service wrappers', () => {
     expect(mocks.apiInstance.post).toHaveBeenCalledWith(
       '/conversations/7/memory/refresh-summary'
     );
+    expect(mocks.apiInstance.patch).toHaveBeenCalledWith('/conversations/7/pin', {
+      is_pinned: true,
+    });
+    expect(mocks.apiInstance.patch).toHaveBeenCalledWith('/conversations/7/pin', {});
   });
 
   it('calls chat and document endpoints with expected payloads', async () => {

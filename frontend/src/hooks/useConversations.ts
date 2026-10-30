@@ -7,7 +7,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
-import { conversationAPI } from '../services/api';
+import { chatAPI, conversationAPI } from '../services/api';
 import type { Conversation } from '../types/api';
 import { queryKeys } from './queryKeys';
 import { nextListOffset } from '../utils/listPagination';
@@ -81,6 +81,23 @@ export function useRenameConversation() {
     }) => {
       await conversationAPI.update(id, title);
       return { id, title };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+    },
+  });
+}
+
+export function useTogglePinConversation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      args: string | number | { id: string | number; is_pinned?: boolean }
+    ) => {
+      const id = typeof args === 'object' ? args.id : args;
+      const isPinned = typeof args === 'object' ? args.is_pinned : undefined;
+      const response = await chatAPI.togglePin(id, isPinned);
+      return response.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });

@@ -30,6 +30,7 @@ export interface UserUpdatePayload {
 export interface Conversation {
   id: string | number;
   title?: string;
+  is_pinned?: boolean;
   created_at?: string;
   updated_at?: string;
   [key: string]: unknown;

@@ -1,5 +1,6 @@
 import type { AxiosResponse } from 'axios';
 import type {
+  Conversation,
   ChatAttachmentUploadResponse,
   ChatHistoryResponse,
   ChatSearchResponse,
@@ -159,4 +160,12 @@ export const chatAPI = {
     api.post('/chat/attachments', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
+  togglePin: (
+    id: string | number,
+    is_pinned?: boolean
+  ): Promise<AxiosResponse<Conversation>> =>
+    api.patch<Conversation>(
+      `/conversations/${id}/pin`,
+      is_pinned !== undefined ? { is_pinned } : {}
+    ),
 };

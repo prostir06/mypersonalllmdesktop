@@ -18,6 +18,7 @@ vi.mock('../hooks/useConversations', () => ({
   useRenameConversation: () => ({ mutateAsync: vi.fn() }),
   useInvalidateConversations: () => vi.fn(),
   useAutoSelectConversation: vi.fn(),
+  useTogglePinConversation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
 }));
 
 vi.mock('../components/ChatBoxOptimized', () => ({

@@ -12,6 +12,7 @@ import {
   useDeleteConversation,
   useInvalidateConversations,
   useRenameConversation,
+  useTogglePinConversation,
 } from '../hooks/useConversations';
 import { isSameConversation } from './dashboard/isSameConversation';
 import DashboardSidebar from './dashboard/DashboardSidebar';
@@ -63,6 +64,7 @@ const Dashboard: React.FC = () => {
   const deleteConversation = useDeleteConversation();
   const renameConversation = useRenameConversation();
   const invalidateConversations = useInvalidateConversations();
+  const togglePinMutation = useTogglePinConversation();
 
   useAutoSelectConversation(
     conversations,
@@ -159,6 +161,10 @@ const Dashboard: React.FC = () => {
           startRename={startRename}
           saveRename={saveRename}
           handleDeleteConversation={handleDeleteConversation}
+          onTogglePin={(id, e) => {
+            e.stopPropagation();
+            togglePinMutation.mutate(id);
+          }}
           onNewConversation={() => setShowNewConvModal(true)}
         />
       </Col>

@@ -46,4 +46,12 @@ export const conversationAPI = {
     api.delete(`/conversations/${id}/memory-notes/${noteId}`),
   refreshSummary: (id: string | number): Promise<AxiosResponse<SuccessResponse>> =>
     api.post(`/conversations/${id}/memory/refresh-summary`),
+  togglePin: (
+    id: string | number,
+    is_pinned?: boolean
+  ): Promise<AxiosResponse<Conversation>> =>
+    api.patch<Conversation>(
+      `/conversations/${id}/pin`,
+      is_pinned !== undefined ? { is_pinned } : {}
+    ),
 };

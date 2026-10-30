@@ -2,8 +2,7 @@ import React, { type FormEvent, type MouseEvent } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import MessageSearch from '../../components/MessageSearch';
 import { isSameConversation } from './isSameConversation';
-
-type Conversation = { id: string | number; title?: string };
+import type { Conversation } from '../../types/api';
 
 type Props = {
   conversations: Conversation[];
@@ -21,6 +20,7 @@ type Props = {
   saveRename: (convId: string | number, e?: FormEvent | MouseEvent) => void;
   handleDeleteConversation: (convId: string | number, e?: MouseEvent) => void;
   onNewConversation: () => void;
+  onTogglePin?: (convId: string | number, e: MouseEvent) => void;
 };
 
 export default function DashboardSidebar({
@@ -39,7 +39,95 @@ export default function DashboardSidebar({
   saveRename,
   handleDeleteConversation,
   onNewConversation,
+  onTogglePin,
 }: Props) {
+  const pinned = conversations.filter((c) => Boolean(c.is_pinned));
+  const others = conversations.filter((c) => !c.is_pinned);
+
+  const renderCard = (conv: Conversation) => {
+    const isActive = isSameConversation(activeConversation, conv.id);
+    const isPinned = Boolean(conv.is_pinned);
+    return (
+      <div
+        key={conv.id}
+        role="option"
+        aria-selected={isActive}
+        tabIndex={0}
+        className={`conversation-card ${isActive ? 'active' : ''}`}
+        onClick={() => selectConversation(conv.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectConversation(conv.id);
+          }
+        }}
+      >
+        {renamingId === conv.id ? (
+          <Form
+            className="d-flex gap-1 flex-grow-1 me-1"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveRename(conv.id, e);
+            }}
+          >
+            <Form.Control
+              size="sm"
+              value={renameTitle}
+              onChange={(e) => setRenameTitle(e.target.value)}
+              autoFocus
+              className="bg-dark text-light border-secondary shadow-none"
+            />
+            <Button type="submit" size="sm" variant="success">
+              ✓
+            </Button>
+          </Form>
+        ) : (
+          <div className="text-truncate me-2 fw-medium flex-grow-1">
+            💬 {conv.title || 'Новий чат'}
+          </div>
+        )}
+        <div className="d-flex gap-1">
+          <Button
+            variant="link"
+            size="sm"
+            className="p-0 text-muted text-decoration-none"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin?.(conv.id, e);
+            }}
+            title={isPinned ? 'Відкріпити' : 'Закріпити'}
+            aria-label={isPinned ? 'Відкріпити' : 'Закріпити'}
+          >
+            <span className={isPinned ? 'opacity-100' : 'opacity-50'}>
+              📌
+            </span>
+          </Button>
+          {renamingId !== conv.id && (
+            <Button
+              variant="link"
+              size="sm"
+              className="p-0 text-muted text-decoration-none"
+              onClick={(e) => startRename(conv, e)}
+              title="Перейменувати"
+            >
+              ✏️
+            </Button>
+          )}
+          <Button
+            variant="link"
+            size="sm"
+            className="p-0 text-muted hover-white text-decoration-none"
+            onClick={(e) => handleDeleteConversation(conv.id, e)}
+            title="Видалити розмову"
+          >
+            🗑️
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="sidebar-wrapper glass-panel">
       <Button
@@ -70,74 +158,23 @@ export default function DashboardSidebar({
           <div className="text-center text-muted p-4">
             <small>Немає збережених розмов</small>
           </div>
-        ) : (
-          conversations.map((conv) => {
-            const isActive = isSameConversation(activeConversation, conv.id);
-            return (
-              <div
-                key={conv.id}
-                role="option"
-                aria-selected={isActive}
-                tabIndex={0}
-                className={`conversation-card ${isActive ? 'active' : ''}`}
-                onClick={() => selectConversation(conv.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    selectConversation(conv.id);
-                  }
-                }}
-              >
-                {renamingId === conv.id ? (
-                  <Form
-                    className="d-flex gap-1 flex-grow-1 me-1"
-                    onClick={(e) => e.stopPropagation()}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      saveRename(conv.id, e);
-                    }}
-                  >
-                    <Form.Control
-                      size="sm"
-                      value={renameTitle}
-                      onChange={(e) => setRenameTitle(e.target.value)}
-                      autoFocus
-                      className="bg-dark text-light border-secondary shadow-none"
-                    />
-                    <Button type="submit" size="sm" variant="success">
-                      ✓
-                    </Button>
-                  </Form>
-                ) : (
-                  <div className="text-truncate me-2 fw-medium flex-grow-1">
-                    💬 {conv.title || 'Новий чат'}
-                  </div>
-                )}
-                <div className="d-flex gap-1">
-                  {renamingId !== conv.id && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="p-0 text-muted text-decoration-none"
-                      onClick={(e) => startRename(conv, e)}
-                      title="Перейменувати"
-                    >
-                      ✏️
-                    </Button>
-                  )}
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="p-0 text-muted hover-white text-decoration-none"
-                    onClick={(e) => handleDeleteConversation(conv.id, e)}
-                    title="Видалити розмову"
-                  >
-                    🗑️
-                  </Button>
+        ) : pinned.length > 0 ? (
+          <>
+            <div className="small text-uppercase text-muted fw-bold px-2 py-1">
+              📌 Закріплені
+            </div>
+            {pinned.map(renderCard)}
+            {others.length > 0 && (
+              <>
+                <div className="small text-uppercase text-muted fw-bold px-2 py-1 mt-2">
+                  💬 Нещодавні
                 </div>
-              </div>
-            );
-          })
+                {others.map(renderCard)}
+              </>
+            )}
+          </>
+        ) : (
+          conversations.map(renderCard)
         )}
         {hasMore && (
           <div className="text-center py-2">
