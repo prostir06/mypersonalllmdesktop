@@ -8,6 +8,7 @@ import type {
   RagSource,
   StreamInitCallback,
   StreamTokenCallback,
+  TokenUsage,
 } from '../../types/api';
 import { consumeSseChunk, isAbortError, readFetchErrorMessage, cancelStreamReader } from '../sseParse';
 import { getAccessToken } from '../authToken';
@@ -46,7 +47,8 @@ export const chatAPI = {
       messageId?: string | number;
       content?: string;
       sources?: RagSource[];
-    }) => void
+    }) => void,
+    onTokenUsage?: (usage: TokenUsage) => void
   ): Promise<void> => {
     const doFetch = async (accessToken: string | null): Promise<Response> => {
       const res = await fetch(`${API_URL}/chat/stream`, {
@@ -124,6 +126,7 @@ export const chatAPI = {
             onInit,
             onToken,
             onDone,
+            onTokenUsage,
           }
         );
       }

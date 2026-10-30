@@ -2,7 +2,7 @@
  * Pure SSE helpers for chat streaming (unit-tested).
  * Keeps buffer state out of React and out of the Axios client.
  */
-import type { RagSource, StreamEvent } from '../types/api';
+import type { RagSource, StreamEvent, TokenUsage } from '../types/api';
 
 /** Raised when the server sends `data: {"type":"error",...}` mid-stream. */
 export class SseStreamError extends Error {
@@ -25,6 +25,7 @@ export type SseHandlers = {
     ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
   }) => void;
   /** Called before SseStreamError is thrown (optional telemetry). */
+  onTokenUsage?: (usage: TokenUsage) => void;
   onError?: (message: string) => void;
 };
 
@@ -44,9 +45,21 @@ export function consumeSseChunk(
   const lines = next.split('\n');
   const rest = lines.pop() ?? '';
 
+  let currentEvent = '';
+
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith(':')) continue;
+    if (!trimmed) {
+      currentEvent = '';
+      continue;
+    }
+    if (trimmed.startsWith(':')) continue;
+    if (trimmed.startsWith('event:')) {
+      currentEvent = trimmed.startsWith('event: ')
+        ? trimmed.slice(7).trim()
+        : trimmed.slice(6).trim();
+      continue;
+    }
     if (!trimmed.startsWith('data:')) continue;
 
     // Support both `data: {...}` and `data:{...}`
@@ -65,7 +78,15 @@ export function consumeSseChunk(
     }
 
     try {
-      if (data.type === 'init' && handlers.onInit) {
+      if (
+        (currentEvent === 'token_usage' ||
+          (data as { type?: string }).type === 'token_usage' ||
+          (typeof (data as unknown as TokenUsage).promptTokens === 'number' &&
+            typeof (data as unknown as TokenUsage).totalTokens === 'number')) &&
+        handlers.onTokenUsage
+      ) {
+        handlers.onTokenUsage(data as unknown as TokenUsage);
+      } else if (data.type === 'init' && handlers.onInit) {
         handlers.onInit(data.conversationId, data.ragStatus);
       } else if (data.type === 'token' && handlers.onToken) {
         handlers.onToken(data.token);

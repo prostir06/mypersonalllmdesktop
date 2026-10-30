@@ -88,6 +88,21 @@ describe('consumeSseChunk', () => {
     });
   });
 
+  it('invokes onTokenUsage for token_usage events', () => {
+    const onTokenUsage = vi.fn();
+    consumeSseChunk(
+      '',
+      'event: token_usage\ndata: {"promptTokens":12,"completionTokens":34,"totalTokens":46,"estimatedCostUsd":0.0001}\n\n',
+      { onTokenUsage }
+    );
+    expect(onTokenUsage).toHaveBeenCalledWith({
+      promptTokens: 12,
+      completionTokens: 34,
+      totalTokens: 46,
+      estimatedCostUsd: 0.0001,
+    });
+  });
+
   it('throws SseStreamError on server error events', () => {
     const onError = vi.fn();
     expect(() =>

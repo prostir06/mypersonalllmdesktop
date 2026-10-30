@@ -52,47 +52,77 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   error,
   ragEmbeddingMode,
   hasOpenaiKey,
-}) => (
-  <Form onSubmit={onSubmit} className="d-flex flex-column gap-3">
-    {error && <Alert variant="danger">{error}</Alert>}
-    <ProviderAndModelCard
-      provider={provider}
-      activeModel={activeModel}
-      currentModels={currentModels}
-      ollamaHost={ollamaHost}
-      loadingRemote={loadingRemote}
-      ollamaStatus={ollamaStatus}
-      onProviderChange={onProviderChange}
-      onModelChange={onModelChange}
-      onOllamaHostChange={onOllamaHostChange}
-      onFetchRemoteModels={onFetchRemoteModels}
-    />
-    <GenerationParamsCard
-      temperature={temperature}
-      onTemperatureChange={onTemperatureChange}
-      maxTokens={maxTokens}
-      onMaxTokensChange={onMaxTokensChange}
-    />
-    <SystemPromptCard
-      systemPrompt={systemPrompt}
-      onSystemPromptChange={onSystemPromptChange}
-    />
-    <RagStatusCard
-      ragEmbeddingMode={ragEmbeddingMode}
-      hasOpenaiKey={hasOpenaiKey}
-    />
-    <div>
-      <Button
-        type="submit"
-        variant="primary"
-        disabled={isSaving}
-        className="btn-accent px-4 py-2"
-        aria-label="Зберегти налаштування"
-      >
-        {isSaving ? 'Збереження...' : 'Зберегти загальні налаштування'}
-      </Button>
-    </div>
-  </Form>
-);
+}) => {
+  const [showTokens, setShowTokens] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.localStorage) return true;
+    return window.localStorage.getItem('llm_assistant_show_tokens') !== 'false';
+  });
+
+  const handleToggleTokens = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setShowTokens(checked);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem('llm_assistant_show_tokens', String(checked));
+    }
+  };
+
+  return (
+    <Form onSubmit={onSubmit} className="d-flex flex-column gap-3">
+      {error && <Alert variant="danger">{error}</Alert>}
+      <ProviderAndModelCard
+        provider={provider}
+        activeModel={activeModel}
+        currentModels={currentModels}
+        ollamaHost={ollamaHost}
+        loadingRemote={loadingRemote}
+        ollamaStatus={ollamaStatus}
+        onProviderChange={onProviderChange}
+        onModelChange={onModelChange}
+        onOllamaHostChange={onOllamaHostChange}
+        onFetchRemoteModels={onFetchRemoteModels}
+      />
+      <GenerationParamsCard
+        temperature={temperature}
+        onTemperatureChange={onTemperatureChange}
+        maxTokens={maxTokens}
+        onMaxTokensChange={onMaxTokensChange}
+      />
+      <SystemPromptCard
+        systemPrompt={systemPrompt}
+        onSystemPromptChange={onSystemPromptChange}
+      />
+      <RagStatusCard
+        ragEmbeddingMode={ragEmbeddingMode}
+        hasOpenaiKey={hasOpenaiKey}
+      />
+      <div className="glass-panel p-4 mb-3">
+        <h6
+          className="fw-semibold mb-3 text-muted text-uppercase"
+          style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+        >
+          💬 Відображення чату
+        </h6>
+        <Form.Check
+          type="switch"
+          id="llm-assistant-show-tokens"
+          label="Показувати використання токенів під повідомленнями"
+          checked={showTokens}
+          onChange={handleToggleTokens}
+        />
+      </div>
+      <div>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={isSaving}
+          className="btn-accent px-4 py-2"
+          aria-label="Зберегти налаштування"
+        >
+          {isSaving ? 'Збереження...' : 'Зберегти загальні налаштування'}
+        </Button>
+      </div>
+    </Form>
+  );
+};
 
 export default GeneralSettingsTab;

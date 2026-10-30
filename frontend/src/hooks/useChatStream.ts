@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
-import type { Message, RagSource } from '../types/api';
+import type { Message, RagSource, TokenUsage } from '../types/api';
 import { queryKeys } from './queryKeys';
 import {
   appendOrReplaceAssistant,
@@ -47,6 +47,7 @@ export function useChatStream({
   const rafRef = useRef<number | null>(null);
   const pendingTextRef = useRef('');
   const doneSourcesRef = useRef<RagSource[] | undefined>(undefined);
+  const tokenUsageRef = useRef<TokenUsage | undefined>(undefined);
 
   const flushStreamText = useCallback(() => {
     rafRef.current = null;
@@ -108,6 +109,7 @@ export function useChatStream({
       abortRef.current = controller;
       pendingTextRef.current = '';
       doneSourcesRef.current = undefined;
+      tokenUsageRef.current = undefined;
       setStreamedText('');
       setStreaming(true);
 
@@ -134,6 +136,16 @@ export function useChatStream({
           controller.signal,
           (done) => {
             doneSourcesRef.current = done.sources;
+          },
+          (usage) => {
+            tokenUsageRef.current = usage;
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return [...prev.slice(0, -1), { ...last, tokenUsage: usage }];
+              }
+              return prev;
+            });
           }
         );
 
@@ -149,6 +161,7 @@ export function useChatStream({
               role: 'assistant',
               content: currentStreamText,
               sources: doneSourcesRef.current,
+              tokenUsage: tokenUsageRef.current,
               created_at: new Date().toISOString(),
             },
             opts.replaceAssistantIndex
@@ -208,6 +221,7 @@ export function useChatStream({
                 role: 'assistant',
                 content: data.content,
                 sources: data.sources,
+                tokenUsage: (data.tokenUsage || (data.usage as TokenUsage | undefined)),
                 created_at:
                   typeof data.timestamp === 'string'
                     ? data.timestamp
@@ -293,4 +307,26 @@ export function useChatStream({
     regenerateMessage,
     stopStreaming,
   };
+}
+
+export function handleTokenUsageEvent(
+  event: string,
+  data: string | TokenUsage,
+  setMessages: Dispatch<SetStateAction<Message[]>>
+) {
+  if (event === 'token_usage') {
+    try {
+      const usage =
+        typeof data === 'string' ? (JSON.parse(data) as TokenUsage) : data;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant') {
+          return [...prev.slice(0, -1), { ...last, tokenUsage: usage }];
+        }
+        return prev;
+      });
+    } catch (err) {
+      console.warn('Failed to parse token_usage event', err);
+    }
+  }
 }

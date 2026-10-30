@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useChatStream } from './useChatStream';
+import { useChatStream, handleTokenUsageEvent } from './useChatStream';
 import { SseStreamError } from '../services/sseParse';
 
 vi.mock('../services/api', () => ({
@@ -236,6 +236,101 @@ describe('useChatStream', () => {
       'Stream failed, falling back to /send:',
       expect.any(Error)
     );
+    warn.mockRestore();
+  });
+
+  it('attaches tokenUsage from stream to the final assistant message', async () => {
+    chatAPI.streamMessage.mockImplementation(
+      async (
+        _id,
+        _msg,
+        _model,
+        _provider,
+        _opts,
+        onToken,
+        _onInit,
+        _signal,
+        _onDone,
+        onTokenUsage
+      ) => {
+        onToken('answer');
+        onTokenUsage?.({
+          promptTokens: 10,
+          completionTokens: 20,
+          totalTokens: 30,
+          estimatedCostUsd: 0.0002,
+        });
+      }
+    );
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages);
+    });
+
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'answer',
+      tokenUsage: {
+        promptTokens: 10,
+        completionTokens: 20,
+        totalTokens: 30,
+        estimatedCostUsd: 0.0002,
+      },
+    });
+  });
+
+  it('handleTokenUsageEvent parses JSON string and updates last assistant message', () => {
+    let messages = [
+      { role: 'user', content: 'hi' },
+      { role: 'assistant', content: 'hello' },
+    ];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    handleTokenUsageEvent(
+      'token_usage',
+      JSON.stringify({
+        promptTokens: 15,
+        completionTokens: 35,
+        totalTokens: 50,
+        estimatedCostUsd: 0.0015,
+      }),
+      setMessages
+    );
+
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'hello',
+      tokenUsage: {
+        promptTokens: 15,
+        completionTokens: 35,
+        totalTokens: 50,
+        estimatedCostUsd: 0.0015,
+      },
+    });
+  });
+
+  it('handleTokenUsageEvent warns on malformed JSON without crashing', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let messages = [{ role: 'assistant', content: 'hello' }];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    handleTokenUsageEvent('token_usage', '{malformed', setMessages);
+
+    expect(warn).toHaveBeenCalledWith(
+      'Failed to parse token_usage event',
+      expect.any(Error)
+    );
+    expect(messages[0].tokenUsage).toBeUndefined();
     warn.mockRestore();
   });
 });

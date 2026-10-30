@@ -61,11 +61,21 @@ export interface ListQueryParams {
   offset?: number;
 }
 
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd?: number;
+}
+
+export type ChatMessage = Message;
+
 export interface Message {
   id?: string | number;
   role: string;
   content: string;
   sources?: RagSource[];
+  tokenUsage?: TokenUsage;
   created_at?: string;
   parent_id?: number;
   branches?: MessageBranch[];
@@ -92,6 +102,7 @@ export interface MessageBranch {
   content: string;
   created_at?: string;
   sources?: RagSource[];
+  tokenUsage?: TokenUsage;
 }
 
 export interface ChatAttachmentPayload {
@@ -130,6 +141,7 @@ export interface ChatSendResponse {
   content: string;
   role: string;
   sources?: RagSource[];
+  tokenUsage?: TokenUsage;
   timestamp?: string;
   usage?: unknown;
 }
@@ -160,7 +172,15 @@ export type StreamEvent =
       messageId?: string | number;
       content?: string;
       sources?: RagSource[];
+      tokenUsage?: TokenUsage;
       ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
+    }
+  | {
+      type: 'token_usage';
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      estimatedCostUsd?: number;
     }
   | { type: 'error'; error: string };
 
