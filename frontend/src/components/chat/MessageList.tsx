@@ -4,6 +4,7 @@
 import React, { type RefObject } from 'react';
 import { Spinner, Badge } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
+import type { Artifact } from '../../types/api';
 import MessageItem, { CodeBlock, type ChatMessageView } from './MessageItem';
 
 export type MessageListProps = {
@@ -16,6 +17,7 @@ export type MessageListProps = {
   onCopy: (content: string) => void;
   onRegenerate?: (assistantIdx: number) => void;
   onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
+  onOpenArtifact?: (artifact: Artifact) => void;
   messagesEndRef: RefObject<HTMLDivElement>;
 };
 
@@ -29,6 +31,7 @@ const MessageList = React.memo(function MessageList({
   onCopy,
   onRegenerate,
   onSwitchBranch,
+  onOpenArtifact,
   messagesEndRef,
 }: MessageListProps) {
   if (loading && messages.length === 0) {
@@ -68,6 +71,7 @@ const MessageList = React.memo(function MessageList({
           onCopy={onCopy}
           onRegenerate={onRegenerate}
           onSwitchBranch={onSwitchBranch}
+          onOpenArtifact={onOpenArtifact}
           streaming={streaming}
         />
       ))}

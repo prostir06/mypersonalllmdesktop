@@ -4,7 +4,8 @@
 import React, { Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
-import type { RagSource, TokenUsage } from '../../types/api';
+import type { Artifact, RagSource, TokenUsage } from '../../types/api';
+import { parseArtifacts } from '../../utils/artifactParser';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { MessageSources } from './MessageSources';
 
@@ -92,6 +93,7 @@ export type MessageItemProps = {
   onCopy: (content: string) => void;
   onRegenerate?: (assistantIdx: number) => void;
   onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
+  onOpenArtifact?: (artifact: Artifact) => void;
   streaming?: boolean;
 };
 
@@ -103,9 +105,11 @@ const MessageItem = React.memo(function MessageItem({
   onCopy,
   onRegenerate,
   onSwitchBranch,
+  onOpenArtifact,
   streaming = false,
 }: MessageItemProps) {
   const components = useMemo(() => ({ code: CodeBlock }), []);
+  const artifacts = useMemo(() => (msg.role === 'assistant' ? parseArtifacts(msg.content) : []), [msg.role, msg.content]);
   const branchCount = msg.branches?.length ?? 0;
   const branchIndex = msg.branch_index ?? 0;
   const [showTokens, setShowTokens] = React.useState<boolean>(() => {
@@ -199,6 +203,22 @@ const MessageItem = React.memo(function MessageItem({
         {msg.role === 'assistant' && msg.sources?.length ? (
           <MessageSources sources={msg.sources} />
         ) : null}
+        {msg.role === 'assistant' && artifacts.length > 0 && (
+          <div className="d-flex flex-wrap gap-2 mt-2">
+            {artifacts.map((art) => (
+              <Button
+                key={art.id}
+                variant="outline-info"
+                size="sm"
+                className="d-inline-flex align-items-center gap-1 py-1 px-2"
+                onClick={() => onOpenArtifact?.(art)}
+              >
+                <span>🎨</span>
+                <span>Переглянути артефакт: {art.title}</span>
+              </Button>
+            ))}
+          </div>
+        )}
         {msg.role === 'assistant' && showTokens && usage && (
           <div
             className="d-inline-flex align-items-center gap-1 text-muted small mt-1 px-2 py-0 border rounded border-secondary"

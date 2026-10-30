@@ -110,15 +110,25 @@ vi.mock('../hooks/useChatAttachments', () => ({
   }),
 }));
 
+let mockMessages: Array<{
+  id?: number | string;
+  role: string;
+  content: string;
+}> = [];
+
 vi.mock('../hooks/useConversationHistory', () => ({
   useConversationHistory: () => ({
-    messages: [],
+    messages: mockMessages,
     setMessages: vi.fn(),
     loading: false,
   }),
 }));
 
 vi.mock('./chat/DocumentModal', () => ({
+  default: () => null,
+}));
+
+vi.mock('./chat/MemoryPanel', () => ({
   default: () => null,
 }));
 
@@ -141,6 +151,7 @@ describe('ChatBoxOptimized', () => {
     chatStreamState.error = null;
     chatAttachmentsState.attachedImage = null;
     chatAttachmentsState.chatAttachments = [];
+    mockMessages = [];
     cleanup();
   });
 
@@ -238,5 +249,70 @@ describe('ChatBoxOptimized', () => {
       'openai query',
       expect.any(Function)
     );
+  });
+
+  it('renders ArtifactPanel side-by-side when an artifact is active', async () => {
+    const user = userEvent.setup();
+    mockMessages = [
+      {
+        id: 101,
+        role: 'assistant',
+        content: 'Ось компонент:\n```html\n<!-- title: Split View Test -->\n<div id="root">Interactive Widget</div>\n```',
+      },
+    ];
+    render(<ChatBoxOptimized conversationId={1} />);
+
+    expect(screen.queryByTestId('artifact-panel')).not.toBeInTheDocument();
+
+    const artifactBtn = screen.getByRole('button', {
+      name: /Переглянути артефакт: Split View Test/i,
+    });
+    await user.click(artifactBtn);
+
+    expect(screen.getByTestId('artifact-panel')).toBeInTheDocument();
+    expect(screen.getByText('Split View Test')).toBeInTheDocument();
+  });
+
+  it('closes ArtifactPanel when close is triggered', async () => {
+    const user = userEvent.setup();
+    mockMessages = [
+      {
+        id: 102,
+        role: 'assistant',
+        content: 'Ось SVG:\n```svg\n<!-- title: Diagram -->\n<svg><circle cx="10" cy="10" r="5"/></svg>\n```',
+      },
+    ];
+    render(<ChatBoxOptimized conversationId={1} />);
+
+    const artifactBtn = screen.getByRole('button', {
+      name: /Переглянути артефакт: Diagram/i,
+    });
+    await user.click(artifactBtn);
+    expect(screen.getByTestId('artifact-panel')).toBeInTheDocument();
+
+    const closeBtn = screen.getByRole('button', { name: 'Закрити' });
+    await user.click(closeBtn);
+    expect(screen.queryByTestId('artifact-panel')).not.toBeInTheDocument();
+  });
+
+  it('clears activeArtifact when conversationId changes', async () => {
+    const user = userEvent.setup();
+    mockMessages = [
+      {
+        id: 103,
+        role: 'assistant',
+        content: '```html\n<!-- title: Reset Demo -->\n<div>Demo</div>\n```',
+      },
+    ];
+    const { rerender } = render(<ChatBoxOptimized conversationId={1} />);
+
+    const artifactBtn = screen.getByRole('button', {
+      name: /Переглянути артефакт: Reset Demo/i,
+    });
+    await user.click(artifactBtn);
+    expect(screen.getByTestId('artifact-panel')).toBeInTheDocument();
+
+    rerender(<ChatBoxOptimized conversationId={2} />);
+    expect(screen.queryByTestId('artifact-panel')).not.toBeInTheDocument();
   });
 });

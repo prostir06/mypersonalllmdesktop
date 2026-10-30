@@ -12,12 +12,13 @@ import { useChatAttachments } from '../hooks/useChatAttachments';
 import { useChatModelSelection } from '../hooks/useChatModelSelection';
 import { modelSupportsVision } from '../utils/modelSupportsVision';
 import { copyTextWithToast } from '../utils/clipboard';
-import type { Message } from '../types/api';
+import type { Artifact, Message } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import ChatHiddenFileInputs from './chat/ChatHiddenFileInputs';
 import ChatBoxModals from './chat/ChatBoxModals';
+import ArtifactPanel from './chat/ArtifactPanel';
 
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
@@ -30,6 +31,12 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 }) => {
   const navigate = useNavigate();
   const [inputMessage, setInputMessage] = useState('');
+  const [activeArtifact, setActiveArtifact] = useState<Artifact | null>(null);
+  const [prevConversationId, setPrevConversationId] = useState(conversationId);
+  if (conversationId !== prevConversationId) {
+    setPrevConversationId(conversationId);
+    setActiveArtifact(null);
+  }
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,6 +123,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamedText, scrollToBottom]);
+
 
   const copyMessage = useCallback((text: string) => {
     copyTextWithToast(text, 'Скопійовано! 📋');
@@ -253,38 +261,58 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         </Alert>
       )}
 
-      <MessageList
-        messages={messages}
-        loading={loading}
-        streaming={streaming}
-        streamedText={streamedText}
-        speakingIdx={speakingIdx}
-        onSpeak={speakText}
-        onCopy={copyMessage}
-        onRegenerate={handleRegenerate}
-        onSwitchBranch={handleSwitchBranch}
-        messagesEndRef={messagesEndRef}
-      />
+      <div className={`d-flex flex-grow-1 overflow-hidden ${activeArtifact ? 'flex-row gap-3' : 'flex-column'}`}>
+        <div
+          className={`d-flex flex-column flex-grow-1 overflow-hidden ${activeArtifact ? 'w-50' : ''}`}
+          style={{ minWidth: 0 }}
+        >
+          <MessageList
+            messages={messages}
+            loading={loading}
+            streaming={streaming}
+            streamedText={streamedText}
+            speakingIdx={speakingIdx}
+            onSpeak={speakText}
+            onCopy={copyMessage}
+            onRegenerate={handleRegenerate}
+            onSwitchBranch={handleSwitchBranch}
+            onOpenArtifact={setActiveArtifact}
+            messagesEndRef={messagesEndRef}
+          />
 
-      <MessageInput
-        inputMessage={inputMessage}
-        onInputChange={setInputMessage}
-        onSubmit={handleSendMessage}
-        isListening={isListening}
-        onToggleListening={toggleListening}
-        streaming={streaming}
-        onStop={stopStreaming}
-        attachedImage={attachedImage}
-        onClearImage={clearAttachedImage}
-        onAttachImage={() => imageInputRef.current && imageInputRef.current.click()}
-        chatAttachments={chatAttachments}
-        onRemoveAttachment={removeAttachment}
-        onAttachFile={() => chatFileInputRef.current && chatFileInputRef.current.click()}
-        supportsVision={modelSupportsVision(activeModel, catalogModels)}
-        webSearchEnabled={webSearchEnabled}
-        onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
-        isGeminiProvider={selectedProvider === 'gemini'}
-      />
+          <MessageInput
+            inputMessage={inputMessage}
+            onInputChange={setInputMessage}
+            onSubmit={handleSendMessage}
+            isListening={isListening}
+            onToggleListening={toggleListening}
+            streaming={streaming}
+            onStop={stopStreaming}
+            attachedImage={attachedImage}
+            onClearImage={clearAttachedImage}
+            onAttachImage={() => imageInputRef.current && imageInputRef.current.click()}
+            chatAttachments={chatAttachments}
+            onRemoveAttachment={removeAttachment}
+            onAttachFile={() => chatFileInputRef.current && chatFileInputRef.current.click()}
+            supportsVision={modelSupportsVision(activeModel, catalogModels)}
+            webSearchEnabled={webSearchEnabled}
+            onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
+            isGeminiProvider={selectedProvider === 'gemini'}
+          />
+        </div>
+
+        {activeArtifact && (
+          <div
+            className="d-flex flex-column flex-grow-1 overflow-hidden w-50"
+            style={{ minWidth: 0 }}
+          >
+            <ArtifactPanel
+              artifact={activeArtifact}
+              onClose={() => setActiveArtifact(null)}
+            />
+          </div>
+        )}
+      </div>
 
       <ChatHiddenFileInputs
         chatFileInputRef={chatFileInputRef}
