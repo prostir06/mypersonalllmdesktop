@@ -7,6 +7,7 @@ import {
   updateConversation,
   deleteConversation,
   exportConversation,
+  togglePinConversation,
 } from '../controllers/conversationsController';
 import {
   getMemory,
@@ -31,6 +32,7 @@ router.patch('/:conversationId/memory-notes/:noteId', auth, updateMemoryNote);
 router.delete('/:conversationId/memory-notes/:noteId', auth, deleteMemoryNote);
 router.post('/:conversationId/memory/refresh-summary', auth, refreshSummary);
 
+router.patch('/:conversationId/pin', auth, togglePinConversation);
 router.get('/:conversationId', auth, getConversation);
 router.put('/:conversationId', auth, updateConversation);
 router.delete('/:conversationId', auth, deleteConversation);

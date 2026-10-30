@@ -4,6 +4,7 @@ type ConversationRow = {
   id: number;
   userId: number;
   title: string | null;
+  isPinned?: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -18,12 +19,14 @@ export function toListItem(row: {
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
+  isPinned?: boolean;
 }) {
   return {
     id: row.id,
     title: row.title,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
+    is_pinned: Boolean(row.isPinned),
   };
 }
 
@@ -59,10 +62,16 @@ export async function listForUser(userId: number, limit: number, offset: number)
   const [rows, total] = await Promise.all([
     prisma.conversation.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
       take: limit,
       skip: offset,
-      select: { id: true, title: true, createdAt: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        isPinned: true,
+      },
     }),
     prisma.conversation.count({ where }),
   ]);
@@ -87,6 +96,23 @@ export async function updateTitleForUser(
   });
   if (!existing) return null;
   return prisma.conversation.update({ where: { id }, data: { title } });
+}
+
+export async function togglePinForUser(
+  userId: number,
+  id: number,
+  isPinned?: boolean
+) {
+  const existing = await prisma.conversation.findFirst({
+    where: { id, userId },
+  });
+  if (!existing) return null;
+  const nextPinned =
+    typeof isPinned === 'boolean' ? isPinned : !existing.isPinned;
+  return prisma.conversation.update({
+    where: { id },
+    data: { isPinned: nextPinned },
+  });
 }
 
 export async function deleteForUser(userId: number, id: number) {

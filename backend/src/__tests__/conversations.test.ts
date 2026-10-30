@@ -43,6 +43,7 @@ process.env.JWT_SECRET = 'test-secret-at-least-32-chars-long!!';
 
 import prisma from '../config/prisma';
 import conversationsRouter from '../routes/conversations';
+import * as ConversationsService from '../services/conversationsService';
 
 const app = express();
 app.use(express.json());
@@ -70,6 +71,7 @@ const sampleRow = {
   id: 5,
   userId: 9,
   title: 'Hello',
+  isPinned: false,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
 };
@@ -95,6 +97,7 @@ describe('Conversations API (Prisma)', () => {
           title: 'Hello',
           created_at: sampleRow.createdAt.toISOString(),
           updated_at: sampleRow.updatedAt.toISOString(),
+          is_pinned: false,
         },
       ],
       total: 1,
@@ -104,10 +107,16 @@ describe('Conversations API (Prisma)', () => {
     expect(res.body.items[0]).not.toHaveProperty('userId');
     expect(mockedPrisma.conversation.findMany).toHaveBeenCalledWith({
       where: { userId: 9 },
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
       take: 10,
       skip: 0,
-      select: { id: true, title: true, createdAt: true, updatedAt: true },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        isPinned: true,
+      },
     });
     expect(mockedPrisma.conversation.count).toHaveBeenCalledWith({
       where: { userId: 9 },
@@ -259,5 +268,135 @@ describe('Conversations API (Prisma)', () => {
     expect(res.body.filename).toBe('conversation-5.md');
     expect(res.body.content).toContain('# Hello');
     expect(res.body.content).toContain('Hi');
+  });
+
+  it('listForUser orders pinned conversations before unpinned conversations', async () => {
+    mockedPrisma.conversation.findMany.mockResolvedValue([
+      { ...sampleRow, id: 1, isPinned: true },
+      { ...sampleRow, id: 2, isPinned: false },
+    ]);
+    mockedPrisma.conversation.count.mockResolvedValue(2);
+
+    const result = await ConversationsService.listForUser(9, 10, 0);
+
+    expect(mockedPrisma.conversation.findMany).toHaveBeenCalledWith({
+      where: { userId: 9 },
+      orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      take: 10,
+      skip: 0,
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        isPinned: true,
+      },
+    });
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].isPinned).toBe(true);
+    expect(result.rows[1].isPinned).toBe(false);
+  });
+
+  it('togglePinForUser toggles isPinned from false to true and true to false', async () => {
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: false,
+    });
+    mockedPrisma.conversation.update.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: true,
+    });
+
+    const res1 = await ConversationsService.togglePinForUser(9, 5);
+    expect(mockedPrisma.conversation.findFirst).toHaveBeenCalledWith({
+      where: { id: 5, userId: 9 },
+    });
+    expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 5 },
+      data: { isPinned: true },
+    });
+    expect(res1?.isPinned).toBe(true);
+
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: true,
+    });
+    mockedPrisma.conversation.update.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: false,
+    });
+
+    const res2 = await ConversationsService.togglePinForUser(9, 5);
+    expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 5 },
+      data: { isPinned: false },
+    });
+    expect(res2?.isPinned).toBe(false);
+
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: false,
+    });
+    mockedPrisma.conversation.update.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: true,
+    });
+
+    const res3 = await ConversationsService.togglePinForUser(9, 5, true);
+    expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
+      where: { id: 5 },
+      data: { isPinned: true },
+    });
+    expect(res3?.isPinned).toBe(true);
+
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce(null);
+    const resNull = await ConversationsService.togglePinForUser(9, 999);
+    expect(resNull).toBeNull();
+  });
+
+  it('PATCH /api/conversations/:conversationId/pin updates pin status and returns updated item', async () => {
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: false,
+    });
+    mockedPrisma.conversation.update.mockResolvedValueOnce({
+      ...sampleRow,
+      id: 5,
+      isPinned: true,
+    });
+
+    const res = await request(app)
+      .patch('/api/conversations/5/pin')
+      .set('Authorization', `Bearer ${tokenFor(9)}`)
+      .send({ is_pinned: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      id: 5,
+      title: 'Hello',
+      created_at: sampleRow.createdAt.toISOString(),
+      updated_at: sampleRow.updatedAt.toISOString(),
+      is_pinned: true,
+    });
+
+    const resInvalidId = await request(app)
+      .patch('/api/conversations/xyz/pin')
+      .set('Authorization', `Bearer ${tokenFor(9)}`)
+      .send();
+    expect(resInvalidId.status).toBe(404);
+
+    mockedPrisma.conversation.findFirst.mockResolvedValueOnce(null);
+    const resNotFound = await request(app)
+      .patch('/api/conversations/99/pin')
+      .set('Authorization', `Bearer ${tokenFor(9)}`)
+      .send();
+    expect(resNotFound.status).toBe(404);
   });
 });

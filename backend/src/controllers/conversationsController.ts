@@ -114,6 +114,41 @@ export async function updateConversation(
   }
 }
 
+export async function togglePinConversation(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  const id = ConversationsService.parseConversationId(
+    String(req.params.conversationId)
+  );
+  if (id == null) {
+    jsonError(res, req, 404, 'Conversation not found');
+    return;
+  }
+
+  const rawPinned = (req.body as { is_pinned?: unknown })?.is_pinned;
+  const isPinned = typeof rawPinned === 'boolean' ? rawPinned : undefined;
+
+  try {
+    const updated = await ConversationsService.togglePinForUser(
+      req.userId!,
+      id,
+      isPinned
+    );
+    if (!updated) {
+      jsonError(res, req, 404, 'Conversation not found');
+      return;
+    }
+    res.json(ConversationsService.toListItem(updated));
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.error(
+      `PATCH /conversations/${req.params.conversationId}/pin error: ${message}`
+    );
+    jsonError(res, req, 500, 'Failed to update conversation pin');
+  }
+}
+
 export async function deleteConversation(
   req: AuthRequest,
   res: Response
