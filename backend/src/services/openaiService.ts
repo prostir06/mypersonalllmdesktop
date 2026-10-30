@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
 import logger from '../logger';
 import { evaluateSafeMathExpression } from '../utils/safeMath';
+import { calculateTokenCost } from '../utils/tokenCostCalculator';
+import type { TokenUsage } from './chat/types';
 
 const tools: OpenAI.Chat.ChatCompletionTool[] = [
   {
@@ -94,6 +96,34 @@ function executeTool(name: string, args: { expression?: string }): string {
   }
 }
 
+function toTokenUsage(
+  rawUsage:
+    | {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        total_tokens?: number;
+      }
+    | undefined,
+  model: string
+): TokenUsage | undefined {
+  if (!rawUsage) return undefined;
+  const promptTokens = rawUsage.prompt_tokens ?? 0;
+  const completionTokens = rawUsage.completion_tokens ?? 0;
+  const totalTokens =
+    rawUsage.total_tokens ?? (promptTokens + completionTokens);
+  const estimatedCostUsd = calculateTokenCost(
+    model,
+    promptTokens,
+    completionTokens
+  );
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    estimatedCostUsd,
+  };
+}
+
 async function sendOpenAIMessage(
   messages: ChatMessage[],
   model = 'gpt-3.5-turbo',
@@ -152,6 +182,7 @@ async function sendOpenAIMessage(
       return {
         content: second.choices[0].message.content || '',
         usage: second.usage,
+        tokenUsage: toTokenUsage(second.usage, second.model || model),
         model: second.model,
       };
     }
@@ -159,6 +190,7 @@ async function sendOpenAIMessage(
     return {
       content: choice.message.content || '',
       usage: response.usage,
+      tokenUsage: toTokenUsage(response.usage, response.model || model),
       model: response.model,
     };
   } catch (err: unknown) {
@@ -193,16 +225,21 @@ async function streamOpenAIMessage(
       {
         ...base,
         stream: true,
+        stream_options: { include_usage: true },
       },
       signal ? { signal } : undefined
     );
 
     let fullContent = '';
+    let tokenUsage: TokenUsage | undefined;
     for await (const chunk of stream) {
       if (signal?.aborted) {
         const err = new Error('Aborted');
         err.name = 'AbortError';
         throw err;
+      }
+      if (chunk.usage) {
+        tokenUsage = toTokenUsage(chunk.usage, model);
       }
       if (!chunk.choices || chunk.choices.length === 0) continue;
       const token = chunk.choices[0]?.delta?.content || '';
@@ -237,7 +274,7 @@ async function streamOpenAIMessage(
       }
     }
 
-    return { content: fullContent, model };
+    return { content: fullContent, tokenUsage, model };
   } catch (error: unknown) {
     if (
       error &&

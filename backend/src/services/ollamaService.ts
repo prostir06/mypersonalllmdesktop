@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { assertAllowedHttpUrlWithDns } from '../utils/urlAllowlist';
 import logger from '../logger';
+import type { TokenUsage } from './chat/types';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -81,6 +82,37 @@ function buildOllamaPayload(
   return payload;
 }
 
+export function formatOllamaTokenUsage(
+  data: {
+    prompt_eval_count?: number;
+    eval_count?: number;
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+    };
+  } | undefined
+): TokenUsage | undefined {
+  if (!data) return undefined;
+  const hasUsage =
+    data.prompt_eval_count !== undefined ||
+    data.eval_count !== undefined ||
+    data.usage !== undefined;
+  if (!hasUsage) return undefined;
+
+  const promptTokens = data.prompt_eval_count ?? data.usage?.prompt_tokens ?? 0;
+  const completionTokens = data.eval_count ?? data.usage?.completion_tokens ?? 0;
+  const totalTokens =
+    data.usage?.total_tokens ?? (promptTokens + completionTokens);
+
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    estimatedCostUsd: 0,
+  };
+}
+
 async function sendOllamaMessage(
   messages: ChatMessage[],
   model = 'llama2',
@@ -101,6 +133,11 @@ async function sendOllamaMessage(
     return {
       content: response.data.choices[0].message.content as string,
       usage: response.data.usage,
+      tokenUsage: formatOllamaTokenUsage({
+        prompt_eval_count: response.data?.prompt_eval_count,
+        eval_count: response.data?.eval_count,
+        usage: response.data?.usage,
+      }),
       model: response.data.model as string,
     };
   } catch (error: unknown) {
@@ -133,8 +170,13 @@ async function streamOllamaMessage(
     });
 
     let fullContent = '';
+    let tokenUsage: TokenUsage | undefined;
 
-    return new Promise<{ content: string; model: string }>((resolve, reject) => {
+    return new Promise<{
+      content: string;
+      tokenUsage?: TokenUsage;
+      model: string;
+    }>((resolve, reject) => {
       let buffer = '';
 
       const onAbort = () => {
@@ -165,12 +207,33 @@ async function streamOllamaMessage(
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            const dataStr = trimmed.replace('data: ', '');
+          if (trimmed.startsWith('data: ') || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+            const dataStr = (trimmed.startsWith('data: ')
+              ? trimmed.replace('data: ', '')
+              : trimmed
+            ).trim();
             if (dataStr === '[DONE]') continue;
             try {
               const parsed = JSON.parse(dataStr);
-              const token = parsed.choices[0]?.delta?.content || '';
+              if (
+                parsed.done === true ||
+                parsed.prompt_eval_count !== undefined ||
+                parsed.eval_count !== undefined ||
+                parsed.usage !== undefined
+              ) {
+                const usage = formatOllamaTokenUsage({
+                  prompt_eval_count: parsed.prompt_eval_count,
+                  eval_count: parsed.eval_count,
+                  usage: parsed.usage,
+                });
+                if (usage) {
+                  tokenUsage = usage;
+                }
+              }
+              const token =
+                parsed.choices?.[0]?.delta?.content ||
+                parsed.message?.content ||
+                '';
               if (token) {
                 fullContent += token;
                 if (onChunk) {
@@ -209,7 +272,7 @@ async function streamOllamaMessage(
 
       response.data.on('end', () => {
         if (signal) signal.removeEventListener('abort', onAbort);
-        resolve({ content: fullContent, model });
+        resolve({ content: fullContent, tokenUsage, model });
       });
 
       response.data.on('error', (err: Error) => {
@@ -236,6 +299,7 @@ async function streamOllamaMessage(
 export default {
   sendOllamaMessage,
   streamOllamaMessage,
+  formatOllamaTokenUsage,
   // exported for unit tests / reuse
   pickOllamaSamplingOptions,
   buildOllamaPayload,

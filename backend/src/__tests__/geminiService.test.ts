@@ -196,6 +196,30 @@ describe('geminiService', () => {
       expect(result.sources[0].url).toBe('https://en.wikipedia.org/wiki/Paris');
     });
 
+    it('captures usageMetadata and maps to tokenUsage with estimated cost', async () => {
+      mockGenerateContent.mockResolvedValueOnce({
+        text: 'Hello!',
+        usageMetadata: {
+          promptTokenCount: 1000,
+          candidatesTokenCount: 500,
+          totalTokenCount: 1500,
+        },
+      });
+
+      const result = await geminiService.sendGeminiMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' }
+      );
+
+      expect(result.tokenUsage).toEqual({
+        promptTokens: 1000,
+        completionTokens: 500,
+        totalTokens: 1500,
+        estimatedCostUsd: 0.0003,
+      });
+    });
+
     it('maps 429 RESOURCE_EXHAUSTED errors to ChatError 429', async () => {
       mockGenerateContent.mockRejectedValueOnce({
         status: 429,
@@ -338,6 +362,39 @@ describe('geminiService', () => {
       expect(result.content).toBe('Hello world!');
       expect(result.sources).toHaveLength(1);
       expect(result.sources[0].url).toBe('https://google.com');
+    });
+
+    it('captures usageMetadata from stream chunks and maps to tokenUsage', async () => {
+      const asyncChunks = [
+        { text: 'Hi ' },
+        {
+          text: 'there!',
+          usageMetadata: {
+            promptTokenCount: 2000,
+            candidatesTokenCount: 1000,
+            totalTokenCount: 3000,
+          },
+        },
+      ];
+      mockGenerateContentStream.mockResolvedValueOnce({
+        async *[Symbol.asyncIterator]() {
+          for (const chunk of asyncChunks) yield chunk;
+        },
+      });
+
+      const result = await geminiService.streamGeminiMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' }
+      );
+
+      expect(result.content).toBe('Hi there!');
+      expect(result.tokenUsage).toEqual({
+        promptTokens: 2000,
+        completionTokens: 1000,
+        totalTokens: 3000,
+        estimatedCostUsd: 0.0006,
+      });
     });
 
     it('maps 429 errors during stream to ChatError 429', async () => {

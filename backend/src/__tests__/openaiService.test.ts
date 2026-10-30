@@ -161,6 +161,25 @@ describe('openaiService (SDK)', () => {
       expect(toolMsg.content).toMatch(/Error parsing tool arguments/i);
     });
 
+    it('maps response.usage to tokenUsage with estimated cost', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Answer', role: 'assistant' } }],
+        usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
+        model: 'gpt-4o-mini',
+      });
+
+      const result = await sendOpenAIMessage(
+        [{ role: 'user', content: 'x' }],
+        'gpt-4o-mini'
+      );
+
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.promptTokens).toBe(1000);
+      expect(result.tokenUsage?.completionTokens).toBe(500);
+      expect(result.tokenUsage?.totalTokens).toBe(1500);
+      expect(result.tokenUsage?.estimatedCostUsd).toBeCloseTo(0.00045, 5);
+    });
+
     it('throws generic error on failure', async () => {
       mockCreate.mockRejectedValue(new Error('sk-secret-leak'));
       await expect(
@@ -249,6 +268,28 @@ describe('openaiService (SDK)', () => {
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('UI crash')
       );
+    });
+
+    it('captures tokenUsage from stream chunks and requests include_usage', async () => {
+      async function* gen() {
+        yield { choices: [{ delta: { content: 'Hi' } }] };
+        yield {
+          choices: [],
+          usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
+        };
+      }
+      mockCreate.mockResolvedValueOnce(gen());
+      const result = await streamOpenAIMessage(
+        [{ role: 'user', content: 'Hi' }],
+        'gpt-4o-mini'
+      );
+      expect(result.content).toBe('Hi');
+      expect(mockCreate.mock.calls[0][0].stream_options).toEqual({ include_usage: true });
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.promptTokens).toBe(1000);
+      expect(result.tokenUsage?.completionTokens).toBe(500);
+      expect(result.tokenUsage?.totalTokens).toBe(1500);
+      expect(result.tokenUsage?.estimatedCostUsd).toBeCloseTo(0.00045, 5);
     });
 
     it('logs the original stream error before throwing a generic one', async () => {

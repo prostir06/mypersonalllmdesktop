@@ -1,8 +1,9 @@
 import { GoogleGenAI } from '@google/genai';
 import logger from '../logger';
 import { isAbortError } from '../utils/requestAbort';
+import { calculateTokenCost } from '../utils/tokenCostCalculator';
 import { ChatError } from './chat/types';
-import type { RagSource } from './chat/types';
+import type { RagSource, TokenUsage } from './chat/types';
 
 export type GeminiMessagePart =
   | { text: string }
@@ -40,6 +41,32 @@ export function formatGroundingSources(chunks?: Array<{ web?: { uri?: string; ti
     }
   });
   return results;
+}
+
+export function formatGeminiTokenUsage(
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  },
+  model?: string
+): TokenUsage | undefined {
+  if (!usageMetadata) return undefined;
+  const promptTokens = usageMetadata.promptTokenCount ?? 0;
+  const completionTokens = usageMetadata.candidatesTokenCount ?? 0;
+  const totalTokens =
+    usageMetadata.totalTokenCount ?? (promptTokens + completionTokens);
+  const estimatedCostUsd = calculateTokenCost(
+    model || 'gemini-2.0-flash',
+    promptTokens,
+    completionTokens
+  );
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    estimatedCostUsd,
+  };
 }
 
 export function buildGeminiPayload(
@@ -145,7 +172,9 @@ async function sendGeminiMessage(
     const groundingChunks = (candidate as any)?.groundingMetadata?.groundingChunks;
     const sources = formatGroundingSources(groundingChunks);
 
-    return { content: text, sources, model };
+    const tokenUsage = formatGeminiTokenUsage(response.usageMetadata, model);
+
+    return { content: text, tokenUsage, sources, model };
   } catch (error: any) {
     if (
       isAbortError(error) ||
@@ -207,12 +236,17 @@ async function streamGeminiMessage(
     let fullText = '';
     let finalGroundingChunks: any[] = [];
     let isSafetyBlocked = false;
+    let finalUsageMetadata: any = undefined;
 
     for await (const chunk of responseStream) {
       if (signal?.aborted) {
         const err = new Error('Generation stopped by user');
         err.name = 'AbortError';
         throw err;
+      }
+
+      if (chunk.usageMetadata) {
+        finalUsageMetadata = chunk.usageMetadata;
       }
 
       const candidate = chunk.candidates?.[0];
@@ -272,7 +306,8 @@ async function streamGeminiMessage(
     }
 
     const sources = formatGroundingSources(finalGroundingChunks);
-    return { content: fullText, sources, model };
+    const tokenUsage = formatGeminiTokenUsage(finalUsageMetadata, model);
+    return { content: fullText, tokenUsage, sources, model };
   } catch (error: any) {
     if (
       isAbortError(error) ||
@@ -303,6 +338,7 @@ async function streamGeminiMessage(
 export default {
   sendGeminiMessage,
   streamGeminiMessage,
+  formatGeminiTokenUsage,
   formatGroundingSources,
   buildGeminiPayload,
 };

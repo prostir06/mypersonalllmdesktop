@@ -193,4 +193,60 @@ describe('ollamaService', () => {
       expect.stringContaining('onChunk')
     );
   });
+
+  it('sendOllamaMessage captures prompt_eval_count and eval_count as tokenUsage', async () => {
+    mockedAxios.post = jest.fn().mockResolvedValue({
+      data: {
+        choices: [{ message: { content: 'Local response' } }],
+        done: true,
+        prompt_eval_count: 50,
+        eval_count: 120,
+        model: 'llama3:latest',
+      },
+    });
+
+    const result = await sendOllamaMessage(
+      [{ role: 'user', content: 'Hi' }],
+      'llama3:latest'
+    );
+
+    expect(result.content).toBe('Local response');
+    expect(result.tokenUsage).toEqual({
+      promptTokens: 50,
+      completionTokens: 120,
+      totalTokens: 170,
+      estimatedCostUsd: 0,
+    });
+  });
+
+  it('streamOllamaMessage captures tokenUsage when done: true chunk arrives', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => {
+        ee.emit(
+          'data',
+          Buffer.from('data: {"choices":[{"delta":{"content":"Hi"}}]}\n')
+        );
+        ee.emit(
+          'data',
+          Buffer.from('data: {"done":true,"prompt_eval_count":25,"eval_count":45}\n')
+        );
+        ee.emit('end');
+      });
+      return Promise.resolve({ data: ee });
+    });
+
+    const result = await streamOllamaMessage(
+      [{ role: 'user', content: 'Hi' }],
+      'llama3:latest'
+    );
+
+    expect(result.content).toBe('Hi');
+    expect(result.tokenUsage).toEqual({
+      promptTokens: 25,
+      completionTokens: 45,
+      totalTokens: 70,
+      estimatedCostUsd: 0,
+    });
+  });
 });
