@@ -20,4 +20,11 @@ describe('modelSupportsVision', () => {
     expect(modelSupportsVision('gemini-1.5-flash')).toBe(true);
     expect(modelSupportsVision('gemini-1.5-pro')).toBe(true);
   });
+
+  it('recognizes claude models as supporting vision', () => {
+    expect(modelSupportsVision('claude-3-5-sonnet-20241022')).toBe(true);
+    expect(modelSupportsVision('claude-3-5-haiku-20241022')).toBe(true);
+    expect(modelSupportsVision('claude-3-opus-20240229')).toBe(true);
+    expect(modelSupportsVision('Claude-3.5-Sonnet')).toBe(true);
+  });
 });

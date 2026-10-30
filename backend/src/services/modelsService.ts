@@ -45,6 +45,23 @@ export const DEFAULT_GEMINI_MODELS = [
   },
 ] as const;
 
+export const DEFAULT_CLAUDE_MODELS = [
+  {
+    name: 'Claude 3.5 Sonnet',
+    modelId: 'claude-3-5-sonnet-20241022',
+    provider: 'anthropic',
+    maxTokens: 4096,
+    temperature: 0.7,
+  },
+  {
+    name: 'Claude 3.5 Haiku',
+    modelId: 'claude-3-5-haiku-20241022',
+    provider: 'anthropic',
+    maxTokens: 4096,
+    temperature: 0.7,
+  },
+] as const;
+
 export const DEFAULT_MODELS = [
   {
     name: 'GPT-3.5 Turbo',
@@ -82,6 +99,15 @@ export const DEFAULT_MODELS = [
     temperature: 0.7,
     isDefault: true,
   },
+  ...DEFAULT_CLAUDE_MODELS.map((m) => ({
+    name: m.name,
+    modelId: m.modelId,
+    description: null,
+    provider: m.provider,
+    maxTokens: m.maxTokens,
+    temperature: m.temperature,
+    isDefault: true,
+  })),
   ...DEFAULT_GEMINI_MODELS.map((m) => ({
     name: m.name,
     modelId: m.modelId,

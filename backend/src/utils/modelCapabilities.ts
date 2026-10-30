@@ -23,6 +23,7 @@ export function modelSupportsVision(modelId?: string | null): boolean {
   if (!modelId || typeof modelId !== 'string') return false;
   const m = modelId.trim().toLowerCase();
   if (m.startsWith('gemini-')) return true;
+  if (m.startsWith('claude-3') || m.includes('claude-3')) return true;
   return (
     VISION_MODEL_IDS.has(m) ||
     m.includes('vision') ||

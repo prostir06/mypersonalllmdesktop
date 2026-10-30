@@ -1,6 +1,7 @@
 import openaiService from './openaiService';
 import ollamaService from './ollamaService';
 import geminiService from './geminiService';
+import claudeService from './claudeService';
 import logger from '../logger';
 import type { TokenUsage } from './chat/types';
 
@@ -44,6 +45,10 @@ class ProviderFactory {
     gemini: {
       send: geminiService.sendGeminiMessage as SendFn,
       stream: geminiService.streamGeminiMessage as StreamFn,
+    },
+    anthropic: {
+      send: claudeService.sendClaudeMessage as SendFn,
+      stream: claudeService.streamClaudeMessage as StreamFn,
     },
   };
 
