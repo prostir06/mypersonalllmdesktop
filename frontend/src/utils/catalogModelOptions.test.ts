@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   catalogModelsToOptions,
   DEFAULT_GEMINI_MODEL_OPTIONS,
+  DEFAULT_CLAUDE_MODEL_OPTIONS,
 } from './catalogModelOptions';
 
 describe('catalogModelsToOptions', () => {
@@ -39,8 +40,29 @@ describe('catalogModelsToOptions', () => {
     ]);
   });
 
+  it('returns default claude models when catalog has no anthropic models', () => {
+    expect(catalogModelsToOptions(catalog, 'anthropic')).toEqual(
+      DEFAULT_CLAUDE_MODEL_OPTIONS
+    );
+    expect(catalogModelsToOptions(null, 'anthropic')).toEqual(
+      DEFAULT_CLAUDE_MODEL_OPTIONS
+    );
+    expect(catalogModelsToOptions([], 'anthropic')).toEqual(
+      DEFAULT_CLAUDE_MODEL_OPTIONS
+    );
+  });
+
+  it('uses catalog models for anthropic when present', () => {
+    const customCatalog = [
+      { model_id: 'claude-custom', name: 'Custom Claude', provider: 'anthropic' },
+    ];
+    expect(catalogModelsToOptions(customCatalog, 'anthropic')).toEqual([
+      { value: 'claude-custom', label: 'Custom Claude' },
+    ]);
+  });
+
   it('returns empty for unknown provider or bad input', () => {
-    expect(catalogModelsToOptions(catalog, 'anthropic')).toEqual([]);
+    expect(catalogModelsToOptions(catalog, 'unknown_provider')).toEqual([]);
     expect(catalogModelsToOptions(null, 'openai')).toEqual([]);
     expect(catalogModelsToOptions(catalog, '')).toEqual([]);
   });

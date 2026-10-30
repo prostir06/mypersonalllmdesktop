@@ -57,6 +57,13 @@ vi.mock('../hooks/useModels', () => ({
         provider: 'gemini',
         supports_vision: true,
       },
+      {
+        id: 4,
+        name: 'Claude 3.5 Sonnet',
+        model_id: 'claude-3-5-sonnet-20241022',
+        provider: 'anthropic',
+        supports_vision: true,
+      },
     ],
   }),
 }));
@@ -314,5 +321,15 @@ describe('ChatBoxOptimized', () => {
 
     rerender(<ChatBoxOptimized conversationId={2} />);
     expect(screen.queryByTestId('artifact-panel')).not.toBeInTheDocument();
+  });
+
+  it('switches to anthropic provider and enables vision attachment for Claude 3.5 Sonnet', async () => {
+    const user = userEvent.setup();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'anthropic');
+    expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('claude-3-5-sonnet-20241022');
+    expect(screen.getByRole('option', { name: 'Claude 3.5 Sonnet' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Додати зображення/i })).toBeInTheDocument();
   });
 });

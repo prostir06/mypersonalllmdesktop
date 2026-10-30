@@ -18,4 +18,11 @@ describe('modelSupportsVision', () => {
     expect(modelSupportsVision('gpt-4o', [])).toBe(false);
     expect(modelSupportsVision('gpt-4-vision-preview', undefined)).toBe(false);
   });
+
+  it('supports vision for Claude 3 and 3.5 models via name fallback', () => {
+    expect(modelSupportsVision('claude-3-5-sonnet-20241022')).toBe(true);
+    expect(modelSupportsVision('claude-3-5-haiku-20241022')).toBe(true);
+    expect(modelSupportsVision('claude-3-opus-20240229')).toBe(true);
+    expect(modelSupportsVision('Claude-3.5-Sonnet')).toBe(true);
+  });
 });

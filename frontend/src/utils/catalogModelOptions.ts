@@ -16,6 +16,11 @@ export const DEFAULT_GEMINI_MODEL_OPTIONS: ModelOption[] = [
   { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
 ];
 
+export const DEFAULT_CLAUDE_MODEL_OPTIONS: ModelOption[] = [
+  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+];
+
 export function catalogModelsToOptions(
   catalogModels: CatalogModelLike[] | null | undefined,
   provider: string
@@ -37,6 +42,10 @@ export function catalogModelsToOptions(
 
   if (provider === 'gemini') {
     return [...DEFAULT_GEMINI_MODEL_OPTIONS];
+  }
+
+  if (provider === 'anthropic') {
+    return [...DEFAULT_CLAUDE_MODEL_OPTIONS];
   }
 
   return [];
