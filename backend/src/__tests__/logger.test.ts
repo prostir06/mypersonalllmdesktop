@@ -28,4 +28,21 @@ describe('logger', () => {
       expect(() => logger.info('boot ok')).not.toThrow();
     });
   });
+
+  it('warns to console when not in test env and log dir is unwritable', () => {
+    const origEnv = process.env.NODE_ENV;
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      process.env.NODE_ENV = 'production';
+      jest.isolateModules(() => {
+        require('../logger');
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(/\[logger\] Unable to access log directory/)
+        );
+      });
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      warnSpy.mockRestore();
+    }
+  });
 });

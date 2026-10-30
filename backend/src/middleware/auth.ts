@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import type { AuthRequest } from '../types/express';
 import { jsonError } from '../utils/httpJson';
+import logger from '../logger';
 
 const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -17,7 +18,9 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
     }) as { userId: number };
     req.userId = decoded.userId;
     next();
-  } catch {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.debug(`Auth verification failed: ${message}`);
     jsonError(res, req, 401, 'Token is not valid');
   }
 };

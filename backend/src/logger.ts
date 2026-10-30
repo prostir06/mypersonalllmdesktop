@@ -9,7 +9,14 @@ function resolveLogDir(): string | null {
     fs.mkdirSync(dir, { recursive: true });
     fs.accessSync(dir, fs.constants.W_OK);
     return dir;
-  } catch {
+  } catch (err: unknown) {
+    // If unwritable (e.g. read-only container), fallback to console transport
+    if (process.env.NODE_ENV !== 'test') {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[logger] Unable to access log directory at ${dir}: ${msg}. Falling back to console-only logging.`
+      );
+    }
     return null;
   }
 }
