@@ -26,6 +26,8 @@ export type UpdateSettingsBody = {
   clear_openai_api_key?: boolean;
   gemini_api_key?: string;
   clear_gemini_api_key?: boolean;
+  anthropic_api_key?: string;
+  clear_anthropic_api_key?: boolean;
 };
 
 export class InvalidOpenAiKeyError extends Error {
@@ -42,6 +44,15 @@ export class InvalidGeminiKeyError extends Error {
   }
 }
 
+export class InvalidAnthropicKeyError extends Error {
+  constructor() {
+    super('Invalid Anthropic API key');
+    this.name = 'InvalidAnthropicKeyError';
+  }
+}
+
+export const InvalidClaudeKeyError = InvalidAnthropicKeyError;
+
 export function defaultSettings() {
   return {
     default_model: 'gpt-3.5-turbo',
@@ -52,6 +63,7 @@ export function defaultSettings() {
     system_prompt: '',
     has_openai_api_key: false,
     has_gemini_api_key: false,
+    has_anthropic_api_key: false,
     rag_embedding_mode: 'fallback' as const,
   };
 }
@@ -64,6 +76,10 @@ function hasGeminiKey(row: { geminiApiKeyEnc?: string | null }): boolean {
   return Boolean(row.geminiApiKeyEnc && row.geminiApiKeyEnc.length > 0);
 }
 
+function hasAnthropicKey(row: { anthropicApiKeyEnc?: string | null }): boolean {
+  return Boolean(row.anthropicApiKeyEnc && row.anthropicApiKeyEnc.length > 0);
+}
+
 /** GET public subset — never returns key material */
 export async function toPublicSettingsAsync(row: {
   defaultModel: string;
@@ -74,6 +90,7 @@ export async function toPublicSettingsAsync(row: {
   systemPrompt: string;
   openaiApiKeyEnc?: string | null;
   geminiApiKeyEnc?: string | null;
+  anthropicApiKeyEnc?: string | null;
   userId?: number;
 }) {
   const base = {
@@ -85,6 +102,7 @@ export async function toPublicSettingsAsync(row: {
     system_prompt: row.systemPrompt ?? '',
     has_openai_api_key: hasEncKey(row),
     has_gemini_api_key: hasGeminiKey(row),
+    has_anthropic_api_key: hasAnthropicKey(row),
     rag_embedding_mode: 'fallback' as 'openai' | 'ollama' | 'fallback',
   };
 
@@ -108,6 +126,7 @@ export function toSettingsRow(row: {
   systemPrompt: string;
   openaiApiKeyEnc?: string | null;
   geminiApiKeyEnc?: string | null;
+  anthropicApiKeyEnc?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -122,6 +141,7 @@ export function toSettingsRow(row: {
     system_prompt: row.systemPrompt ?? '',
     has_openai_api_key: hasEncKey(row),
     has_gemini_api_key: hasGeminiKey(row),
+    has_anthropic_api_key: hasAnthropicKey(row),
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   };
@@ -158,6 +178,8 @@ export async function updateSettingsForUser(
     clear_openai_api_key,
     gemini_api_key,
     clear_gemini_api_key,
+    anthropic_api_key,
+    clear_anthropic_api_key,
   } = body;
 
   const existing = await prisma.userSettings.findUnique({
@@ -173,6 +195,7 @@ export async function updateSettingsForUser(
     systemPrompt: string;
     openaiApiKeyEnc?: string | null;
     geminiApiKeyEnc?: string | null;
+    anthropicApiKeyEnc?: string | null;
   } = {
     defaultModel: default_model || existing?.defaultModel || 'gpt-3.5-turbo',
     temperature: temperature ?? (existing ? numTemp(existing.temperature) : 0.7),
@@ -210,6 +233,20 @@ export async function updateSettingsForUser(
       throw new InvalidGeminiKeyError();
     }
     data.geminiApiKeyEnc = encryptSecret(trimmed, userId);
+  }
+
+  const clearAnthropic =
+    clear_anthropic_api_key === true ||
+    (typeof anthropic_api_key === 'string' && anthropic_api_key.trim() === '');
+
+  if (clearAnthropic && (clear_anthropic_api_key === true || anthropic_api_key !== undefined)) {
+    data.anthropicApiKeyEnc = null;
+  } else if (typeof anthropic_api_key === 'string' && anthropic_api_key.trim()) {
+    const trimmed = anthropic_api_key.trim();
+    if (trimmed === KEY_PLACEHOLDER || trimmed === 'your_anthropic_api_key_here') {
+      throw new InvalidAnthropicKeyError();
+    }
+    data.anthropicApiKeyEnc = encryptSecret(trimmed, userId);
   }
 
   invalidateEmbeddingContextCache(userId);

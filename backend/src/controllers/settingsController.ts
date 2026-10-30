@@ -8,6 +8,7 @@ import {
   updateSettingsForUser,
   InvalidOpenAiKeyError,
   InvalidGeminiKeyError,
+  InvalidAnthropicKeyError,
 } from '../services/settingsService';
 
 type SettingsRequest = AuthRequest;
@@ -37,7 +38,11 @@ export async function updateSettings(
   try {
     res.json(await updateSettingsForUser(req.userId, req.body));
   } catch (error: unknown) {
-    if (error instanceof InvalidOpenAiKeyError || error instanceof InvalidGeminiKeyError) {
+    if (
+      error instanceof InvalidOpenAiKeyError ||
+      error instanceof InvalidGeminiKeyError ||
+      error instanceof InvalidAnthropicKeyError
+    ) {
       jsonError(res, req, 400, error.message);
       return;
     }

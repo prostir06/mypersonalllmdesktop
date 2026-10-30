@@ -2,6 +2,7 @@ import prisma from '../../config/prisma';
 import { assertChatImage } from '../../utils/chatImage';
 import { resolveOpenAiApiKey } from '../../utils/openaiKeyResolver';
 import { resolveGeminiApiKey } from '../../utils/geminiKeyResolver';
+import { resolveClaudeApiKey } from '../../utils/claudeKeyResolver';
 import {
   linearHistoryUpTo,
   toProviderMessages,
@@ -136,6 +137,11 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     const geminiKey = await resolveGeminiApiKey(input.userId);
     if (geminiKey) {
       options.apiKey = geminiKey;
+    }
+  } else if (input.provider === 'anthropic') {
+    const claudeKey = await resolveClaudeApiKey(input.userId);
+    if (claudeKey) {
+      options.apiKey = claudeKey;
     }
   } else {
     const openaiKey = await resolveOpenAiApiKey(input.userId);
