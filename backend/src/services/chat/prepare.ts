@@ -113,18 +113,21 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
   );
   const regenerateFromMessageId = regenerateMessageId(options);
   const isRegenerate = regenerateFromMessageId != null;
-  const history = await providerHistory(
-    convId,
-    input.message,
-    regenerateFromMessageId,
-    activeBranchIds(options)
-  );
-  const { messages: systemMessages, sources, ragStatus } = await buildSystemContext(
-    input.userId,
-    options,
-    input.message,
-    convId
-  );
+  const [history, systemContextResult] = await Promise.all([
+    providerHistory(
+      convId,
+      input.message,
+      regenerateFromMessageId,
+      activeBranchIds(options)
+    ),
+    buildSystemContext(
+      input.userId,
+      options,
+      input.message,
+      convId
+    ),
+  ]);
+  const { messages: systemMessages, sources, ragStatus } = systemContextResult;
   const currentUserMessage = userMessage(input, options);
 
   if (options.image) delete options.image;
