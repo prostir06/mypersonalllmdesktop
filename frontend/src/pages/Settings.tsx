@@ -177,6 +177,7 @@ const Settings: React.FC = () => {
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося зберегти ключ Gemini';
       setError(msg);
       toast.error('Не вдалося зберегти ключ Gemini');
+      throw err;
     }
   };
 
@@ -190,6 +191,7 @@ const Settings: React.FC = () => {
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося видалити ключ Gemini';
       setError(msg);
       toast.error('Не вдалося видалити ключ Gemini');
+      throw err;
     }
   };
 
@@ -203,6 +205,7 @@ const Settings: React.FC = () => {
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося зберегти ключ Claude';
       setError(msg);
       toast.error('Не вдалося зберегти ключ Claude');
+      throw err;
     }
   };
 
@@ -216,6 +219,7 @@ const Settings: React.FC = () => {
       const msg = ax.response?.data?.error || ax.message || 'Не вдалося видалити ключ Claude';
       setError(msg);
       toast.error('Не вдалося видалити ключ Claude');
+      throw err;
     }
   };
 

@@ -3,27 +3,32 @@ import { Card, Form, Button, Badge } from 'react-bootstrap';
 
 export type GeminiSettingsCardProps = {
   hasKey: boolean;
-  saving: boolean;
-  onSaveKey: (key: string) => void;
-  onClearKey: () => void;
+  saving?: boolean;
+  onSaveKey: (key: string) => Promise<void> | void;
+  onClearKey: () => Promise<void> | void;
 };
 
 export default function GeminiSettingsCard({
   hasKey,
-  saving,
+  saving = false,
   onSaveKey,
   onClearKey,
 }: GeminiSettingsCardProps) {
   const [keyInput, setKeyInput] = useState('');
 
-  const handleSubmit = (e?: React.SyntheticEvent) => {
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
-    if (keyInput.trim()) {
-      onSaveKey(keyInput.trim());
-      setKeyInput('');
+    const trimmed = keyInput.trim();
+    if (trimmed) {
+      try {
+        await onSaveKey(trimmed);
+        setKeyInput('');
+      } catch {
+        // Keep key in input on failure so user does not have to re-enter it
+      }
     }
   };
 

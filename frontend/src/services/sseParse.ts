@@ -146,9 +146,20 @@ export async function readFetchErrorMessage(
     const text = await response.text();
     if (!text) return fallback;
     try {
-      const json = JSON.parse(text) as { error?: unknown; details?: unknown };
+      const json = JSON.parse(text) as {
+        error?: unknown;
+        details?: unknown;
+        errors?: Array<{ msg?: unknown }>;
+      };
       if (typeof json.error === 'string' && json.error) return json.error;
       if (typeof json.details === 'string' && json.details) return json.details;
+      if (
+        Array.isArray(json.errors) &&
+        json.errors.length > 0 &&
+        typeof json.errors[0]?.msg === 'string'
+      ) {
+        return json.errors[0].msg;
+      }
     } catch {
       return text.slice(0, 200);
     }

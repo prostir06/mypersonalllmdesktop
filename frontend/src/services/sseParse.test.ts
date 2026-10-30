@@ -184,6 +184,22 @@ describe('readFetchErrorMessage', () => {
     );
     warn.mockRestore();
   });
+
+  it('extracts first error message from express-validator errors array', async () => {
+    const response = {
+      status: 400,
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            errors: [{ msg: 'API key format is invalid' }],
+          })
+        ),
+    } as unknown as Response;
+
+    await expect(readFetchErrorMessage(response)).resolves.toBe(
+      'API key format is invalid'
+    );
+  });
 });
 
 describe('cancelStreamReader', () => {

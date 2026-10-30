@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import ClaudeSettingsCard from './ClaudeSettingsCard';
 
@@ -127,5 +127,29 @@ describe('ClaudeSettingsCard', () => {
     expect(input).toBeDisabled();
     expect(screen.getByRole('button', { name: /Збереження.../i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Видалити ключ/i })).toBeDisabled();
+  });
+
+  it('preserves key input when handleSave rejects', async () => {
+    const handleSave = vi.fn().mockRejectedValue(new Error('Network error'));
+    render(
+      <ClaudeSettingsCard
+        hasKey={false}
+        handleSave={handleSave}
+        handleClear={vi.fn()}
+      />
+    );
+
+    const input = screen.getByPlaceholderText(/sk-ant-api03-/i);
+    fireEvent.change(input, { target: { value: 'sk-ant-api03-my-test-key' } });
+    fireEvent.click(screen.getByRole('button', { name: /Зберегти/i }));
+
+    await waitFor(() => {
+      expect(handleSave).toHaveBeenCalledWith('sk-ant-api03-my-test-key');
+    });
+
+    // Input should NOT be cleared if save failed
+    expect(screen.getByPlaceholderText(/sk-ant-api03-/i)).toHaveValue(
+      'sk-ant-api03-my-test-key'
+    );
   });
 });

@@ -8,8 +8,10 @@ export interface ClaudeSettingsCardProps {
   isSaving?: boolean;
   onSaveKey?: (key: string) => Promise<void> | void;
   onSaveClaudeKey?: (key: string) => Promise<void> | void;
+  handleSave?: (key: string) => Promise<void> | void;
   onClearKey?: () => Promise<void> | void;
   onClearClaudeKey?: () => Promise<void> | void;
+  handleClear?: () => Promise<void> | void;
 }
 
 export default function ClaudeSettingsCard({
@@ -19,28 +21,34 @@ export default function ClaudeSettingsCard({
   isSaving,
   onSaveKey,
   onSaveClaudeKey,
+  handleSave: handleSaveProp,
   onClearKey,
   onClearClaudeKey,
+  handleClear: handleClearProp,
 }: ClaudeSettingsCardProps) {
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
 
   const effectiveHasKey = Boolean(hasKey ?? has_anthropic_api_key);
   const effectiveSaving = Boolean(isSaving ?? saving);
-  const handleSave = onSaveKey ?? onSaveClaudeKey;
-  const handleClear = onClearKey ?? onClearClaudeKey;
+  const handleSave = onSaveKey ?? onSaveClaudeKey ?? handleSaveProp;
+  const handleClear = onClearKey ?? onClearClaudeKey ?? handleClearProp;
 
   const isWarning = keyInput.trim().length > 0 && !keyInput.trim().startsWith('sk-ant-');
 
-  const handleSubmit = (e?: React.SyntheticEvent) => {
+  const handleSubmit = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     const trimmed = keyInput.trim();
     if (trimmed && !isWarning && handleSave) {
-      handleSave(trimmed);
-      setKeyInput('');
+      try {
+        await handleSave(trimmed);
+        setKeyInput('');
+      } catch {
+        // Keep key in input on failure so user does not have to re-enter it
+      }
     }
   };
 
@@ -77,7 +85,7 @@ export default function ClaudeSettingsCard({
             <InputGroup>
               <Form.Control
                 type={showKey ? 'text' : 'password'}
-                placeholder="Введіть Claude API ключ (sk-ant-...)"
+                placeholder="Введіть Claude API ключ (sk-ant-api03-...)"
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
                 onKeyDown={(e) => {
