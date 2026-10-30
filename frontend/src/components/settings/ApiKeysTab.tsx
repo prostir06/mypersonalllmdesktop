@@ -22,15 +22,19 @@ export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
   const [keyInput, setKeyInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSuccessMsg('');
+    setErrorMsg('');
     try {
       await onSaveOpenaiKey(keyInput, false);
       setKeyInput('');
       setSuccessMsg('Ключ OpenAI збережено');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Помилка збереження ключа');
     } finally {
       setIsSaving(false);
     }
@@ -38,10 +42,14 @@ export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
 
   const handleClear = async () => {
     setIsSaving(true);
+    setSuccessMsg('');
+    setErrorMsg('');
     try {
       await onSaveOpenaiKey('', true);
       setKeyInput('');
       setSuccessMsg('Ключ OpenAI видалено');
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Помилка збереження ключа');
     } finally {
       setIsSaving(false);
     }
@@ -55,6 +63,11 @@ export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
           {hasOpenaiKey && <span className="badge bg-success">Налаштовано</span>}
         </Card.Header>
         <Card.Body>
+          {errorMsg && (
+            <Alert variant="danger" className="py-2" dismissible onClose={() => setErrorMsg('')}>
+              {errorMsg}
+            </Alert>
+          )}
           {successMsg && <Alert variant="success" className="py-2">{successMsg}</Alert>}
           <Form onSubmit={handleSave}>
             <Form.Group className="mb-3">

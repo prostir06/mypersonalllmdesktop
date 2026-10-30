@@ -186,4 +186,36 @@ describe('Settings', () => {
       );
     });
   });
+
+  it('displays error in ApiKeysTab when saving openai key fails', async () => {
+    mutateAsync.mockRejectedValueOnce(new Error('Network error on save'));
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const input = screen.getByPlaceholderText(/sk-\.\.\./i);
+    await user.type(input, 'sk-test-fail');
+
+    await user.click(screen.getByRole('button', { name: /Зберегти ключ OpenAI/i }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Network error on save').length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('displays error in ApiKeysTab when clearing openai key fails', async () => {
+    settingsData = {
+      ...settingsData,
+      has_openai_api_key: true,
+    };
+    mutateAsync.mockRejectedValueOnce(new Error('Network error on clear'));
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
+    await user.click(clearBtn);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Network error on clear').length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

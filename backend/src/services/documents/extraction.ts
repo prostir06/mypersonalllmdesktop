@@ -4,6 +4,35 @@ import ExcelJS from 'exceljs';
 import logger from '../../logger';
 import { resolveDocumentKind } from '../../utils/fileMagic';
 
+export function formatCellValue(v: unknown): string {
+  if (v === null || v === undefined) {
+    return '';
+  }
+
+  let raw: string;
+  if (v instanceof Date) {
+    raw = v.toISOString();
+  } else if (typeof v === 'object') {
+    const obj = v as Record<string, unknown>;
+    if ('text' in obj && obj.text !== undefined) {
+      raw = String(obj.text);
+    } else if ('result' in obj && obj.result !== undefined && obj.result !== null) {
+      raw = obj.result instanceof Date ? obj.result.toISOString() : String(obj.result);
+    } else if ('richText' in obj && Array.isArray(obj.richText)) {
+      raw = (obj.richText as Array<{ text?: string }>).map((t) => t?.text ?? '').join('');
+    } else {
+      raw = String(v);
+    }
+  } else {
+    raw = String(v);
+  }
+
+  if (raw.includes(',') || raw.includes('"') || raw.includes('\n') || raw.includes('\r')) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
 export async function extractText(
   buffer: Buffer,
   mimetype: string,
@@ -42,11 +71,7 @@ export async function extractText(
         const rows: string[] = [];
         worksheet.eachRow((row) => {
           const values = (Array.isArray(row.values) ? row.values.slice(1) : [])
-            .map((v) => {
-              if (v === null || v === undefined) return '';
-              if (typeof v === 'object' && 'text' in v) return String((v as { text: unknown }).text);
-              return String(v);
-            });
+            .map((v) => formatCellValue(v));
           rows.push(values.join(','));
         });
         sheetsText.push(`## Sheet: ${worksheet.name}\n${rows.join('\n')}`.trim());
