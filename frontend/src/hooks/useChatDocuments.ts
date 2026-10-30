@@ -52,7 +52,7 @@ export function useChatDocuments() {
   const [reindexingDocId, setReindexingDocId] = useState<string | number | null>(
     null
   );
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const statusByIdRef = useRef<Map<string | number, string>>(new Map());
 
   const documentsQuery = useInfiniteQuery({

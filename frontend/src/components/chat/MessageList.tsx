@@ -16,7 +16,7 @@ export type MessageListProps = {
   onCopy: (content: string) => void;
   onRegenerate?: (assistantIdx: number) => void;
   onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
-  messagesEndRef: RefObject<HTMLDivElement | null>;
+  messagesEndRef: RefObject<HTMLDivElement>;
 };
 
 const MessageList = React.memo(function MessageList({

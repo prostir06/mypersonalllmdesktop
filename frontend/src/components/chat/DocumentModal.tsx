@@ -20,7 +20,7 @@ export type DocumentModalProps = {
   uploadingDoc: boolean;
   retryingDocId?: string | number | null;
   reindexingDocId?: string | number | null;
-  fileInputRef: RefObject<HTMLInputElement | null>;
+  fileInputRef: RefObject<HTMLInputElement>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;

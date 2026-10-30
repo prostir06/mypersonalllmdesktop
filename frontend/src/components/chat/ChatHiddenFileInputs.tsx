@@ -1,8 +1,8 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
 
 type Props = {
-  chatFileInputRef: RefObject<HTMLInputElement | null>;
-  imageInputRef: RefObject<HTMLInputElement | null>;
+  chatFileInputRef: RefObject<HTMLInputElement>;
+  imageInputRef: RefObject<HTMLInputElement>;
   onFileAttach: (e: ChangeEvent<HTMLInputElement>) => void;
   onImageAttach: (e: ChangeEvent<HTMLInputElement>) => void;
 };

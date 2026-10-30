@@ -22,8 +22,8 @@ type UseChatAttachmentsResult = {
   handleFileAttach: (e: ChangeEvent<HTMLInputElement>) => Promise<void>;
   clearAttachedImage: () => void;
   removeAttachment: (index: number) => void;
-  imageInputRef: RefObject<HTMLInputElement | null>;
-  chatFileInputRef: RefObject<HTMLInputElement | null>;
+  imageInputRef: RefObject<HTMLInputElement>;
+  chatFileInputRef: RefObject<HTMLInputElement>;
 };
 
 export function useChatAttachments(): UseChatAttachmentsResult {
@@ -31,8 +31,8 @@ export function useChatAttachments(): UseChatAttachmentsResult {
   const [chatAttachments, setChatAttachments] = useState<
     ChatAttachmentPayload[]
   >([]);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const chatFileInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageAttach = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
