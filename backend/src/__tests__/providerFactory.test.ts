@@ -47,6 +47,18 @@ jest.mock('../services/geminiService', () => ({
   },
 }));
 
+jest.mock('../services/claudeService', () => ({
+  __esModule: true,
+  default: {
+    sendClaudeMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Claude Test Response', model: 'claude-3-5-sonnet-20241022' }),
+    streamClaudeMessage: jest
+      .fn()
+      .mockResolvedValue({ content: 'Claude Stream Response', model: 'claude-3-5-sonnet-20241022' }),
+  },
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -57,6 +69,7 @@ import ProviderFactory from '../services/providerFactory';
 import openaiService from '../services/openaiService';
 import ollamaService from '../services/ollamaService';
 import geminiService from '../services/geminiService';
+import claudeService from '../services/claudeService';
 
 describe('ProviderFactory', () => {
   afterEach(() => jest.clearAllMocks());
@@ -70,6 +83,9 @@ describe('ProviderFactory', () => {
     );
     expect(ProviderFactory.getProvider('gemini').send).toBe(
       geminiService.sendGeminiMessage
+    );
+    expect(ProviderFactory.getProvider('anthropic').send).toBe(
+      claudeService.sendClaudeMessage
     );
     expect(ProviderFactory.getProvider('unknown-provider').send).toBe(
       openaiService.sendOpenAIMessage
@@ -117,6 +133,21 @@ describe('ProviderFactory', () => {
     expect(result.content).toBe('Gemini Test Response');
   });
 
+  it('sendMessage wires to anthropic', async () => {
+    const messages = [{ role: 'user', content: 'Привіт' }];
+    const result = await ProviderFactory.sendMessage(
+      'anthropic',
+      messages,
+      'claude-3-5-sonnet-20241022'
+    );
+    expect(claudeService.sendClaudeMessage).toHaveBeenCalledWith(
+      messages,
+      'claude-3-5-sonnet-20241022',
+      {}
+    );
+    expect(result.content).toBe('Claude Test Response');
+  });
+
   it('streamMessage wires onChunk', async () => {
     const onChunkMock = jest.fn();
     const result = await ProviderFactory.streamMessage(
@@ -149,8 +180,26 @@ describe('ProviderFactory', () => {
     expect(result.content).toBe('Gemini Stream Response');
   });
 
+  it('streamMessage wires to anthropic', async () => {
+    const onChunkMock = jest.fn();
+    const result = await ProviderFactory.streamMessage(
+      'anthropic',
+      [{ role: 'user', content: 'Привіт' }],
+      'claude-3-5-sonnet-20241022',
+      {},
+      onChunkMock
+    );
+    expect(claudeService.streamClaudeMessage).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'Привіт' }],
+      'claude-3-5-sonnet-20241022',
+      {},
+      onChunkMock
+    );
+    expect(result.content).toBe('Claude Stream Response');
+  });
+
   it('lists only honest available providers', () => {
     const providers = ProviderFactory.getAvailableProviders();
-    expect(providers).toEqual(['openai', 'ollama', 'gemini']);
+    expect(providers).toEqual(['openai', 'ollama', 'gemini', 'anthropic']);
   });
 });

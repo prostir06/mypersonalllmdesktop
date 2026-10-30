@@ -63,6 +63,7 @@ describe('Settings API (Prisma)', () => {
       system_prompt: '',
       has_openai_api_key: false,
       has_gemini_api_key: false,
+      has_anthropic_api_key: false,
       rag_embedding_mode: 'fallback',
     });
     expect(res.body).toHaveProperty('default_ollama_host');
@@ -99,6 +100,7 @@ describe('Settings API (Prisma)', () => {
       system_prompt: 'Be concise',
       has_openai_api_key: false,
       has_gemini_api_key: false,
+      has_anthropic_api_key: false,
       rag_embedding_mode: 'fallback',
     });
     expect(mockedPrisma.userSettings.findUnique).toHaveBeenCalledWith({
@@ -239,5 +241,60 @@ describe('Settings API (Prisma)', () => {
 
     expect(clearRes.status).toBe(200);
     expect(clearRes.body.has_gemini_api_key).toBe(false);
+  });
+
+  it('PUT returns 400 when anthropic_api_key is placeholder', async () => {
+    process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    const res = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ anthropic_api_key: 'your_anthropic_api_key_here' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Invalid Anthropic API key/);
+    expect(mockedPrisma.userSettings.upsert).not.toHaveBeenCalled();
+  });
+
+  it('PUT encrypts anthropic_api_key and clear_anthropic_api_key unsets it', async () => {
+    process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+    mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
+      id: 2,
+      userId: 9,
+      ...args.create,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }));
+
+    const putRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ anthropic_api_key: 'sk-ant-api03-test-secret-key-12345' });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.has_anthropic_api_key).toBe(true);
+    const enc = mockedPrisma.userSettings.upsert.mock.calls[0][0].create.anthropicApiKeyEnc;
+    expect(typeof enc).toBe('string');
+    expect(enc).not.toContain('sk-ant-api03');
+
+    // Now clear it
+    mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
+      id: 2,
+      userId: 9,
+      ...args.update,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }));
+
+    const clearRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ clear_anthropic_api_key: true });
+
+    expect(clearRes.status).toBe(200);
+    expect(clearRes.body.has_anthropic_api_key).toBe(false);
   });
 });
