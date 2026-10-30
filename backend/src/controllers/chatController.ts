@@ -9,7 +9,7 @@ import {
   isAbortError,
 } from '../utils/requestAbort';
 import { jsonError } from '../utils/httpJson';
-import { writeSse } from '../utils/sse';
+import { writeSse, writeSseEvent } from '../utils/sse';
 import {
   isChatError,
   validateChatMessage,
@@ -116,8 +116,8 @@ export async function streamMessage(
         });
       }
     );
-    if (result.tokenUsage && !tokenUsageEmitted && !res.writableEnded) {
-      res.write(`event: token_usage\ndata: ${JSON.stringify(result.tokenUsage)}\n\n`);
+    if (result.tokenUsage && !tokenUsageEmitted) {
+      writeSseEvent(res, 'token_usage', result.tokenUsage);
     }
     writeSse(res, {
       type: 'done',

@@ -22,6 +22,7 @@ import {
 import { prepareMessages as prepareMessagesImpl } from './chat/prepare';
 import { searchMessages as searchMessagesImpl } from './chat/search';
 import { maybeRefreshSummary } from './conversationMemoryService';
+import { writeSseEvent } from '../utils/sse';
 
 export { ChatError };
 
@@ -149,9 +150,7 @@ class ChatService {
     const tokenUsage = (response as any).tokenUsage as TokenUsage | undefined;
     const responseStream = res || input.res;
     if (responseStream && tokenUsage) {
-      responseStream.write(
-        `event: token_usage\ndata: ${JSON.stringify(tokenUsage)}\n\n`
-      );
+      writeSseEvent(responseStream as any, 'token_usage', tokenUsage);
     }
 
     const assistant = await this.persistTurn(
