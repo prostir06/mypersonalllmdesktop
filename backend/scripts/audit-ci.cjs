@@ -5,12 +5,8 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 
-/** Residual high/critical after non-breaking `npm audit fix` (no xlsx / no vitest major). */
-const ALLOWED_GHSA = new Set([
-  // SheetJS community xlsx — no patched release
-  'GHSA-4r6h-8v6p-xvw6',
-  'GHSA-5pgg-2g8v-p4x9',
-]);
+/** Residual high/critical after non-breaking `npm audit fix` (xlsx replaced with exceljs, 0 high/critical). */
+const ALLOWED_GHSA = new Set([]);
 
 function collectHighGhsa(report) {
   const ids = new Set();

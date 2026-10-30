@@ -1,6 +1,6 @@
 const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
-const XLSX = require('xlsx');
+import ExcelJS from 'exceljs';
 import logger from '../../logger';
 import { resolveDocumentKind } from '../../utils/fileMagic';
 
@@ -33,11 +33,25 @@ export async function extractText(
 
   if (kind === 'xlsx') {
     try {
-      const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-      return workbook.SheetNames.map((name: string) => {
-        const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name] || {});
-        return `## Sheet: ${name}\n${csv}`.trim();
-      }).join('\n\n');
+      const workbook = new ExcelJS.Workbook();
+      // ExcelJS typings use a legacy Buffer declaration incompatible with @types/node v26+ Buffer<ArrayBufferLike>
+      await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+      const sheetsText: string[] = [];
+
+      workbook.eachSheet((worksheet) => {
+        const rows: string[] = [];
+        worksheet.eachRow((row) => {
+          const values = (Array.isArray(row.values) ? row.values.slice(1) : [])
+            .map((v) => {
+              if (v === null || v === undefined) return '';
+              if (typeof v === 'object' && 'text' in v) return String((v as { text: unknown }).text);
+              return String(v);
+            });
+          rows.push(values.join(','));
+        });
+        sheetsText.push(`## Sheet: ${worksheet.name}\n${rows.join('\n')}`.trim());
+      });
+      return sheetsText.join('\n\n');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`XLSX extract failed for ${originalname}: ${message}`);

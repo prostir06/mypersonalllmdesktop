@@ -50,16 +50,39 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
-const mockSheetToCsv = jest.fn();
-const mockXlsxRead = jest.fn((_buffer?: unknown, _opts?: unknown) => ({
-  SheetNames: ['Sales', 'Meta'],
-  Sheets: { Sales: { a: 1 }, Meta: { b: 2 } },
-}));
-jest.mock('xlsx', () => ({
-  read: (buffer: unknown, opts?: unknown) => mockXlsxRead(buffer, opts),
-  utils: {
-    sheet_to_csv: (sheet: unknown) => mockSheetToCsv(sheet),
+const mockWorkbookLoad = jest.fn().mockResolvedValue(undefined);
+const mockEachSheet = jest.fn((cb: (worksheet: { name: string; eachRow: (rowCb: (row: { values: (string | number | undefined)[] }) => void) => void }) => void) => {
+  cb({
+    name: 'Sales',
+    eachRow: (rowCb) => {
+      rowCb({ values: [undefined, 'Name', 'Qty'] });
+      rowCb({ values: [undefined, 'A', 1] });
+    },
+  });
+  cb({
+    name: 'Meta',
+    eachRow: (rowCb) => {
+      rowCb({ values: [undefined, 'Key', 'Val'] });
+      rowCb({ values: [undefined, 'region', 'UA'] });
+    },
+  });
+});
+jest.mock('exceljs', () => ({
+  __esModule: true,
+  default: {
+    Workbook: jest.fn().mockImplementation(() => ({
+      xlsx: {
+        load: mockWorkbookLoad,
+      },
+      eachSheet: mockEachSheet,
+    })),
   },
+  Workbook: jest.fn().mockImplementation(() => ({
+    xlsx: {
+      load: mockWorkbookLoad,
+    },
+    eachSheet: mockEachSheet,
+  })),
 }));
 
 import { PDFParse } from 'pdf-parse';
@@ -188,9 +211,7 @@ describe('DocumentService (Prisma)', () => {
     });
 
     it('logs and rethrows a public error when XLSX parse fails', async () => {
-      mockXlsxRead.mockImplementationOnce(() => {
-        throw new Error('Corrupt zip');
-      });
+      mockWorkbookLoad.mockRejectedValueOnce(new Error('Corrupt zip'));
 
       await expect(
         DocumentService.extractText(
@@ -206,9 +227,7 @@ describe('DocumentService (Prisma)', () => {
     });
 
     it('converts XLSX sheets to labeled CSV', async () => {
-      mockSheetToCsv
-        .mockReturnValueOnce('Name,Qty\nA,1')
-        .mockReturnValueOnce('Key,Val\nregion,UA');
+      mockWorkbookLoad.mockResolvedValueOnce(undefined);
 
       const text = await DocumentService.extractText(
         Buffer.from([0x50, 0x4b, 0x03, 0x04]),

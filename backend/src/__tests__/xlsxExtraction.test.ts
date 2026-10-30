@@ -1,16 +1,17 @@
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { extractText } from '../services/documents/extraction';
 
-function xlsxBuffer(rows: unknown[][], sheetName = 'Data'): Buffer {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+async function xlsxBuffer(rows: unknown[][], sheetName = 'Data'): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(sheetName);
+  ws.addRows(rows);
+  const arrayBuffer = await wb.xlsx.writeBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
-describe('xlsx extraction (SheetJS)', () => {
+describe('xlsx extraction (ExcelJS)', () => {
   it('reads sheet rows as CSV with sheet header', async () => {
-    const buffer = xlsxBuffer(
+    const buffer = await xlsxBuffer(
       [
         ['Product', 'Qty'],
         ['Apples', 10],
