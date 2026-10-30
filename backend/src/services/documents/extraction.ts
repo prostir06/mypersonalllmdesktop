@@ -45,6 +45,10 @@ export async function extractText(
     try {
       const pdfData = await parser.getText();
       return pdfData?.text || '';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`PDF extract failed for ${originalname}: ${message}`);
+      throw new Error('Не вдалося прочитати PDF-файл');
     } finally {
       try {
         await parser.destroy();
@@ -56,8 +60,14 @@ export async function extractText(
   }
 
   if (kind === 'docx') {
-    const docxResult = await mammoth.extractRawText({ buffer });
-    return docxResult.value;
+    try {
+      const docxResult = await mammoth.extractRawText({ buffer });
+      return docxResult.value;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error(`DOCX extract failed for ${originalname}: ${message}`);
+      throw new Error('Не вдалося прочитати DOCX-файл');
+    }
   }
 
   if (kind === 'xlsx') {
