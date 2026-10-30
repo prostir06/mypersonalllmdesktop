@@ -337,8 +337,10 @@ export async function streamClaudeMessage(
       abortHandler = () => {
         try {
           stream.controller.abort();
-        } catch {
-          // ignore
+        } catch (abortErr: unknown) {
+          // Stream may have already closed or finished
+          const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
+          logger.warn(`Failed to abort Claude stream: ${message}`);
         }
       };
       signal.addEventListener('abort', abortHandler, { once: true });
@@ -350,8 +352,30 @@ export async function streamClaudeMessage(
       if (onChunk) {
         try {
           onChunk(delta);
-        } catch {
-          // ignore consumer callback errors
+        } catch (cbError: unknown) {
+          // If consumer cancelled, abort Anthropic stream immediately
+          if (
+            isAbortError(cbError) ||
+            (cbError &&
+              typeof cbError === 'object' &&
+              ((cbError as { name?: string }).name === 'AbortError' ||
+                (cbError as { code?: string }).code === 'ABORT_ERR'))
+          ) {
+            try {
+              stream.controller.abort();
+            } catch {
+              // ignore secondary abort errors
+            }
+            return;
+          }
+          const message =
+            cbError instanceof Error ? cbError.message : String(cbError);
+          logger.error(`Помилка в onChunk коллбеку Claude: ${message}`);
+          try {
+            stream.controller.abort();
+          } catch {
+            // best-effort abort to prevent runaway streaming on broken callback
+          }
         }
       }
     });

@@ -52,6 +52,7 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+import logger from '../logger';
 import claudeService, {
   formatClaudeMessages,
   formatClaudeTokenUsage,
@@ -372,6 +373,118 @@ describe('claudeService', () => {
           { apiKey: 'sk-ant-test', signal: ac.signal }
         )
       ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
+    it('aborts Claude stream when onChunk throws an AbortError', async () => {
+      const abortFn = jest.fn();
+      mockMessagesStream.mockImplementationOnce(() => {
+        const streamObj: any = {
+          controller: { abort: abortFn },
+          on: jest.fn((event: string, handler: (...args: any[]) => void) => {
+            if (event === 'text') {
+              process.nextTick(() => {
+                handler('chunk');
+              });
+            }
+            return streamObj;
+          }),
+          finalMessage: jest.fn().mockImplementation(async () => {
+            await new Promise((r) => setImmediate(r));
+            throw new Error('stream aborted');
+          }),
+        };
+        return streamObj;
+      });
+
+      const abortErr = new Error('Aborted');
+      abortErr.name = 'AbortError';
+
+      await expect(
+        claudeService.streamClaudeMessage(
+          [{ role: 'user', content: 'hi' }],
+          'claude-3-5-sonnet-20241022',
+          { apiKey: 'sk-ant-test' },
+          () => {
+            throw abortErr;
+          }
+        )
+      ).rejects.toThrow();
+
+      expect(abortFn).toHaveBeenCalled();
+    });
+
+    it('logs error and aborts Claude stream when onChunk throws an unexpected error', async () => {
+      const abortFn = jest.fn();
+      mockMessagesStream.mockImplementationOnce(() => {
+        const streamObj: any = {
+          controller: { abort: abortFn },
+          on: jest.fn((event: string, handler: (...args: any[]) => void) => {
+            if (event === 'text') {
+              process.nextTick(() => {
+                handler('chunk');
+              });
+            }
+            return streamObj;
+          }),
+          finalMessage: jest.fn().mockImplementation(async () => {
+            await new Promise((r) => setImmediate(r));
+            throw new Error('UI callback failed');
+          }),
+        };
+        return streamObj;
+      });
+
+      await expect(
+        claudeService.streamClaudeMessage(
+          [{ role: 'user', content: 'hi' }],
+          'claude-3-5-sonnet-20241022',
+          { apiKey: 'sk-ant-test' },
+          () => {
+            throw new Error('DOM render crash');
+          }
+        )
+      ).rejects.toThrow();
+
+      expect(abortFn).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/onChunk коллбеку Claude: DOM render crash/)
+      );
+    });
+
+    it('logs warning if aborting Claude stream controller fails', async () => {
+      const abortController = new AbortController();
+      mockMessagesStream.mockImplementationOnce(() => {
+        const streamObj: any = {
+          controller: {
+            abort: jest.fn().mockImplementation(() => {
+              throw new Error('Controller already closed');
+            }),
+          },
+          on: jest.fn().mockReturnThis(),
+          finalMessage: jest.fn().mockImplementation(async () => {
+            await new Promise((r) => setTimeout(r, 20));
+            const err = new Error('Aborted');
+            err.name = 'APIUserAbortError';
+            throw err;
+          }),
+        };
+        return streamObj;
+      });
+
+      const promise = claudeService.streamClaudeMessage(
+        [{ role: 'user', content: 'test' }],
+        'claude-3-5-sonnet-20241022',
+        { apiKey: 'sk-ant-test', signal: abortController.signal }
+      );
+
+      setTimeout(() => {
+        abortController.abort();
+      }, 5);
+
+      await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/Failed to abort Claude stream: Controller already closed/)
+      );
     });
   });
 
