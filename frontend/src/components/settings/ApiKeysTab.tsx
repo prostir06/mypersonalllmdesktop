@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Card, Form, Button, Alert } from 'react-bootstrap';
 import GeminiSettingsCard from './GeminiSettingsCard';
+import ClaudeSettingsCard from './ClaudeSettingsCard';
 
 export interface ApiKeysTabProps {
   hasOpenaiKey: boolean;
@@ -9,6 +10,10 @@ export interface ApiKeysTabProps {
   isSavingGemini?: boolean;
   onSaveGeminiKey?: (key: string) => void | Promise<void>;
   onClearGeminiKey?: () => void | Promise<void>;
+  hasClaudeKey?: boolean;
+  isSavingClaude?: boolean;
+  onSaveClaudeKey?: (key: string) => void | Promise<void>;
+  onClearClaudeKey?: () => void | Promise<void>;
 }
 
 export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
@@ -18,6 +23,10 @@ export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
   isSavingGemini = false,
   onSaveGeminiKey,
   onClearGeminiKey,
+  hasClaudeKey = false,
+  isSavingClaude = false,
+  onSaveClaudeKey,
+  onClearClaudeKey,
 }) => {
   const [keyInput, setKeyInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -102,6 +111,13 @@ export const ApiKeysTab: React.FC<ApiKeysTabProps> = ({
         saving={isSavingGemini}
         onSaveKey={onSaveGeminiKey ?? (() => {})}
         onClearKey={onClearGeminiKey ?? (() => {})}
+      />
+
+      <ClaudeSettingsCard
+        hasKey={hasClaudeKey}
+        saving={isSavingClaude}
+        onSaveKey={onSaveClaudeKey ?? (() => {})}
+        onClearKey={onClearClaudeKey ?? (() => {})}
       />
     </div>
   );

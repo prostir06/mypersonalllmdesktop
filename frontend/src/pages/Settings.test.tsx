@@ -14,6 +14,7 @@ let settingsData = {
   system_prompt: '',
   has_openai_api_key: false,
   has_gemini_api_key: false,
+  has_anthropic_api_key: false,
 };
 
 vi.mock('../hooks/useSettings', () => ({
@@ -72,6 +73,7 @@ describe('Settings', () => {
       system_prompt: '',
       has_openai_api_key: false,
       has_gemini_api_key: false,
+      has_anthropic_api_key: false,
     };
   });
 
@@ -216,6 +218,40 @@ describe('Settings', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Network error on clear').length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('saves claude api key via ClaudeSettingsCard', async () => {
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const input = screen.getByPlaceholderText(/Введіть Claude API ключ/i);
+    await user.type(input, 'sk-ant-api03-abcdef123456');
+
+    await user.click(screen.getByRole('button', { name: /Зберегти ключ Claude/i }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        anthropic_api_key: 'sk-ant-api03-abcdef123456',
+      });
+    });
+  });
+
+  it('clears claude api key when key is configured', async () => {
+    settingsData = {
+      ...settingsData,
+      has_anthropic_api_key: true,
+    };
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const clearBtn = screen.getByRole('button', { name: /Видалити ключ Claude/i });
+    await user.click(clearBtn);
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({
+        clear_anthropic_api_key: true,
+      });
     });
   });
 });

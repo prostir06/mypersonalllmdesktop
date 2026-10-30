@@ -49,6 +49,7 @@ const Settings: React.FC = () => {
         settingsData.system_prompt,
         settingsData.has_openai_api_key,
         settingsData.has_gemini_api_key,
+        settingsData.has_anthropic_api_key,
       ].join('|')
     : '';
 
@@ -192,6 +193,32 @@ const Settings: React.FC = () => {
     }
   };
 
+  const handleSaveClaudeKey = async (key: string) => {
+    try {
+      await updateSettingsMutation.mutateAsync({ anthropic_api_key: key });
+      toast.success('Claude API ключ збережено! ✅');
+    } catch (err: unknown) {
+      console.error('Failed to save Claude API key:', err);
+      const ax = err as AxiosError<{ error?: string }> & { message?: string };
+      const msg = ax.response?.data?.error || ax.message || 'Не вдалося зберегти ключ Claude';
+      setError(msg);
+      toast.error('Не вдалося зберегти ключ Claude');
+    }
+  };
+
+  const handleClearClaudeKey = async () => {
+    try {
+      await updateSettingsMutation.mutateAsync({ clear_anthropic_api_key: true });
+      toast.success('Claude API ключ видалено! ✅');
+    } catch (err: unknown) {
+      console.error('Failed to clear Claude API key:', err);
+      const ax = err as AxiosError<{ error?: string }> & { message?: string };
+      const msg = ax.response?.data?.error || ax.message || 'Не вдалося видалити ключ Claude';
+      setError(msg);
+      toast.error('Не вдалося видалити ключ Claude');
+    }
+  };
+
   if (isLoadingSettings) {
     return (
       <Container className="py-5 text-center">
@@ -254,6 +281,10 @@ const Settings: React.FC = () => {
             isSavingGemini={updateSettingsMutation.isPending}
             onSaveGeminiKey={handleSaveGeminiKey}
             onClearGeminiKey={handleClearGeminiKey}
+            hasClaudeKey={Boolean(settingsData?.has_anthropic_api_key)}
+            isSavingClaude={updateSettingsMutation.isPending}
+            onSaveClaudeKey={handleSaveClaudeKey}
+            onClearClaudeKey={handleClearClaudeKey}
           />
         </Tab>
 
