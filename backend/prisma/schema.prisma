@@ -98,6 +98,7 @@ model Message {
   role           String   @db.VarChar(20)
   content        String   @db.Text
   sources        Json?    @map("sources")
+  tokenUsage     Json?    @map("token_usage")
   parentId       Int?     @map("parent_id")
   createdAt      DateTime @default(now()) @map("created_at")
 

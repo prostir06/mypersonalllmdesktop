@@ -56,3 +56,10 @@ export type RagSource = {
 
 /** RAG retrieval outcome for UI (additive on SSE/API). */
 export type RagStatus = 'ok' | 'empty' | 'error' | 'skipped';
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  estimatedCostUsd?: number;
+}
