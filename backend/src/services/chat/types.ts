@@ -29,6 +29,7 @@ export type SendInput = {
   provider?: string;
   options?: ChatOptions;
   signal?: AbortSignal;
+  res?: { write: (chunk: string) => unknown };
 };
 
 export type ChatMessage =

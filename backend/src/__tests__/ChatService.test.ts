@@ -395,6 +395,50 @@ describe('ChatService', () => {
       expect(mockedProvider.sendMessage).toHaveBeenCalled();
     });
 
+    it('persists tokenUsage and returns it in response when provider returns tokenUsage', async () => {
+      mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      const fakeTokenUsage = {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        estimatedCostUsd: 0.00002,
+      };
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Hi with tokens',
+        usage: { total_tokens: 15 },
+        tokenUsage: fakeTokenUsage,
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        message: 'Hello tokens',
+        provider: 'openai',
+        model: 'gpt-3.5-turbo',
+        options: {},
+      });
+
+      expect(mockedPrisma.message.create).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          data: expect.objectContaining({
+            role: 'assistant',
+            tokenUsage: fakeTokenUsage,
+          }),
+        })
+      );
+      expect(result.tokenUsage).toEqual(fakeTokenUsage);
+    });
+
     it('forces enableTools false before provider call', async () => {
       mockedPrisma.conversation.create.mockResolvedValue({ id: 42 });
       mockedPrisma.message.findMany.mockResolvedValue([]);
@@ -1030,6 +1074,103 @@ describe('ChatService', () => {
           source_type: 'web_search',
         },
       ]);
+    });
+
+    it('emits token_usage SSE event and persists tokenUsage when stream completes with tokenUsage', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      const fakeTokenUsage = {
+        promptTokens: 8,
+        completionTokens: 4,
+        totalTokens: 12,
+        estimatedCostUsd: 0.00001,
+      };
+      mockedProvider.streamMessage.mockImplementation(
+        async (
+          _p: string,
+          _m: unknown,
+          _model: string,
+          _o: unknown,
+          onToken: (t: string) => void
+        ) => {
+          onToken('Chunk');
+          return { content: 'Chunk', tokenUsage: fakeTokenUsage };
+        }
+      );
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({ id: 201, createdAt: new Date() });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      const mockRes = { write: jest.fn() };
+      const tokens: string[] = [];
+      const result = await ChatService.streamMessage(
+        {
+          userId: 1,
+          conversationId: 10,
+          message: 'Stream tokens',
+          options: {},
+          res: mockRes,
+        },
+        (t) => tokens.push(t)
+      );
+
+      expect(mockRes.write).toHaveBeenCalledWith(
+        `event: token_usage\ndata: ${JSON.stringify(fakeTokenUsage)}\n\n`
+      );
+      expect(mockedPrisma.message.create).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          data: expect.objectContaining({
+            role: 'assistant',
+            tokenUsage: fakeTokenUsage,
+          }),
+        })
+      );
+      expect(result.tokenUsage).toEqual(fakeTokenUsage);
+    });
+  });
+
+  describe('persistAssistantMessage', () => {
+    it('persists assistant message with sources and tokenUsage', async () => {
+      const fakeTokenUsage = {
+        promptTokens: 12,
+        completionTokens: 6,
+        totalTokens: 18,
+        estimatedCostUsd: 0.00003,
+      };
+      const fakeSources = [{ filename: 'doc.pdf', similarity: 0.85 }];
+      mockedPrisma.message.create.mockResolvedValue({
+        id: 301,
+        conversationId: 10,
+        role: 'assistant',
+        content: 'Assistant answer',
+        sources: fakeSources,
+        tokenUsage: fakeTokenUsage,
+        parentId: 5,
+      });
+
+      const saved = await ChatService.persistAssistantMessage(
+        10,
+        'Assistant answer',
+        fakeSources,
+        fakeTokenUsage,
+        5
+      );
+
+      expect(mockedPrisma.message.create).toHaveBeenCalledWith({
+        data: {
+          conversationId: 10,
+          role: 'assistant',
+          content: 'Assistant answer',
+          sources: fakeSources,
+          tokenUsage: fakeTokenUsage,
+          parentId: 5,
+        },
+      });
+      expect(saved.id).toBe(301);
     });
   });
 });

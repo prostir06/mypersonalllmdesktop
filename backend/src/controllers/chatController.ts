@@ -85,6 +85,7 @@ export async function streamMessage(
       enableTools: false,
       requestId: req.id,
     };
+    let tokenUsageEmitted = false;
     const result = await ChatService.streamMessage(
       {
         userId: req.userId!,
@@ -94,6 +95,12 @@ export async function streamMessage(
         provider,
         options: streamOptions,
         signal,
+        res: {
+          write: (chunk: string) => {
+            tokenUsageEmitted = true;
+            return res.write(chunk);
+          },
+        },
       },
       (token: string) => {
         writeSse(res, { type: 'token', token });
@@ -109,6 +116,9 @@ export async function streamMessage(
         });
       }
     );
+    if (result.tokenUsage && !tokenUsageEmitted && !res.writableEnded) {
+      res.write(`event: token_usage\ndata: ${JSON.stringify(result.tokenUsage)}\n\n`);
+    }
     writeSse(res, {
       type: 'done',
       messageId: result.messageId,

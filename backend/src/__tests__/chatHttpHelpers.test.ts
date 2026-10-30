@@ -200,4 +200,41 @@ describe('chatController enableWebSearch propagation', () => {
       expect.any(Function)
     );
   });
+
+  it('emits token_usage SSE event before done when streamMessage returns tokenUsage', async () => {
+    const fakeTokenUsage = {
+      promptTokens: 10,
+      completionTokens: 5,
+      totalTokens: 15,
+      estimatedCostUsd: 0.00002,
+    };
+    jest.spyOn(ChatService, 'streamMessage').mockResolvedValueOnce({
+      conversationId: 101,
+      messageId: 1,
+      content: 'stream done',
+      sources: [],
+      tokenUsage: fakeTokenUsage,
+    } as any);
+
+    const req = {
+      id: 'rid-3',
+      userId: 42,
+      body: {
+        message: 'Search query in stream with usage',
+        provider: 'openai',
+      },
+      on: jest.fn(),
+    } as unknown as AuthRequest;
+    const res = mockRes();
+
+    await streamMessage(req, res, () => {});
+
+    expect(res.write).toHaveBeenCalledWith(
+      `event: token_usage\ndata: ${JSON.stringify(fakeTokenUsage)}\n\n`
+    );
+    expect(res.write).toHaveBeenCalledWith(
+      expect.stringContaining('"type":"done"')
+    );
+    expect(res.end).toHaveBeenCalled();
+  });
 });

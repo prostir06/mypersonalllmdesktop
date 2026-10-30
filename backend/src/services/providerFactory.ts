@@ -2,19 +2,31 @@ import openaiService from './openaiService';
 import ollamaService from './ollamaService';
 import geminiService from './geminiService';
 import logger from '../logger';
+import type { TokenUsage } from './chat/types';
 
 type SendFn = (
   messages: unknown[],
   model: string,
   options?: Record<string, unknown>
-) => Promise<{ content: string; usage?: unknown; model?: string }>;
+) => Promise<{
+  content: string;
+  usage?: unknown;
+  tokenUsage?: TokenUsage;
+  model?: string;
+  sources?: unknown[];
+}>;
 
 type StreamFn = (
   messages: unknown[],
   model: string,
   options?: Record<string, unknown>,
   onChunk?: (token: string) => void
-) => Promise<{ content: string; model: string }>;
+) => Promise<{
+  content: string;
+  tokenUsage?: TokenUsage;
+  model: string;
+  sources?: unknown[];
+}>;
 
 type ProviderHandlers = { send: SendFn; stream: StreamFn };
 
