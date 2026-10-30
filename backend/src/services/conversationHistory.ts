@@ -1,5 +1,5 @@
 /** Linear conversation view with assistant branch selection. */
-import type { RagSource } from './chat/types';
+import type { RagSource, TokenUsage } from './chat/types';
 
 export type RawMessage = {
   id: number;
@@ -8,6 +8,7 @@ export type RawMessage = {
   parentId: number | null;
   createdAt: Date;
   sources?: RagSource[] | null;
+  tokenUsage?: TokenUsage | null;
 };
 
 export type BranchInfo = {
@@ -15,6 +16,7 @@ export type BranchInfo = {
   content: string;
   created_at: Date;
   sources?: RagSource[];
+  tokenUsage?: TokenUsage;
 };
 
 export type LinearMessage = {
@@ -26,6 +28,7 @@ export type LinearMessage = {
   branches?: BranchInfo[];
   branchIndex?: number;
   sources?: RagSource[];
+  tokenUsage?: TokenUsage;
 };
 
 export function asRagSources(value: unknown): RagSource[] | undefined {
@@ -89,6 +92,7 @@ export function buildLinearHistory(
         content: b.content,
         created_at: b.createdAt,
         sources: asRagSources(b.sources),
+        tokenUsage: (b.tokenUsage as TokenUsage) || undefined,
       }));
       out.push({
         id: chosen.id,
@@ -97,6 +101,7 @@ export function buildLinearHistory(
         createdAt: chosen.createdAt,
         parentId: m.id,
         sources: asRagSources(chosen.sources),
+        tokenUsage: (chosen.tokenUsage as TokenUsage) || undefined,
         branches: branchPayload.length > 1 ? branchPayload : undefined,
         branchIndex: branchPayload.length > 1 ? index : undefined,
       });
@@ -113,6 +118,7 @@ export function buildLinearHistory(
         createdAt: next.createdAt,
         parentId: m.id,
         sources: asRagSources(next.sources),
+        tokenUsage: (next.tokenUsage as TokenUsage) || undefined,
       });
     }
   }
@@ -130,6 +136,7 @@ export function buildLinearHistory(
         createdAt: m.createdAt,
         parentId: m.parentId,
         sources: asRagSources(m.sources),
+        tokenUsage: (m.tokenUsage as TokenUsage) || undefined,
       });
     }
   }

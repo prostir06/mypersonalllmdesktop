@@ -17,7 +17,11 @@ const PRICING_MAP: Record<string, ModelPricing> = {
 
   // Anthropic Claude (ready for Wave 4)
   'claude-3-5-sonnet-20241022': { promptPerMillion: 3.00, completionPerMillion: 15.00 },
+  'claude-3-5-sonnet': { promptPerMillion: 3.00, completionPerMillion: 15.00 },
+  'claude-3.5-sonnet': { promptPerMillion: 3.00, completionPerMillion: 15.00 },
   'claude-3-5-haiku-20241022': { promptPerMillion: 0.80, completionPerMillion: 4.00 },
+  'claude-3-5-haiku': { promptPerMillion: 0.80, completionPerMillion: 4.00 },
+  'claude-3.5-haiku': { promptPerMillion: 0.80, completionPerMillion: 4.00 },
 };
 
 export function calculateTokenCost(
@@ -25,6 +29,8 @@ export function calculateTokenCost(
   promptTokens: number,
   completionTokens: number
 ): number | undefined {
+  if (!model || typeof model !== 'string') return undefined;
+
   const normalized = model.toLowerCase().trim();
 
   if (
@@ -38,10 +44,19 @@ export function calculateTokenCost(
     return 0;
   }
 
-  // Exact match or prefix match
+  // Exact match
   let pricing: ModelPricing | undefined = PRICING_MAP[normalized];
+
+  // Match by stripped date suffix (e.g. model-name-20241022 or model-name-2024-07-18)
   if (!pricing) {
-    const key = Object.keys(PRICING_MAP).find((k) => normalized.includes(k));
+    const stripped = normalized.replace(/-\d{8}$/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
+    pricing = PRICING_MAP[stripped];
+  }
+
+  // Substring match with longest keys checked first (e.g. gpt-4o-mini before gpt-4o)
+  if (!pricing) {
+    const sortedKeys = Object.keys(PRICING_MAP).sort((a, b) => b.length - a.length);
+    const key = sortedKeys.find((k) => normalized.includes(k) || k.includes(normalized));
     if (key) pricing = PRICING_MAP[key];
   }
 

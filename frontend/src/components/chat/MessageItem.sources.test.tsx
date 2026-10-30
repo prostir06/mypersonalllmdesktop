@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import MessageItem from './MessageItem';
 
@@ -123,5 +123,62 @@ describe('MessageItem sources and tokens', () => {
     );
 
     expect(screen.queryByText(/токенів/)).not.toBeInTheDocument();
+  });
+
+  it('renders token badge if token_usage is provided via snake_case', () => {
+    render(
+      <MessageItem
+        msg={{
+          role: 'assistant',
+          content: 'Response with snake_case token_usage',
+          token_usage: {
+            promptTokens: 120,
+            completionTokens: 80,
+            totalTokens: 200,
+            estimatedCostUsd: 0.0003,
+          },
+        }}
+        idx={0}
+        speakingIdx={null}
+        onSpeak={() => {}}
+        onCopy={() => {}}
+      />
+    );
+
+    expect(screen.getByText(/200 токенів/)).toBeInTheDocument();
+    expect(screen.getByText(/~\$0\.0003/)).toBeInTheDocument();
+  });
+
+  it('reacts dynamically to storage event toggle', async () => {
+    render(
+      <MessageItem
+        msg={{
+          role: 'assistant',
+          content: 'Response with toggle',
+          tokenUsage: {
+            promptTokens: 100,
+            completionTokens: 50,
+            totalTokens: 150,
+            estimatedCostUsd: 0.0005,
+          },
+        }}
+        idx={0}
+        speakingIdx={null}
+        onSpeak={() => {}}
+        onCopy={() => {}}
+      />
+    );
+
+    expect(screen.getByText(/150 токенів/)).toBeInTheDocument();
+
+    // Toggle off via localStorage and storage event
+    act(() => {
+      localStorage.setItem('llm_assistant_show_tokens', 'false');
+      window.dispatchEvent(new Event('storage'));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/150 токенів/)).not.toBeInTheDocument();
+    });
   });
 });

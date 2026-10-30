@@ -28,6 +28,7 @@ export async function loadRecentMessages(
       parentId: true,
       createdAt: true,
       sources: true,
+      tokenUsage: true,
     },
   });
   const rows = rowsDesc.slice().reverse();
@@ -51,6 +52,7 @@ export async function loadAllRawMessages(
       parentId: true,
       createdAt: true,
       sources: true,
+      tokenUsage: true,
     },
   }) as unknown as Promise<RawMessage[]>;
 }
@@ -87,11 +89,15 @@ export async function getHistory(
         created_at: m.createdAt,
         parent_id: m.parentId ?? undefined,
         sources: m.sources,
+        tokenUsage: m.tokenUsage,
+        token_usage: m.tokenUsage,
         branches: m.branches?.map((b) => ({
           id: b.id,
           content: b.content,
           created_at: b.created_at,
           sources: b.sources,
+          tokenUsage: b.tokenUsage,
+          token_usage: b.tokenUsage,
         })),
         branch_index: m.branchIndex,
       })),

@@ -78,6 +78,7 @@ export type ChatMessageView = {
   content: string;
   sources?: RagSource[];
   tokenUsage?: TokenUsage;
+  token_usage?: TokenUsage;
   parent_id?: number;
   branches?: Array<{ id: string | number; content: string; created_at?: string }>;
   branch_index?: number;
@@ -107,10 +108,21 @@ const MessageItem = React.memo(function MessageItem({
   const components = useMemo(() => ({ code: CodeBlock }), []);
   const branchCount = msg.branches?.length ?? 0;
   const branchIndex = msg.branch_index ?? 0;
-  const showTokens =
-    typeof window === 'undefined' ||
-    !window.localStorage ||
-    window.localStorage.getItem('llm_assistant_show_tokens') !== 'false';
+  const [showTokens, setShowTokens] = React.useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.localStorage) return true;
+    return window.localStorage.getItem('llm_assistant_show_tokens') !== 'false';
+  });
+
+  React.useEffect(() => {
+    const handleStorage = () => {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      setShowTokens(window.localStorage.getItem('llm_assistant_show_tokens') !== 'false');
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  const usage = msg.tokenUsage || msg.token_usage;
 
   return (
     <div className={`message-bubble ${msg.role}`}>
@@ -187,20 +199,20 @@ const MessageItem = React.memo(function MessageItem({
         {msg.role === 'assistant' && msg.sources?.length ? (
           <MessageSources sources={msg.sources} />
         ) : null}
-        {msg.role === 'assistant' && showTokens && msg.tokenUsage && (
+        {msg.role === 'assistant' && showTokens && usage && (
           <div
             className="d-inline-flex align-items-center gap-1 text-muted small mt-1 px-2 py-0 border rounded border-secondary"
             style={{ fontSize: '0.75rem', opacity: 0.8 }}
-            title={`Вхідні: ${msg.tokenUsage.promptTokens} | Вихідні: ${msg.tokenUsage.completionTokens}`}
+            title={`Вхідні: ${usage.promptTokens} | Вихідні: ${usage.completionTokens}`}
           >
-            <span>{msg.tokenUsage.totalTokens.toLocaleString()} токенів</span>
-            {msg.tokenUsage.estimatedCostUsd !== undefined && (
+            <span>{usage.totalTokens.toLocaleString()} токенів</span>
+            {usage.estimatedCostUsd !== undefined && (
               <>
                 <span>•</span>
                 <span>
-                  ~${msg.tokenUsage.estimatedCostUsd < 0.01
-                    ? msg.tokenUsage.estimatedCostUsd.toFixed(4)
-                    : msg.tokenUsage.estimatedCostUsd.toFixed(3)}
+                  ~${usage.estimatedCostUsd < 0.01
+                    ? usage.estimatedCostUsd.toFixed(4)
+                    : usage.estimatedCostUsd.toFixed(3)}
                 </span>
               </>
             )}

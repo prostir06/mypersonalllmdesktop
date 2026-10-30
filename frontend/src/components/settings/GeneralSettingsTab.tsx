@@ -63,6 +63,7 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
     setShowTokens(checked);
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem('llm_assistant_show_tokens', String(checked));
+      window.dispatchEvent(new Event('storage'));
     }
   };
 

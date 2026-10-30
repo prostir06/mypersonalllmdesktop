@@ -717,6 +717,64 @@ describe('ChatService', () => {
       ]);
     });
 
+    it('returns tokenUsage on assistant messages and branches from history', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
+      const createdAt = new Date('2026-08-01T12:00:00Z');
+      const assistantAt1 = new Date('2026-08-01T12:01:00Z');
+      const assistantAt2 = new Date('2026-08-01T12:02:00Z');
+      const sampleUsage1 = {
+        promptTokens: 10,
+        completionTokens: 20,
+        totalTokens: 30,
+        estimatedCostUsd: 0.0001,
+      };
+      const sampleUsage2 = {
+        promptTokens: 15,
+        completionTokens: 25,
+        totalTokens: 40,
+        estimatedCostUsd: 0.0002,
+      };
+
+      mockedPrisma.message.findMany.mockResolvedValue([
+        {
+          id: 1,
+          role: 'user',
+          content: 'prompt',
+          parentId: null,
+          createdAt,
+          sources: null,
+          tokenUsage: null,
+        },
+        {
+          id: 2,
+          role: 'assistant',
+          content: 'branch 1',
+          parentId: 1,
+          createdAt: assistantAt1,
+          sources: null,
+          tokenUsage: sampleUsage1,
+        },
+        {
+          id: 3,
+          role: 'assistant',
+          content: 'branch 2',
+          parentId: 1,
+          createdAt: assistantAt2,
+          sources: null,
+          tokenUsage: sampleUsage2,
+        },
+      ]);
+
+      const result = await ChatService.getHistory(1, 5, 100, 0);
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages[1].tokenUsage).toEqual(sampleUsage2);
+      expect(result.messages[1].token_usage).toEqual(sampleUsage2);
+      expect(result.messages[1].branches).toHaveLength(2);
+      expect(result.messages[1].branches?.[0].tokenUsage).toEqual(sampleUsage1);
+      expect(result.messages[1].branches?.[0].token_usage).toEqual(sampleUsage1);
+      expect(result.messages[1].branches?.[1].tokenUsage).toEqual(sampleUsage2);
+    });
+
     it('logs and rethrows when Prisma history load fails', async () => {
       const logger = require('../logger');
       mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 5 });
