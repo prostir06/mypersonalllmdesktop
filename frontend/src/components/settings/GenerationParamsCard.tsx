@@ -55,7 +55,7 @@ export default function GenerationParamsCard({
               value={maxTokens}
               onChange={(e) => onMaxTokensChange(parseInt(e.target.value, 10))}
               min="100"
-              max="4000"
+              max="32000"
               step="100"
               className="bg-dark text-light border-secondary shadow-none"
             />

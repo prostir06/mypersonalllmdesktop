@@ -56,6 +56,8 @@ export default function ModelCatalogForm({
             className="bg-dark text-light border-secondary"
           >
             <option value="openai">openai</option>
+            <option value="anthropic">anthropic</option>
+            <option value="gemini">gemini</option>
             <option value="ollama">ollama</option>
           </Form.Select>
         </div>

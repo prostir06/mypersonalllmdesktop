@@ -1,5 +1,5 @@
 import { body, param } from 'express-validator';
-import { handleValidationErrors } from './settingsValidator';
+import { ALLOWED_PROVIDERS, handleValidationErrors } from './settingsValidator';
 
 export const validateModelCreate = [
   body('name')
@@ -16,7 +16,7 @@ export const validateModelCreate = [
     .isLength({ max: 255 }),
   body('provider')
     .optional()
-    .isIn(['openai', 'ollama'])
+    .isIn(ALLOWED_PROVIDERS)
     .withMessage('Invalid provider'),
   body('temperature').optional().isFloat({ min: 0, max: 2 }),
   body('maxTokens').optional().isInt({ min: 100, max: 128000 }),
@@ -30,7 +30,7 @@ export const validateModelUpdate = [
   body('modelId').optional().isString().trim().isLength({ min: 1, max: 255 }),
   body('provider')
     .optional()
-    .isIn(['openai', 'ollama'])
+    .isIn(ALLOWED_PROVIDERS)
     .withMessage('Invalid provider'),
   body('temperature').optional().isFloat({ min: 0, max: 2 }),
   body('maxTokens').optional().isInt({ min: 100, max: 128000 }),

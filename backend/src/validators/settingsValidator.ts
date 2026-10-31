@@ -5,10 +5,17 @@ import { body, validationResult } from 'express-validator';
 import { Request, Response, NextFunction } from 'express';
 import { assertAllowedHttpUrl } from '../utils/urlAllowlist';
 
+export const ALLOWED_PROVIDERS = [
+  'openai',
+  'ollama',
+  'gemini',
+  'anthropic',
+] as const;
+
 export const validateSettingsUpdate = [
   body('default_provider')
     .optional()
-    .isIn(['openai', 'ollama'])
+    .isIn(ALLOWED_PROVIDERS)
     .withMessage('Invalid provider'),
   body('default_model')
     .optional()
@@ -28,8 +35,8 @@ export const validateSettingsUpdate = [
     .withMessage('Temperature must be between 0 and 2'),
   body('max_tokens')
     .optional()
-    .isInt({ min: 100, max: 4000 })
-    .withMessage('Max tokens must be between 100 and 4000'),
+    .isInt({ min: 100, max: 32000 })
+    .withMessage('Max tokens must be between 100 and 32000'),
   body('system_prompt')
     .optional()
     .isString()
@@ -43,6 +50,24 @@ export const validateSettingsUpdate = [
     .optional()
     .isBoolean()
     .withMessage('clear_openai_api_key must be boolean'),
+  body('gemini_api_key')
+    .optional()
+    .isString()
+    .isLength({ max: 256 })
+    .withMessage('Gemini API key too long'),
+  body('clear_gemini_api_key')
+    .optional()
+    .isBoolean()
+    .withMessage('clear_gemini_api_key must be boolean'),
+  body('anthropic_api_key')
+    .optional()
+    .isString()
+    .isLength({ max: 256 })
+    .withMessage('Anthropic API key too long'),
+  body('clear_anthropic_api_key')
+    .optional()
+    .isBoolean()
+    .withMessage('clear_anthropic_api_key must be boolean'),
 ];
 
 export function handleValidationErrors(

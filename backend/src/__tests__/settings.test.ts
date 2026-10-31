@@ -297,4 +297,25 @@ describe('Settings API (Prisma)', () => {
     expect(clearRes.status).toBe(200);
     expect(clearRes.body.has_anthropic_api_key).toBe(false);
   });
+
+  it.each(['gemini', 'anthropic'])('PUT accepts %s as default_provider with 4096 max_tokens', async (provider) => {
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+    mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
+      id: 2,
+      userId: 9,
+      ...args.create,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }));
+
+    const res = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ default_provider: provider, max_tokens: 4096 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.default_provider).toBe(provider);
+    expect(res.body.max_tokens).toBe(4096);
+  });
 });

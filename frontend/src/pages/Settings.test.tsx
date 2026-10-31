@@ -254,4 +254,29 @@ describe('Settings', () => {
       });
     });
   });
+
+  it('hydrates and saves anthropic and gemini as default_provider in GeneralSettingsTab', async () => {
+    settingsData = {
+      ...settingsData,
+      default_provider: 'anthropic',
+      default_model: 'claude-3-5-sonnet-20241022',
+    };
+    const user = userEvent.setup();
+    render(<Settings />);
+
+    const providerSelect = screen.getByLabelText(/Основний Провайдер AI/i) as HTMLSelectElement;
+    expect(providerSelect.value).toBe('anthropic');
+
+    await user.selectOptions(providerSelect, 'gemini');
+    await user.click(screen.getByRole('button', { name: /Зберегти налаштування/i }));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          default_provider: 'gemini',
+          default_model: 'gemini-2.0-flash',
+        })
+      );
+    });
+  });
 });

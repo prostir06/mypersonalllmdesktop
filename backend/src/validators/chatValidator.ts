@@ -1,5 +1,5 @@
 import { body, param, query } from 'express-validator';
-import { handleValidationErrors } from './settingsValidator';
+import { ALLOWED_PROVIDERS, handleValidationErrors } from './settingsValidator';
 
 export const validateChatSend = [
   body('message')
@@ -12,7 +12,7 @@ export const validateChatSend = [
   body('model').optional().isString().isLength({ max: 255 }),
   body('provider')
     .optional()
-    .isIn(['openai', 'ollama'])
+    .isIn(ALLOWED_PROVIDERS)
     .withMessage('Invalid provider'),
   body('conversationId').optional({ nullable: true }),
   body('options.regenerateFromMessageId').optional().isInt({ min: 1 }),

@@ -16,9 +16,11 @@ import UserMemoryCard from '../components/settings/UserMemoryCard';
 import DesktopUpdatesCard from '../components/settings/DesktopUpdatesCard';
 import type { SettingsUpdatePayload } from '../types/api';
 
+const ALLOWED_PROVIDERS = new Set(['openai', 'ollama', 'gemini', 'anthropic']);
+
 function normalizeProvider(raw: string | undefined): string {
   const prov = raw || 'openai';
-  return prov === 'openai' || prov === 'ollama' ? prov : 'openai';
+  return ALLOWED_PROVIDERS.has(prov) ? prov : 'openai';
 }
 
 const Settings: React.FC = () => {

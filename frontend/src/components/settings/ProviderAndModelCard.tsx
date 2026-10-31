@@ -4,6 +4,8 @@ import type { ModelOption } from '../../utils/catalogModelOptions';
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI API' },
+  { value: 'anthropic', label: 'Anthropic Claude' },
+  { value: 'gemini', label: 'Google Gemini' },
   { value: 'ollama', label: 'Ollama (Local Server)' },
 ] as const;
 
