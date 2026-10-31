@@ -16,8 +16,8 @@ if [ "${NODE_ENV}" = "production" ]; then
       ;;
   esac
   case "${ENCRYPTION_KEY}" in
-    "")
-      echo "FATAL: ENCRYPTION_KEY must be set in production (32-byte base64 or 64 hex chars)" >&2
+    ""|"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+      echo "FATAL: ENCRYPTION_KEY must be set to a strong non-default value in production (32-byte base64 or 64 hex chars)" >&2
       exit 1
       ;;
   esac

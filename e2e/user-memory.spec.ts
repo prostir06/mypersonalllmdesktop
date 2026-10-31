@@ -12,6 +12,7 @@ test('user memory note persists across settings reloads', async ({
   await loginViaUi(page, user);
 
   await page.goto('/settings');
+  await page.getByRole('tab', { name: /Пам'ять/i }).click();
   await expect(page.getByTestId('user-memory-card')).toBeVisible({
     timeout: 15_000,
   });
@@ -23,6 +24,7 @@ test('user memory note persists across settings reloads', async ({
 
   // Full reload proves persistence (and keeps auth cookie/localStorage path).
   await page.reload();
+  await page.getByRole('tab', { name: /Пам'ять/i }).click();
   await expect(page.getByTestId('user-memory-card')).toBeVisible({
     timeout: 15_000,
   });
@@ -35,6 +37,7 @@ test('user memory note persists across settings reloads', async ({
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
   await page.getByRole('link', { name: /Налаштування/i }).click();
   await expect(page).toHaveURL(/\/settings/, { timeout: 15_000 });
+  await page.getByRole('tab', { name: /Пам'ять/i }).click();
   await expect(
     page.getByTestId('user-memory-note').filter({ hasText: noteText })
   ).toBeVisible({ timeout: 15_000 });

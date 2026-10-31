@@ -11,7 +11,7 @@ WORKDIR /app
 
 # Копіюємо файли залежностей окремо для кешування шарів
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 # Копіюємо решту коду та збираємо
 COPY . .
