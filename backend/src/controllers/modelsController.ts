@@ -4,9 +4,6 @@ import { jsonError } from '../utils/httpJson';
 import type { AuthRequest } from '../types/express';
 import * as ModelsService from '../services/modelsService';
 
-export const parseModelId = ModelsService.parseModelId;
-export const toPublicModel = ModelsService.toPublicModel;
-
 export async function listModels(req: AuthRequest, res: Response): Promise<void> {
   try {
     const rows = await ModelsService.listForUser(req.userId!);

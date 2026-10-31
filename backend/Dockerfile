@@ -5,7 +5,7 @@
 # ============================================================
 
 # --- Stage 1: Dependencies + Prisma Client ---
-FROM node:20-alpine AS deps
+FROM node:24-alpine AS deps
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ ENV DATABASE_URL="postgresql://postgres:password@localhost:5432/llm_assistant"
 RUN npx prisma generate --config prisma/prisma.config.ts
 
 # --- Stage 2: Production runtime ---
-FROM node:20-alpine AS production
+FROM node:24-alpine AS production
 
 WORKDIR /app
 

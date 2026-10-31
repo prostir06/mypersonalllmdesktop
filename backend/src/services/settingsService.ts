@@ -51,8 +51,6 @@ export class InvalidAnthropicKeyError extends Error {
   }
 }
 
-export const InvalidClaudeKeyError = InvalidAnthropicKeyError;
-
 export function defaultSettings() {
   return {
     default_model: 'gpt-3.5-turbo',
@@ -211,7 +209,7 @@ export async function updateSettingsForUser(
     clear_openai_api_key === true ||
     (typeof openai_api_key === 'string' && openai_api_key.trim() === '');
 
-  if (clearKey && (clear_openai_api_key === true || openai_api_key !== undefined)) {
+  if (clearKey) {
     data.openaiApiKeyEnc = null;
   } else if (typeof openai_api_key === 'string' && openai_api_key.trim()) {
     const trimmed = openai_api_key.trim();
@@ -225,7 +223,7 @@ export async function updateSettingsForUser(
     clear_gemini_api_key === true ||
     (typeof gemini_api_key === 'string' && gemini_api_key.trim() === '');
 
-  if (clearGemini && (clear_gemini_api_key === true || gemini_api_key !== undefined)) {
+  if (clearGemini) {
     data.geminiApiKeyEnc = null;
   } else if (typeof gemini_api_key === 'string' && gemini_api_key.trim()) {
     const trimmed = gemini_api_key.trim();
@@ -239,7 +237,7 @@ export async function updateSettingsForUser(
     clear_anthropic_api_key === true ||
     (typeof anthropic_api_key === 'string' && anthropic_api_key.trim() === '');
 
-  if (clearAnthropic && (clear_anthropic_api_key === true || anthropic_api_key !== undefined)) {
+  if (clearAnthropic) {
     data.anthropicApiKeyEnc = null;
   } else if (typeof anthropic_api_key === 'string' && anthropic_api_key.trim()) {
     const trimmed = anthropic_api_key.trim();

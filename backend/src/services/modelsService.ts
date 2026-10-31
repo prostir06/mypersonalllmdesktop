@@ -243,7 +243,7 @@ export async function discoverRemoteOllamaModels(
     try {
       const r = await axios.get(url, { timeout: 5000, maxRedirects: 0 });
       if (r.status === 200 && r.data) {
-        const data = r.data.models || r.data.data || r.data || r.data.engines;
+        const data = r.data.models || r.data.data || r.data.engines || r.data;
         if (Array.isArray(data)) {
           models = data.map((m: unknown) => {
             if (typeof m === 'string') return { id: m, name: m };

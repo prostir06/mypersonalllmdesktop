@@ -139,13 +139,7 @@ export function useChatStream({
           },
           (usage) => {
             tokenUsageRef.current = usage;
-            setMessages((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.role === 'assistant') {
-                return [...prev.slice(0, -1), { ...last, tokenUsage: usage }];
-              }
-              return prev;
-            });
+            handleTokenUsageEvent('token_usage', usage, setMessages);
           }
         );
 

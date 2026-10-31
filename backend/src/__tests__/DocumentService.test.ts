@@ -92,6 +92,7 @@ import DocumentService from '../services/DocumentService';
 import EmbeddingService from '../services/EmbeddingService';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 import { computeNeedsReindex } from '../services/documents/publicDocument';
+import { deleteTempUpload } from '../services/documents/tempUploads';
 
 const mockedPrisma = prisma as unknown as {
   document: {
@@ -283,6 +284,10 @@ describe('DocumentService (Prisma)', () => {
       });
       expect(queued).toHaveLength(1);
       expect(mockedPrisma.$transaction).not.toHaveBeenCalled();
+
+      const createdStagingPath =
+        mockedPrisma.document.create.mock.calls[0]?.[0]?.data?.stagingPath;
+      await deleteTempUpload(createdStagingPath ?? null);
     });
 
     it('rejects files over MAX_FILE_SIZE before create', async () => {

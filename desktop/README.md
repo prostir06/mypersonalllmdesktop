@@ -4,9 +4,9 @@ Windows-first Electron shell for the Vite frontend. The Express API and Postgres
 
 ## Prerequisites
 
-- Node 20+
+- Node 22.22+ or 24+ (Node 24 LTS recommended)
 - Backend running (e.g. `cd backend && npm run dev` or Docker Compose)
-- For **dev**: frontend Vite on port 3000 (`cd frontend && npm run dev`)
+- For **dev**: frontend Vite on port 3000 (`cd frontend && npm start`)
 - For **packaged / prod-like**: `cd frontend && npm run build` (UI copied into the installer as `resources/ui`)
 
 ## Install
@@ -23,7 +23,7 @@ npm install
 cd backend && npm run dev
 
 # terminal 2: Vite
-cd frontend && npm run dev
+cd frontend && npm start
 
 # terminal 3: Electron
 cd desktop && npm run dev

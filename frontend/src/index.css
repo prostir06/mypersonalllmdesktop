@@ -6,34 +6,26 @@
   --bg-main: #141612; /* Дуже темний оливковий/чорний */
   --card-bg: #1c1e19; /* Темно-оливковий */
   --card-border: #3c4233; /* Світліший оливковий для меж */
-  --card-shadow: none;
-  
+
   /* Text */
   --text-main: #d9ddd0;
   --text-muted: #8b927a;
-  --text-subtle: #5f6652;
-  
+
   /* Accent (Tactical Orange / Green) */
   --accent-primary: #ff6f00;
-  --accent-hover: #e65c00;
   --accent-solid: #ff6f00;
-  --accent-glow: rgba(255, 111, 0, 0.2);
-  
+
   /* Messages */
   --user-msg-bg: #2b3324; /* Тактичний зелений */
-  --user-msg-shadow: none;
   --ai-msg-bg: #1a1c17;
-  --ai-msg-border: #3c4233;
-  --ai-msg-shadow: none;
-  
+
   /* Navigation & Sidebar */
   --sidebar-bg: #181a15;
   --input-bg: #11120f;
   --nav-bg: #181a15;
-  
+
   /* Transitions */
   --transition-fast: 0.1s linear;
-  --transition-med: 0.2s linear;
 }
 
 [data-theme='light'] {
@@ -41,26 +33,19 @@
   --bg-main: #fff;
   --card-bg: #f4f5f0;
   --card-border: #0a0b1b;
-  --card-shadow: none;
-  
+
   /* Text */
   --text-main: #0a0b1b;
   --text-muted: #555866;
-  --text-subtle: #7a7e8f;
-  
+
   /* Accent */
   --accent-primary: #3d4a2d; /* Темно зелений */
-  --accent-hover: #2c3620;
   --accent-solid: #3d4a2d;
-  --accent-glow: rgba(61, 74, 45, 0.2);
-  
+
   /* Messages */
   --user-msg-bg: #e0e5d5;
-  --user-msg-shadow: none;
   --ai-msg-bg: #fff;
-  --ai-msg-border: #0a0b1b;
-  --ai-msg-shadow: none;
-  
+
   /* Navigation & Sidebar */
   --sidebar-bg: #fafafa;
   --input-bg: #fff;
@@ -195,12 +180,6 @@ code, pre {
 }
 
 /* ─── Chat Layout ────────────────────────────────────────────────────────── */
-.chat-container {
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 85px);
-}
-
 .messages-list {
   flex: 1;
   overflow-y: auto;
@@ -319,33 +298,6 @@ code, pre {
   margin: 1.5rem 0 0.75rem;
   border-bottom: 1px solid var(--card-border);
   padding-bottom: 0.25rem;
-}
-
-/* ─── Loading Shimmer (Scanline effect) ──────────────────────────────────── */
-@keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100%); }
-}
-
-.skeleton {
-  background: var(--card-bg);
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--card-border);
-  border-radius: 0;
-}
-
-.skeleton::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(
-    to bottom,
-    transparent 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    transparent 100%
-  );
-  animation: scanline 2s linear infinite;
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */

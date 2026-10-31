@@ -3,18 +3,9 @@ import { formatSimilarityPercent } from '../../utils/normalizeSimilarity';
 
 export type MessageSourcesProps = {
   sources: RagSource[];
-  ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
 };
 
-export function MessageSources({ sources, ragStatus }: MessageSourcesProps) {
-  if (ragStatus === 'error') {
-    return (
-      <div className="message-sources small text-warning mt-2">
-        Контекст RAG недоступний для цієї відповіді
-      </div>
-    );
-  }
-
+export function MessageSources({ sources }: MessageSourcesProps) {
   if (!sources?.length) return null;
 
   return (

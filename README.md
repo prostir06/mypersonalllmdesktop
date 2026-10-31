@@ -1,64 +1,102 @@
 # LLM Personal Assistant Control Panel
 
-Personal LLM assistant control panel: Express + Prisma backend, React (Vite) frontend, OpenAI, Ollama, and Google Gemini providers.
+Self-hosted personal AI assistant studio with a **TypeScript Express + Prisma** backend, **React 18 + Vite** frontend, **PostgreSQL + pgvector** hybrid RAG, interactive HTML/SVG artifact previews, and an optional **Electron** desktop shell.
+
+Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google Search Grounding), and **Ollama** local models.
+
+---
 
 ## Features
 
-- Multi-model chat (OpenAI, Ollama, Google Gemini) with streaming and Stop
-- Multimodal vision support (upload and analyze images with vision-capable models like Gemini)
-- Google Search Grounding with live web search toggle and clickable source citations
-- Conversation history, rename, message search, Markdown / PDF export
-- Conversation memory: auto summary + editable notes (RAG context)
-- Cross-conversation user memory notes (Settings → inject into chat context)
-- Settings (system prompt / roles, model params, encrypted OpenAI and Google Gemini API keys)
-- JWT authentication (access + httpOnly refresh cookie)
-- Document upload for RAG (PDF, DOCX, XLSX, TXT, MD)
-- Semantic RAG: OpenAI embeddings or local Ollama (`nomic-embed-text`)
-- Docker Compose for local stack (pgvector + Prisma migrate)
-- Optional Electron desktop shell (Windows-first)
+- **Multi-Provider Streaming Chat:** Real-time SSE token streaming and instant Stop across **OpenAI**, **Anthropic Claude**, **Google Gemini**, and **Ollama**.
+- **Multimodal Vision & Inline File Attachments:** Analyze images (PNG, JPEG, WEBP, GIF) with vision-capable models and attach PDF, DOCX, XLSX, TXT, or MD files directly into a conversation turn.
+- **Interactive Artifacts Split-View:** Render generated HTML and SVG blocks inside a sandboxed preview pane (`/artifact-sandbox.html` with isolated CSP), switch between **Preview / Code**, copy, download, or inspect in fullscreen.
+- **Google Search Grounding:** Toggle live web search on Gemini models with clickable external source citations below assistant replies.
+- **Hybrid RAG Knowledge Base:** Asynchronous background document indexing (`PDF`, `DOCX`, `XLSX` via `exceljs`, `TXT`, `MD`) combining **`pgvector` semantic embeddings** (OpenAI or local Ollama `nomic-embed-text`) with **PostgreSQL Full-Text Search (`tsvector`)** reciprocal fusion, chunk preview, retry, and one-click re-indexing.
+- **Dual-Layer AI Memory:**
+  - *Conversation Memory:* rolling auto-summary + pinned per-conversation notes.
+  - *Global User Memory:* cross-conversation facts and preferences managed in Settings and injected into prompts.
+- **Workspace Productivity:** Pinned conversations, reusable **Prompt Library**, message branching / regeneration, full-text message search, and Markdown / JSON / PDF export.
+- **Token & Cost Telemetry:** Optional per-message token usage (`prompt` / `completion` / `total`) and estimated USD cost badge.
+- **Security & Auth:** Short-lived JWT access tokens + `httpOnly` rotating refresh cookies, AES-256-GCM encrypted per-user API keys (`ENCRYPTION_KEY`), SSRF-guarded Ollama URL allowlist, magic-byte upload verification, and strict Nginx Content-Security-Policy.
 
-## Project structure
+---
 
-```
+## Project Structure
+
+```text
 .
-├── backend/                 # Express API (TypeScript → dist/)
-│   ├── prisma/              # Schema source of truth + migrations (pgvector)
+├── backend/                 # Express + TypeScript API (src/ → dist/)
+│   ├── prisma/              # Prisma 7 schema + 18 SQL migrations (pgvector + FTS)
 │   ├── src/
-│   │   ├── routes/
-│   │   ├── controllers/
-│   │   ├── services/
-│   │   ├── middleware/
-│   │   ├── config/
-│   │   └── utils/
-│   └── Dockerfile
-├── frontend/                # React + Vite SPA
-│   ├── src/
-│   └── Dockerfile
-├── desktop/                 # Electron shell (Windows-first)
-│   └── src/
-├── e2e/                     # Playwright smoke (Docker stack)
-├── docs/superpowers/specs/  # Design specs
-├── docker-compose.yml       # Local/dev stack
-├── docker-compose.prod.yml  # Production overrides (required secrets)
-├── .env.example             # Root Compose env template
+│   │   ├── config/          # Env validation, Prisma pg pool, model pricing
+│   │   ├── controllers/     # Thin HTTP controllers
+│   │   ├── middleware/      # JWT auth, rate-limit, multer magic-byte upload
+│   │   ├── routes/          # Express route definitions
+│   │   ├── services/        # Chat, Hybrid RAG, OpenAI/Claude/Gemini/Ollama, Memory
+│   │   ├── utils/           # AES-256-GCM crypto, SSRF allowlist, job queue
+│   │   └── validators/      # express-validator rules
+│   └── Dockerfile           # Multi-stage Node 24 Alpine image
+├── frontend/                # React 18 + Vite 8 + TypeScript SPA
+│   ├── public/              # Static assets & isolated artifact-sandbox.html
+│   ├── src/                 # Components, hooks, typed API client, military theme
+│   ├── nginx.conf           # SPA routing, /api proxy, hardened CSP headers
+│   └── Dockerfile           # Node 24 builder → Nginx 1.25 Alpine
+├── desktop/                 # Optional Electron desktop shell (Windows-first)
+├── e2e/                     # Playwright E2E test suite (13 specs)
+├── docs/                    # Architecture specs & security/perf baselines
+├── docker-compose.yml       # Local/dev stack (Postgres pgvector + API + UI)
+├── docker-compose.prod.yml  # Production overrides (mandatory secrets, no host DB port)
+└── .env.example             # Root Docker Compose environment template
 ```
 
-## Quick start
+---
 
-### Without Docker
+## Quick Start
 
-#### 1. PostgreSQL
+### Option A: With Docker Compose (Recommended)
+
+Requires **Docker** and **Docker Compose**.
+
+```bash
+cp .env.example .env
+# Optional: set OPENAI_API_KEY, GEMINI_API_KEY, or ANTHROPIC_API_KEY
+# (API keys can also be added per-user in the UI under Settings → API Keys)
+
+docker compose up -d --build
+```
+
+- **Web UI:** http://localhost:3000 (`/api` is proxied by Nginx to the backend container)
+- **API Healthcheck:** http://localhost:5000/api/health
+
+On startup, `backend/docker-entrypoint.sh` waits for `pgvector/pgvector:pg15`, applies `prisma migrate deploy`, and launches the server.
+
+#### Production Compose Deployment
+
+Production mode disables source bind-mounts, hides PostgreSQL from host ports, and enforces non-placeholder secrets at boot:
+
+```bash
+cp .env.example .env
+# Required in .env: strong JWT_SECRET, DB_PASSWORD, and ENCRYPTION_KEY (openssl rand -base64 32)
+# Recommended: ALLOW_REGISTRATION=false (default in production when unset)
+
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+---
+
+### Option B: Local Development (Without Docker)
+
+Prerequisites: **Node.js 22.22+ or 24 LTS** (Node 24 recommended) and **PostgreSQL 15+ with `pgvector`**.
+
+#### 1. Backend
 
 ```bash
 createdb llm_assistant
-```
 
-Use Prisma migrations from `backend/` as the only schema source of truth. Fresh Docker Compose applies them via `docker-entrypoint.sh` on `pgvector/pgvector:pg15`.
-
-```bash
 cd backend
 cp .env.example .env
-# Set DATABASE_URL, JWT_SECRET, OPENAI_API_KEY (or GEMINI_API_KEY)
+# Edit .env: set DATABASE_URL, JWT_SECRET, and optional provider keys
 npm install
 npx prisma generate --config prisma/prisma.config.ts
 npx prisma migrate deploy --config prisma/prisma.config.ts
@@ -70,233 +108,144 @@ npm run dev
 ```bash
 cd frontend
 cp .env.example .env
-# Vite proxies `/api` → backend in dev; leave as `/api` or omit.
-# VITE_API_URL=/api
 npm install
 npm start
 ```
 
-App: http://localhost:3000. API: http://localhost:5000 (proxied via Vite `/api`).
+Open http://localhost:3000 (Vite proxies `/api` to `http://localhost:5000`).
 
-#### 3. Desktop (Electron, optional)
+#### 3. Desktop Shell (Electron, Optional)
 
-See [`desktop/README.md`](desktop/README.md). Short version:
-
-```bash
-# API + Vite running, then:
-cd desktop && npm install && npm run dev
-```
-
-Packaged Windows build (after `frontend` production build): `cd desktop && npm run dist`.
-
-### With Docker
-
-**Default `docker compose` = local/dev** (bind-mount of `./backend`, published Postgres `5432`, soft secret defaults). Prefer rebuilding host `backend/dist` after code changes, or use prod compose so the image `dist/` is authoritative.
+See [`desktop/README.md`](desktop/README.md) for full details:
 
 ```bash
-cp .env.example .env
-# Optional: set OPENAI_API_KEY, GEMINI_API_KEY
-# Fresh clone / first up: anonymous node_modules volume is created on start.
-docker compose up -d --build
-# After adding a backend npm dependency: recreate that volume
-# docker compose up -d --build --force-recreate --renew-anon-volumes backend
+# With backend + frontend running:
+cd desktop
+npm install
+npm run dev
 ```
 
-**Production** (required secrets, no host DB port, image `dist/` only — no ts-node fallback):
+Build a Windows NSIS / portable installer (after `cd frontend && npm run build`):
 
 ```bash
-cp .env.example .env
-# Required: strong JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY (placeholders rejected at boot)
-# Optional: OPENAI_API_KEY, GEMINI_API_KEY, ALLOW_REGISTRATION=false (default deny when NODE_ENV=production)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+cd desktop && npm run dist
 ```
 
-Postgres uses `pgvector/pgvector:pg15`. On first boot the backend runs `prisma migrate deploy` (schema includes vector embeddings for RAG).
+---
 
-**Existing volumes created before Prisma/pgvector:** recreate once so the vector extension is available:
+## LLM Providers & Configuration
 
-```bash
-docker compose down -v
-docker compose up -d --build
-```
+Provider keys can be configured globally in `.env` or per-user in **Settings → API Keys** (encrypted server-side with AES-256-GCM; per-user keys take precedence over server `.env` keys):
 
-Frontend (nginx): http://localhost:3000 — `/api` is proxied to the backend container.
+| Provider | Example Models | Highlights |
+|----------|----------------|------------|
+| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo` | Streaming chat, vision, OpenAI RAG embeddings (`768` dim) |
+| **Anthropic Claude** | `claude-3-5-sonnet-latest`, `claude-3-5-haiku-latest` | Streaming SSE (`text_delta`), vision attachments, code & HTML/SVG artifacts |
+| **Google Gemini** | `gemini-2.0-flash`, `gemini-1.5-pro`, `gemini-1.5-flash` | Multimodal vision, **Google Search Grounding** toggle & clickable web citations |
+| **Ollama (Local)** | `llama3`, `qwen2.5`, `mistral`, `llava` | Local/LAN inference via `OLLAMA_API_URL` + local RAG embeddings (`nomic-embed-text`) |
 
-### Docker troubleshooting
-
-- **Entrypoint `set: illegal option -`:** bind-mounted `docker-entrypoint.sh` with Windows CRLF line endings. Fix: ensure LF (`.gitattributes` sets `*.sh eol=lf`) or rebuild without bind-mount (`docker-compose.prod.yml`).
-- **Stale API after code change (dev bind-mount):** `docker compose exec backend npm run build && docker compose restart backend` (entrypoint runs `prisma generate` on start; re-run if schema changed).
-- **`Cannot find module` after adding an npm dependency:** anonymous `/app/node_modules` volume is stale. Recreate: `docker compose up -d --force-recreate --renew-anon-volumes backend`.
-- **`EACCES mkdir /app/uploads`:** default compose mounts named volume `backend_uploads` and entrypoint chowns it for `appuser`. Recreate: `docker compose up -d --build --force-recreate backend`.
-- **RAG embeddings:** auto mode — OpenAI key (settings/env) uses OpenAI embeddings (768 dim); else if provider is Ollama, local `nomic-embed-text` via Ollama `/api/embeddings`. Without either, fallback chunk selection. Pull model: `ollama pull nomic-embed-text`. Re-index existing docs via «Переіндексувати» in RAG manager.
-
-## Auth
-
-No default users. Register via `POST /api/auth/register` or the UI when allowed.
-
-Registration is gated by `ALLOW_REGISTRATION`:
-- unset → allowed when `NODE_ENV` is not `production`, denied in production
-- `true` / `false` → explicit override (use `false` for personal/prod deploys)
-
-## Configuration
-
-### Backend (`.env` — see `backend/.env.example`)
+### Key Environment Variables (`backend/.env`)
 
 ```env
 PORT=5000
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:password@localhost:5432/llm_assistant
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=llm_assistant
-DB_USER=postgres
-DB_PASSWORD=password
 JWT_SECRET=your_jwt_secret_key_change_this_in_production
 JWT_ACCESS_EXPIRE=15m
 JWT_REFRESH_EXPIRE=30d
-ENCRYPTION_KEY=   # required in production (compose prod + entrypoint)
-OPENAI_API_KEY=your_openai_api_key_here
-GEMINI_API_KEY=   # optional Google Gemini key (or set in UI Settings)
+ENCRYPTION_KEY=               # 32-byte base64 or 64 hex chars (required in production)
+ALLOW_REGISTRATION=true       # unset = allow in dev, deny in production
+OPENAI_API_KEY=               # optional
+GEMINI_API_KEY=               # optional
+ANTHROPIC_API_KEY=            # optional
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
-# OLLAMA_EMBED_MODEL=nomic-embed-text
-# EMBEDDING_DIMENSIONS=768
-# DB_POOL_MAX=10   # Prisma pg pool (default 10)
+OLLAMA_EMBED_MODEL=nomic-embed-text
+EMBEDDING_DIMENSIONS=768
 CORS_ORIGIN=http://localhost:3000
 ```
 
-### Frontend (`.env` — see `frontend/.env.example`)
+---
 
-```env
-# Same-origin (Docker nginx / Vite proxy). Optional absolute URL for special setups.
-VITE_API_URL=/api
-```
+## Main API Endpoints
 
-### LLM Providers & Models
+### Auth & Health
+- `GET /api/health` — Database & readiness probe
+- `POST /api/auth/register` — Create user account (gated by `ALLOW_REGISTRATION`)
+- `POST /api/auth/login` — Issue JWT access token + `httpOnly` refresh cookie
+- `POST /api/auth/refresh` — Rotate refresh cookie & issue new access token
+- `POST /api/auth/logout` — Revoke refresh session
 
-The assistant supports three LLM providers configurable globally via environment variables or per-user in **Settings**:
+### Chat & Attachments
+- `POST /api/chat/send` — Non-streaming chat completion
+- `POST /api/chat/stream` — SSE streaming chat (`init`, `token`, `token_usage`, `done`)
+- `POST /api/chat/attachments` — Extract inline document attachment text for chat context
+- `GET /api/chat/history/:conversationId` — Linearized + branched conversation history
+- `GET /api/chat/search` — Full-text message search
 
-- **OpenAI**: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`. Configured via `OPENAI_API_KEY`.
-- **Ollama**: Local models (`llama3`, `mistral`, `qwen`, etc.) via `OLLAMA_API_URL`.
-- **Google Gemini**: Native Google Gemini models with multimodal vision and web search grounding:
-  - `gemini-2.0-flash` (recommended default — fast, multimodal, supports web search grounding)
-  - `gemini-1.5-flash` (efficient general-purpose multimodal model)
-  - `gemini-1.5-pro` (high-capacity multimodal reasoning model)
+### Conversations & Memory
+- `GET | POST /api/conversations` — Paginated list (pinned-first) & create
+- `GET | PUT | DELETE /api/conversations/:id` — Fetch, rename, delete
+- `PATCH /api/conversations/:id/pin` — Pin / unpin conversation
+- `GET /api/conversations/:id/export` — Export (`md`, `json`, `txt`)
+- `GET /api/conversations/:id/memory` & `POST .../memory/refresh-summary` — Auto-summary & notes
+- `POST | PATCH | DELETE /api/conversations/:id/memory-notes/:noteId?` — Per-conversation memory notes
+- `GET | POST | PATCH | DELETE /api/users/me/memory-notes/:noteId?` — Global cross-conversation memory
 
-#### Google Gemini Configuration & Features
+### Documents (Hybrid RAG)
+- `POST /api/documents/upload` — Async upload (`202 Accepted`) & background indexing
+- `GET /api/documents` & `GET /api/documents/:id` — Status, chunk counts, embedding mode
+- `GET /api/documents/:id/chunks` — Paginated chunk preview
+- `POST /api/documents/:id/retry` — Retry failed indexing job
+- `POST /api/documents/:id/reindex` — Re-embed existing chunks with active embedding provider
+- `DELETE /api/documents/:id` — Delete document & vectors
 
-1. **API Key Setup**:
-   - Obtain an API key from [Google AI Studio](https://aistudio.google.com/apikey).
-   - Global default: set `GEMINI_API_KEY=AIzaSy...` in `backend/.env`.
-   - Per-user: navigate to **Settings → Google Gemini API Key** in the UI, enter the key, and click Save. The key is encrypted server-side with AES-256-GCM (`ENCRYPTION_KEY`). User key takes precedence over global key.
-2. **Multimodal Vision**:
-   - Attach image files (PNG, JPEG, WEBP, GIF, up to 5MB) directly in chat messages.
-   - Images are processed in-memory, converted to Gemini inline data parts, and analyzed natively with visual reasoning.
-3. **Google Search Grounding & Citations**:
-   - Toggle **Пошук в інтернеті** (Web Search) above the chat input when using any Gemini model.
-   - When enabled, Gemini grounds responses with Google Search results.
-   - Grounded responses include clickable source citations rendered in a dedicated **Джерела** (Sources) card below the message, linking to original external URLs.
+### Models, Prompts, Settings & Profile
+- `GET | POST | PUT | DELETE /api/models` & `GET /api/models/remote` — Model catalog & Ollama discovery
+- `GET | POST | PUT | DELETE /api/prompts` — Reusable prompt templates
+- `GET | PUT /api/settings` — Generation defaults, system prompt, encrypted provider keys
+- `GET | PUT /api/users/me` — User profile
 
-## Main API
+---
 
-### Auth
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-
-### Chat
-- `POST /api/chat/send`
-- `POST /api/chat/stream`
-- `GET /api/chat/history/:conversationId`
-- `GET /api/chat/search`
-
-### Conversations
-- `GET|POST /api/conversations`
-- `GET|PUT|DELETE /api/conversations/:id`
-- `GET /api/conversations/:id/export`
-
-### Conversation memory
-- `GET /api/conversations/:id/memory`
-- `POST /api/conversations/:id/memory-notes`
-- `PATCH /api/conversations/:id/memory-notes/:noteId`
-- `DELETE /api/conversations/:id/memory-notes/:noteId`
-- `POST /api/conversations/:id/memory/refresh-summary`
-
-### Documents (RAG)
-- `POST /api/documents/upload`
-- `GET /api/documents`
-- `GET /api/documents/:id`
-- `GET /api/documents/:id/chunks`
-- `POST /api/documents/:id/retry`
-- `POST /api/documents/:id/reindex`
-- `DELETE /api/documents/:id`
-
-### User memory (cross-conversation)
-- `GET /api/users/me/memory-notes`
-- `POST /api/users/me/memory-notes`
-- `PATCH /api/users/me/memory-notes/:noteId`
-- `DELETE /api/users/me/memory-notes/:noteId`
-
-### Models / Settings / Users
-- `/api/models`, `/api/settings`, `/api/users/me`
-
-## Development
-
-### Backend
+## Testing & Quality Gates
 
 ```bash
+# Backend: ESLint, TypeScript, Jest unit/integration tests, security audit
 cd backend
-npm run dev      # nodemon + ts-node (src)
-npm test         # Jest
-npm run build    # emit dist/
-npm start        # node dist/server.js
-```
+npm run lint
+npm run typecheck
+npm test
+npm run audit:ci
 
-### Frontend
-
-```bash
+# Frontend: ESLint, TypeScript, Vitest unit tests, production Vite build
 cd frontend
-npm start        # vite
-npm run build    # production build
-npm run build:analyze   # build + build/stats.html (rollup visualizer)
-npm run serve    # preview build
+npm run lint
+npm run typecheck
+npm test
+npm run build
+
+# Desktop: TypeScript build + Node test runner
+cd desktop
+npm test
+
+# End-to-End (Playwright against running Docker stack)
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
 ```
 
-#### Bundle budget (production, gzip)
+---
 
-Measured after `manualChunks` split (Dashboard/Settings/Profile lazy-loaded):
+## Troubleshooting & Notes
 
-| Chunk | ~gzip | Notes |
-|-------|-------|-------|
-| `bootstrap-ui` (JS+CSS) | ~92 KB | global Bootstrap + react-bootstrap; trim deferred |
-| `axios` | ~17 KB | API client |
-| `query` | ~9 KB | React Query |
-| `router` | ~8 KB | react-router |
-| `index` (shell) | ~7 KB | auth shell, Login/Register |
-| `Dashboard` (route) | ~12 KB | + lazy `markdown` (~35 KB) + `syntax-highlighter` (~22 KB) on first chat open |
-
-**Tradeoff:** full `bootstrap.min.css` (~31 KB gzip) stays in entry for simplicity. Code-splitting keeps markdown/highlighter off login/settings routes.
-
-```bash
-cd frontend && npm run build:analyze
-# open frontend/build/stats.html
-```
-
-## Notes
-
-- Schema source of truth: `backend/prisma/` + `prisma migrate deploy`. Docker image: `pgvector/pgvector:pg15`.
-- Do not commit `.env`. Design specs live under `docs/superpowers/specs/` (tracked). Most implementation plans under `docs/superpowers/plans/` are gitignored; a few recent wave plans may be force-tracked.
-- Extra Ollama hosts: set `OLLAMA_URL_ALLOWLIST` (comma-separated hostnames).
-- Perf SLIs: `cd backend && npm run perf:baseline` → record in [`docs/perf-baseline-2026-09-21.md`](docs/perf-baseline-2026-09-21.md). Knobs: `OLLAMA_EMBED_CONCURRENCY`, `CHAT_HISTORY_RAW_CAP`.
-- E2E smoke (Playwright + Docker): `cd e2e && npm ci && npx playwright install chromium && npm test` with stack up; CI workflow `e2e-smoke.yml` (manual/nightly). Specs: `login`, `smoke`, `stream`, `stream-stop`, `settings`, `rag-upload`, `rag-xlsx`, `conversation-query`, plus deeper citation/memory coverage where enabled.
-- **npm audit baseline:** [docs/security-audit-baseline.md](docs/security-audit-baseline.md) (2026-08-19).
-
-## Pre-upload checklist
-
-- [ ] Working tree clean (`git status`); clear local `backend/uploads/` if present
-- [ ] No `.env` / secrets staged (only `*.env.example` tracked)
-- [ ] `backend` / `frontend` / `desktop` unit tests green
-- [ ] Docker stack healthy: `docker compose up -d --build` → http://localhost:3000 (`/api/health` OK)
-- [ ] After new backend npm deps: `--renew-anon-volumes backend`
-- [ ] Push via PR from a feature branch → `master` (never commit real `.env`)
+- **Docker entrypoint line endings on Windows:** `.gitattributes` enforces `LF` on `*.sh`. If `docker-entrypoint.sh` ever acquires `CRLF`, convert back to `LF` before bind-mounting.
+- **After adding a backend npm package in dev Docker:** recreate the anonymous `node_modules` volume via `docker compose up -d --build --force-recreate --renew-anon-volumes backend`.
+- **Extra Ollama LAN hosts:** add comma-separated hostnames to `OLLAMA_URL_ALLOWLIST` in `.env`.
+- **References:**
+  - Design specifications: [`docs/superpowers/specs/`](docs/superpowers/specs/README.md)
+  - Security audit baseline: [`docs/security-audit-baseline.md`](docs/security-audit-baseline.md) (`2026-10-30`, 0 high/critical backend advisories)
+  - Performance SLI baseline: [`docs/perf-baseline-2026-09-21.md`](docs/perf-baseline-2026-09-21.md)
 
 ## License
 

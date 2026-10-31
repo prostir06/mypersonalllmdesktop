@@ -14,16 +14,12 @@ export type UpdateStatus =
   | { state: 'downloaded'; version: string }
   | { state: 'error'; message: string };
 
-type StatusListener = (status: UpdateStatus) => void;
-
 let initialized = false;
 let lastStatus: UpdateStatus = { state: 'idle' };
-const listeners = new Set<StatusListener>();
 let getMainWindow: (() => BrowserWindow | null) | null = null;
 
 function emit(status: UpdateStatus): void {
   lastStatus = status;
-  for (const listener of listeners) listener(status);
   const win = getMainWindow?.();
   if (win && !win.isDestroyed()) {
     win.webContents.send('electron:updateStatus', status);
@@ -34,12 +30,6 @@ function notify(title: string, body: string): void {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body });
   n.show();
-}
-
-export function onUpdateStatus(listener: StatusListener): () => void {
-  listeners.add(listener);
-  listener(lastStatus);
-  return () => listeners.delete(listener);
 }
 
 export function getUpdateStatus(): UpdateStatus {

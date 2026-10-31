@@ -90,11 +90,7 @@ const MessageList = React.memo(function MessageList({
                 {streamedText}
               </ReactMarkdown>
             ) : (
-              <div className="typing-indicator">
-                <span />
-                <span />
-                <span />
-              </div>
+              <div className="typing-indicator" />
             )}
           </div>
         </div>

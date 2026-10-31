@@ -18,11 +18,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
 
       - name: Start Docker stack
         run: |
           cp .env.example .env
-          echo "ALLOW_REGISTRATION=true" >> .env
           docker compose up -d --build
 
       - name: Wait for API health
@@ -62,6 +63,18 @@ jobs:
           E2E_BASE_URL: http://localhost:3000
           E2E_API_URL: http://localhost:5000
         run: npm test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: playwright-e2e-artifacts
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Docker logs on failure
         if: failure()

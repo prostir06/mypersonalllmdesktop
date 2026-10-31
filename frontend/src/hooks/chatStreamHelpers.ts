@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { Message, RagSource, ChatAttachmentPayload } from '../types/api';
+import type { Message, ChatAttachmentPayload } from '../types/api';
 
 export type AttachedImage = {
   url: string;
@@ -43,43 +43,6 @@ export function appendOrReplaceAssistant(
   return [...prev, assistantMsg];
 }
 
-export function createStreamBatcher(
-  setStreamedText: Dispatch<SetStateAction<string>>
-) {
-  let rafRef: number | null = null;
-  let pendingText = '';
-
-  const flush = () => {
-    rafRef = null;
-    setStreamedText(pendingText);
-  };
-
-  return {
-    queueToken(token: string) {
-      pendingText += token;
-      if (rafRef == null) {
-        rafRef = requestAnimationFrame(flush);
-      }
-    },
-    getPending() {
-      return pendingText;
-    },
-    reset() {
-      pendingText = '';
-    },
-    cancel() {
-      if (rafRef != null) {
-        cancelAnimationFrame(rafRef);
-        rafRef = null;
-      }
-    },
-    flushNow() {
-      this.cancel();
-      setStreamedText(pendingText);
-    },
-  };
-}
-
 export function buildChatRequestOptions(args: {
   temperature: number;
   maxTokens?: number;
@@ -100,9 +63,6 @@ export function buildChatRequestOptions(args: {
       (args.chatAttachments?.length ?? 0) > 0
         ? args.chatAttachments
         : undefined,
-    ...(typeof args.extra?.enableWebSearch === 'boolean'
-      ? { enableWebSearch: args.extra.enableWebSearch }
-      : {}),
     ...args.extra,
   };
 }
@@ -136,5 +96,3 @@ export function mapChatError(rawMessage: string | undefined | null): string {
 
   return 'Не вдалося отримати відповідь від AI. Спробуйте ще раз.';
 }
-
-export type { RagSource };

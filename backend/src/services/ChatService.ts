@@ -181,27 +181,6 @@ class ChatService {
     };
   }
 
-  static async streamAssistantResponse(
-    first: SendInput | { write: (chunk: string) => unknown },
-    second?: ((token: string) => void) | SendInput,
-    third?: ((conversationId: number, ragStatus?: string) => void) | ((token: string) => void),
-    fourth?: { write: (chunk: string) => unknown } | ((conversationId: number, ragStatus?: string) => void)
-  ) {
-    if (first && typeof (first as { write?: unknown }).write === 'function') {
-      const res = first as { write: (chunk: string) => unknown };
-      const input = second as SendInput;
-      const onToken = (third as (token: string) => void) || (() => {});
-      const onInit = fourth as ((conversationId: number, ragStatus?: string) => void) | undefined;
-      return this.streamMessage(input, onToken, onInit, res);
-    }
-    return this.streamMessage(
-      first as SendInput,
-      (second as (token: string) => void) || (() => {}),
-      third as ((conversationId: number, ragStatus?: string) => void) | undefined,
-      fourth as { write: (chunk: string) => unknown } | undefined
-    );
-  }
-
   static getHistory = getHistoryImpl;
 
   static searchMessages = searchMessagesImpl;

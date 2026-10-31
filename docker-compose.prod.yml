@@ -3,7 +3,7 @@
 # Usage (from repo root, with a real .env — never commit secrets):
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Requires: JWT_SECRET, DB_PASSWORD (non-placeholder). OPENAI_API_KEY if using OpenAI.
+# Requires: JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY (non-placeholder). Provider keys optional (or set in UI).
 # Postgres is not published to the host. Backend uses image dist/ only (no bind-mount).
 
 services:

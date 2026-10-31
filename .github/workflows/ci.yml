@@ -1,6 +1,6 @@
 # ============================================================
 # GitHub Actions CI
-# On push/PR: backend tests > frontend build > docker build
+# On push/PR: backend tests > frontend build > desktop smoke > docker build
 # ============================================================
 
 name: CI
@@ -43,10 +43,11 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: testpassword
       DATABASE_URL: postgresql://postgres:testpassword@localhost:5432/llm_assistant_test
-      JWT_SECRET: test_jwt_secret_for_ci
+      JWT_SECRET: test_jwt_secret_for_ci_at_least_32_chars
       JWT_ACCESS_EXPIRE: 15m
       JWT_REFRESH_EXPIRE: 30d
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      OPENAI_API_KEY: sk-test-ci-placeholder
 
     steps:
       - name: Checkout code
@@ -69,6 +70,10 @@ jobs:
 
       - name: Generate Prisma client
         run: npx prisma generate --config prisma/prisma.config.ts
+        working-directory: backend
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy --config prisma/prisma.config.ts
         working-directory: backend
 
       - name: Typecheck

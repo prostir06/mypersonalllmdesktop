@@ -9,12 +9,6 @@ export interface AuthRefreshResponse {
   token: string;
 }
 
-export interface ValidationErrorItem {
-  msg?: string;
-  path?: string;
-  [key: string]: unknown;
-}
-
 export interface UserProfile {
   id: number;
   name: string;
@@ -68,8 +62,6 @@ export interface TokenUsage {
   totalTokens: number;
   estimatedCostUsd?: number;
 }
-
-export type ChatMessage = Message;
 
 export interface Message {
   id?: string | number;

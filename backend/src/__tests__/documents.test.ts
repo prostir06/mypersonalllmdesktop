@@ -11,7 +11,6 @@ jest.mock('../services/DocumentService', () => ({
   __esModule: true,
   default: {
     acceptUpload: jest.fn(),
-    uploadAndProcess: jest.fn(),
     getByUser: jest.fn(),
     getById: jest.fn(),
     getChunks: jest.fn(),
@@ -28,6 +27,7 @@ jest.mock('../logger', () => ({
 }));
 
 import DocumentService from '../services/DocumentService';
+import { deleteTempUpload } from '../services/documents/tempUploads';
 import documentsRouter from '../routes/documents';
 
 const app = express();
@@ -36,7 +36,6 @@ app.use('/api/documents', documentsRouter);
 
 const mockedService = DocumentService as unknown as {
   acceptUpload: jest.Mock;
-  uploadAndProcess: jest.Mock;
   getByUser: jest.Mock;
   getById: jest.Mock;
   getChunks: jest.Mock;
@@ -48,6 +47,15 @@ const mockedService = DocumentService as unknown as {
 describe('Documents API (Prisma routes)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  afterEach(async () => {
+    for (const call of mockedService.acceptUpload.mock.calls) {
+      const uploadedPath = (call?.[0] as { path?: string } | undefined)?.path;
+      if (uploadedPath) {
+        await deleteTempUpload(uploadedPath);
+      }
+    }
   });
 
   it('GET / returns paginated documents from service', async () => {
@@ -127,7 +135,6 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.body.document.id).toBe(11);
     expect(res.body.document.status).toBe('pending');
     expect(mockedService.acceptUpload).toHaveBeenCalled();
-    expect(mockedService.uploadAndProcess).not.toHaveBeenCalled();
   });
 
   it('GET /:id returns document from service', async () => {

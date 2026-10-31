@@ -5,11 +5,6 @@ import { jsonError } from '../utils/httpJson';
 import type { AuthRequest } from '../types/express';
 import * as ConversationsService from '../services/conversationsService';
 
-export const parseConversationId = ConversationsService.parseConversationId;
-export const toListItem = ConversationsService.toListItem;
-export const toPublicConversation = ConversationsService.toPublicConversation;
-export const toPublicMessage = ConversationsService.toPublicMessage;
-
 export async function listConversations(
   req: AuthRequest,
   res: Response

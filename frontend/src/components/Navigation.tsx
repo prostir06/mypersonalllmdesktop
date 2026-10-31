@@ -1,5 +1,5 @@
 /**
- * @file components/Navigation.js
+ * @file components/Navigation.tsx
  * Навігаційна панель. Використовує useAuth() контекст для logout.
  */
 

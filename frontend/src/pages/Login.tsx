@@ -1,5 +1,5 @@
 /**
- * @file pages/Login.js
+ * @file pages/Login.tsx
  * Сторінка входу до системи. Використовує AuthContext для збереження токена.
  */
 

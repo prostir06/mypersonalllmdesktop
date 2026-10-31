@@ -149,30 +149,6 @@ class DocumentService {
     };
   }
 
-  /** Sync helper (tests / legacy): accept then await finalize. */
-  static async uploadAndProcess(fileInfo: FileInfo, userId: number) {
-    this.assertWithinSizeLimit(fileInfo);
-    const { originalname, mimetype, size } = fileInfo;
-
-    const doc = await prisma.document.create({
-      data: {
-        userId,
-        filename: originalname,
-        fileType: mimetype,
-        fileSize: size,
-        status: 'pending',
-      },
-    });
-
-    const source: UploadSource = fileInfo.path ?? fileInfo.buffer!;
-    return this.finalizeUpload(
-      doc.id,
-      userId,
-      { originalname, mimetype, size },
-      source
-    );
-  }
-
   static async getByUser(userId: number, limit = 50, offset = 0) {
     try {
       await failStalePendingDocuments();

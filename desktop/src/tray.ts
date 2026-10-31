@@ -14,16 +14,16 @@ import path from 'path';
 let tray: Tray | null = null;
 
 function trayIcon(): NativeImage {
-  const iconPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'assets', 'tray.png')
-    : path.join(__dirname, '..', 'assets', 'tray.png');
-  const fallbackPath = path.join(__dirname, '..', 'assets', 'tray.png');
+  const devPath = path.join(__dirname, '..', 'assets', 'tray.png');
+  if (app.isPackaged) {
+    const packagedImage = nativeImage.createFromPath(
+      path.join(process.resourcesPath, 'assets', 'tray.png')
+    );
+    if (!packagedImage.isEmpty()) return packagedImage;
+  }
 
-  const image = nativeImage.createFromPath(iconPath);
-  if (!image.isEmpty()) return image;
-
-  const fallbackImage = nativeImage.createFromPath(fallbackPath);
-  return fallbackImage.isEmpty() ? nativeImage.createEmpty() : fallbackImage;
+  const image = nativeImage.createFromPath(devPath);
+  return image.isEmpty() ? nativeImage.createEmpty() : image;
 }
 
 type TrayOptions = {

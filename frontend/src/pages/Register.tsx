@@ -1,5 +1,5 @@
 /**
- * @file pages/Register.js
+ * @file pages/Register.tsx
  * Сторінка реєстрації нового користувача. Використовує AuthContext.
  */
 

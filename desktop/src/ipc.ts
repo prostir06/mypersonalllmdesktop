@@ -4,10 +4,7 @@
 import { BrowserWindow, ipcMain, shell } from 'electron';
 import { resolveBackendOrigin } from './backendUrl';
 import type { ElectronNavigatePayload } from './electronBridge';
-import {
-  IPC_HANDLE_CHANNELS,
-  parseOpenExternalUrl,
-} from './ipcContract';
+import { parseOpenExternalUrl } from './ipcContract';
 import {
   checkForUpdates,
   getUpdateStatus,
@@ -20,10 +17,6 @@ let pendingDeepLink: DeepLinkPayload | null = null;
 
 export function setBackendOrigin(origin: string): void {
   backendOrigin = origin;
-}
-
-export function getBackendOrigin(): string {
-  return backendOrigin;
 }
 
 export function setPendingDeepLink(link: DeepLinkPayload | null): void {
@@ -73,10 +66,4 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('electron:quitAndInstall', () => {
     quitAndInstall();
   });
-}
-
-export function unregisterIpcHandlers(): void {
-  for (const channel of IPC_HANDLE_CHANNELS) {
-    ipcMain.removeHandler(channel);
-  }
 }

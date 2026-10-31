@@ -8,7 +8,7 @@ export const API_URL = import.meta.env.VITE_API_URL || '/api';
 let refreshPromise: Promise<string> | null = null;
 
 /** Clear token, toast, redirect to login (no-op on auth pages). */
-export function notifySessionExpired(): void {
+function notifySessionExpired(): void {
   setAccessToken(null);
   const onAuthPage = ['/login', '/register'].includes(window.location.pathname);
   if (!onAuthPage) {
@@ -41,9 +41,4 @@ export function refreshAccessToken(): Promise<string> {
     });
 
   return refreshPromise;
-}
-
-/** Test helper — reset in-flight state between cases. */
-export function resetAuthRefreshState(): void {
-  refreshPromise = null;
 }

@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import { conversationAPI } from '../services/api';
-import type { ConversationMemory, ConversationMemoryNote } from '../types/api';
+import type { ConversationMemory } from '../types/api';
 import { queryKeys } from './queryKeys';
 
 const EMPTY_MEMORY: ConversationMemory = {
@@ -54,11 +54,6 @@ export function useConversationMemory(
     },
     [conversationId, queryClient]
   );
-
-  const loadMemory = useCallback(async () => {
-    if (conversationId == null || !enabled) return;
-    await query.refetch();
-  }, [conversationId, enabled, query]);
 
   const createNote = useCallback(
     async (content: string) => {
@@ -155,18 +150,13 @@ export function useConversationMemory(
 
   return {
     summary: memory.summary,
-    summaryUpdatedAt: memory.summary_updated_at,
     notes: memory.notes,
     loading: query.isFetching,
     mutating,
     error: mutationError ?? queryError,
-    loadMemory,
     createNote,
     updateNote,
     deleteNote,
     refreshSummary,
   };
 }
-
-export type ConversationMemoryHook = ReturnType<typeof useConversationMemory>;
-export type ConversationMemoryNoteItem = ConversationMemoryNote;

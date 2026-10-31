@@ -4,6 +4,7 @@
 import { body, validationResult } from 'express-validator';
 import { Request, Response, NextFunction } from 'express';
 import { assertAllowedHttpUrl } from '../utils/urlAllowlist';
+import { jsonValidationErrors } from '../utils/httpJson';
 
 export const ALLOWED_PROVIDERS = [
   'openai',
@@ -78,7 +79,7 @@ export function handleValidationErrors(
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      res.status(400).json({ errors: errors.array() });
+      jsonValidationErrors(res, req, errors.array());
       return;
     }
     next();

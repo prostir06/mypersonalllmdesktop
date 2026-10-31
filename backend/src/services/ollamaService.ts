@@ -143,7 +143,11 @@ async function sendOllamaMessage(
   } catch (error: unknown) {
     if (isAllowlistError(error)) throw error;
     const err = error as { response?: { data?: unknown }; message?: string };
-    console.error('Ollama API error:', err.response?.data || err.message);
+    const detail =
+      err.response?.data !== undefined
+        ? JSON.stringify(err.response.data)
+        : err.message;
+    logger.error(`Ollama API error: ${detail}`);
     throw new Error('Failed to communicate with Ollama API');
   }
 }
@@ -291,7 +295,11 @@ async function streamOllamaMessage(
       throw error;
     }
     const err = error as { response?: { data?: unknown }; message?: string };
-    console.error('Ollama Stream API error:', err.response?.data || err.message);
+    const detail =
+      err.response?.data !== undefined
+        ? JSON.stringify(err.response.data)
+        : err.message;
+    logger.error(`Ollama Stream API error: ${detail}`);
     throw new Error('Failed to stream from Ollama API');
   }
 }
@@ -300,7 +308,4 @@ export default {
   sendOllamaMessage,
   streamOllamaMessage,
   formatOllamaTokenUsage,
-  // exported for unit tests / reuse
-  pickOllamaSamplingOptions,
-  buildOllamaPayload,
 };

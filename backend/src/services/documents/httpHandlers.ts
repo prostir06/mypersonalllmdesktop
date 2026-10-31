@@ -5,6 +5,7 @@ import { decodeMulterFilename } from '../../utils/multerFilename';
 import { parseListPagination } from '../../utils/listPagination';
 import { jsonError } from '../../utils/httpJson';
 import type { AuthRequest } from '../../types/express';
+import { deleteTempUpload } from './tempUploads';
 import {
   requireDocumentId,
   withDocErrors,
@@ -43,6 +44,7 @@ export async function uploadDocument(
       requestId: req.id,
     });
   } catch (error: unknown) {
+    await deleteTempUpload(req.file.path ?? null);
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/upload error: ${message}`);
     if (message.includes('ліміт розміру')) {

@@ -10,8 +10,6 @@ export const IPC_HANDLE_CHANNELS = [
   'electron:quitAndInstall',
 ] as const;
 
-export type IpcHandleChannel = (typeof IPC_HANDLE_CHANNELS)[number];
-
 export function parseOpenExternalUrl(url: unknown): string {
   if (typeof url !== 'string' || !isSafeExternalUrl(url)) {
     throw new Error('Invalid external URL');
