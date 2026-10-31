@@ -24,6 +24,10 @@ const PRICING_MAP: Record<string, ModelPricing> = {
   'claude-3.5-haiku': { promptPerMillion: 0.80, completionPerMillion: 4.00 },
 };
 
+export function getSupportedPricingModels(): string[] {
+  return Object.keys(PRICING_MAP);
+}
+
 export function calculateTokenCost(
   model: string,
   promptTokens: number,

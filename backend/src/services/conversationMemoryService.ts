@@ -8,8 +8,8 @@ export const MAX_NOTE_CHARS = 500;
 export const MAX_NOTES_PROMPT_CHARS = 2000;
 export const MAX_SUMMARY_CHARS = 4000;
 
-const DEFAULT_SUMMARY_THRESHOLD = 40;
-const DEFAULT_SUMMARY_EVERY_N = 20;
+export const DEFAULT_SUMMARY_THRESHOLD = 40;
+export const DEFAULT_SUMMARY_EVERY_N = 20;
 const SUMMARY_RECENT_MESSAGES_CAP = 80;
 
 export class MemoryError extends Error {
