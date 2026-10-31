@@ -123,7 +123,11 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     ),
     buildSystemContext(
       input.userId,
-      options,
+      {
+        ...options,
+        ...(input.provider ? { activeProvider: input.provider } : {}),
+        ...(input.model ? { activeModel: input.model } : {}),
+      },
       input.message,
       convId
     ),

@@ -4,6 +4,7 @@ import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { buildMemorySystemMessages } from '../conversationMemoryService';
 import { buildUserMemorySystemMessages } from '../userMemoryService';
+import { buildSystemKnowledgeMessages } from '../systemKnowledge';
 import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
@@ -21,6 +22,20 @@ export async function buildSystemContext(
   const systemMessages: ChatMessage[] = [];
   const sources: RagSource[] = [];
   let ragStatus: RagStatus = 'skipped';
+
+  try {
+    const knowledgeMessages = await buildSystemKnowledgeMessages(
+      userId,
+      userMessage,
+      options
+    );
+    if (knowledgeMessages.length > 0) {
+      systemMessages.push(...knowledgeMessages);
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`System knowledge preamble skipped: ${message}`);
+  }
 
   try {
     const [settingsResult, pinnedResult] = await Promise.all([

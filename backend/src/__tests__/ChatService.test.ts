@@ -53,6 +53,10 @@ jest.mock('../services/userMemoryService', () => ({
   buildUserMemorySystemMessages: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock('../services/systemKnowledge', () => ({
+  buildSystemKnowledgeMessages: jest.fn().mockResolvedValue([]),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -64,6 +68,7 @@ import EmbeddingService from '../services/EmbeddingService';
 import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
 import { buildSystemContext } from '../services/chat/systemContext';
+import { buildSystemKnowledgeMessages } from '../services/systemKnowledge';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 import {
   buildMemorySystemMessages,
@@ -76,11 +81,13 @@ const mockedProvider = ProviderFactory as any;
 const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
 const mockedBuildMemory = buildMemorySystemMessages as jest.Mock;
 const mockedMaybeRefreshSummary = maybeRefreshSummary as jest.Mock;
+const mockedBuildSystemKnowledge = buildSystemKnowledgeMessages as jest.Mock;
 
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedBuildMemory.mockResolvedValue([]);
+    mockedBuildSystemKnowledge.mockResolvedValue([]);
     mockedMaybeRefreshSummary.mockResolvedValue(undefined);
     mockedResolveCtx.mockResolvedValue({
       provider: 'openai',
@@ -353,6 +360,44 @@ describe('ChatService', () => {
         null,
         'q'
       );
+    });
+
+    it('prepends system knowledge messages to system prompt', async () => {
+      mockedBuildSystemKnowledge.mockResolvedValueOnce([
+        { role: 'system', content: 'SYSTEM KNOWLEDGE TIER 1' },
+      ]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'CUSTOM PROMPT',
+      });
+
+      const result = await buildSystemContext(1, {}, 'test message');
+
+      expect(result.messages.length).toBe(2);
+      expect(result.messages[0]).toEqual({
+        role: 'system',
+        content: 'SYSTEM KNOWLEDGE TIER 1',
+      });
+      expect(result.messages[1]).toEqual({
+        role: 'system',
+        content: 'CUSTOM PROMPT',
+      });
+    });
+
+    it('degrades gracefully when buildSystemKnowledgeMessages throws', async () => {
+      mockedBuildSystemKnowledge.mockRejectedValueOnce(
+        new Error('Knowledge failure')
+      );
+      mockedPrisma.userSettings.findUnique.mockResolvedValue({
+        systemPrompt: 'CUSTOM PROMPT',
+      });
+
+      const result = await buildSystemContext(1, {}, 'test message');
+
+      expect(result.messages.length).toBe(1);
+      expect(result.messages[0]).toEqual({
+        role: 'system',
+        content: 'CUSTOM PROMPT',
+      });
     });
   });
 

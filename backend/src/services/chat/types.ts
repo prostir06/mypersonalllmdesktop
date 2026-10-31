@@ -17,6 +17,8 @@ export type ChatOptions = {
   attachments?: Array<{ filename: string; content: string }>;
   apiKey?: string;
   enableWebSearch?: boolean;
+  activeProvider?: string;
+  activeModel?: string;
   [key: string]: unknown;
 };
 
