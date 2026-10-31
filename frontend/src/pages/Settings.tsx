@@ -3,6 +3,7 @@
  */
 import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Tabs, Tab, Alert, Spinner } from 'react-bootstrap';
+import { useInRouterContext, useSearchParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
@@ -17,13 +18,19 @@ import DesktopUpdatesCard from '../components/settings/DesktopUpdatesCard';
 import type { SettingsUpdatePayload } from '../types/api';
 
 const ALLOWED_PROVIDERS = new Set(['openai', 'ollama', 'gemini', 'anthropic']);
+const VALID_TABS = new Set(['general', 'api-keys', 'models', 'memory', 'updates']);
 
 function normalizeProvider(raw: string | undefined): string {
   const prov = raw || 'openai';
   return ALLOWED_PROVIDERS.has(prov) ? prov : 'openai';
 }
 
-const Settings: React.FC = () => {
+interface SettingsViewProps {
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+}
+
+const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) => {
   const { data: settingsData, isLoading: isLoadingSettings } = useSettings();
   const updateSettingsMutation = useUpdateSettings();
   const { data: catalogModels = [] } = useModels();
@@ -245,7 +252,8 @@ const Settings: React.FC = () => {
       )}
 
       <Tabs
-        defaultActiveKey="general"
+        activeKey={activeTab}
+        onSelect={(k) => k && onTabChange(k)}
         id="settings-tabs"
         className="mb-4"
         unmountOnExit={false}
@@ -318,6 +326,44 @@ const Settings: React.FC = () => {
       </Tabs>
     </Container>
   );
+};
+
+const SettingsWithRouter: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+
+  const tabParam = searchParams.get('tab');
+  const initialFromHash = location.hash === '#desktop-updates' ? 'updates' : undefined;
+  const activeTab = tabParam && VALID_TABS.has(tabParam)
+    ? tabParam
+    : (initialFromHash || 'general');
+
+  const handleTabChange = (nextTab: string) => {
+    if (!VALID_TABS.has(nextTab)) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', nextTab);
+        return next;
+      },
+      { replace: true }
+    );
+  };
+
+  return <SettingsView activeTab={activeTab} onTabChange={handleTabChange} />;
+};
+
+const SettingsWithoutRouter: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('general');
+  return <SettingsView activeTab={activeTab} onTabChange={setActiveTab} />;
+};
+
+const Settings: React.FC = () => {
+  const inRouter = useInRouterContext();
+  if (inRouter) {
+    return <SettingsWithRouter />;
+  }
+  return <SettingsWithoutRouter />;
 };
 
 export default Settings;

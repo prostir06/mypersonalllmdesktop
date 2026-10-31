@@ -100,6 +100,13 @@ export function useChatDocuments() {
     }
   }, [userDocuments]);
 
+  const invalidateDocs = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.systemKnowledgeAll,
+    });
+  }, [queryClient]);
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -111,7 +118,7 @@ export function useChatDocuments() {
       toast.info(
         `📄 Файл "${data.fileName}" прийнято. Індексація виконується у фоні…`
       );
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      invalidateDocs();
       // Select only when already ready; pending waits for poll toast above.
       if (
         data.document?.id &&
@@ -143,7 +150,7 @@ export function useChatDocuments() {
     onSuccess: (docId) => {
       setSelectedDocIds((prev) => prev.filter((id) => id !== docId));
       statusByIdRef.current.delete(docId);
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      invalidateDocs();
       toast.info('Файл видалено.');
     },
   });
@@ -162,7 +169,7 @@ export function useChatDocuments() {
           String(data.document.status || 'pending')
         );
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      invalidateDocs();
     },
     onError: (err: unknown) => {
       const ax = err as AxiosError<{ error?: string }>;
@@ -181,7 +188,7 @@ export function useChatDocuments() {
     },
     onSuccess: (data) => {
       toast.success('Embeddings оновлено');
-      queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+      invalidateDocs();
       if (data.document?.id) {
         statusByIdRef.current.set(
           data.document.id,

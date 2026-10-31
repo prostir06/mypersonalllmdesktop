@@ -8,4 +8,11 @@ export const queryKeys = {
   userMemoryNotes: ['user-memory-notes'] as const,
   documents: ['documents'] as const,
   models: ['models'] as const,
+  systemKnowledgeAll: ['system-knowledge'] as const,
+  systemKnowledge: (params?: {
+    provider?: string;
+    model?: string;
+    selectedDocCount?: number;
+    webSearchEnabled?: boolean;
+  }) => ['system-knowledge', params ?? {}] as const,
 };

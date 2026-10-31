@@ -32,6 +32,9 @@ export function useUserMemory() {
         queryKeys.userMemoryNotes,
         (prev) => updater(prev ?? [])
       );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.systemKnowledgeAll,
+      });
     },
     [queryClient]
   );

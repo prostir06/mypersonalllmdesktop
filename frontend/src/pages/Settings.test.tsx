@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import Settings from './Settings';
 
 const mutateAsync = vi.fn().mockResolvedValue({});
@@ -278,5 +279,26 @@ describe('Settings', () => {
         })
       );
     });
+  });
+
+  it('supports deep linking to tabs via ?tab= query parameter', () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/settings?tab=api-keys']}>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const apiKeysTab = screen.getByRole('tab', { name: /API Ключі/i });
+    expect(apiKeysTab).toHaveAttribute('aria-selected', 'true');
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={['/settings?tab=memory']}>
+        <Settings />
+      </MemoryRouter>
+    );
+
+    const memoryTab = screen.getByRole('tab', { name: /Пам'ять/i });
+    expect(memoryTab).toHaveAttribute('aria-selected', 'true');
   });
 });

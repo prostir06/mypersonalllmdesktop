@@ -27,6 +27,9 @@ export function useUpdateSettings() {
     },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.settings, data);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.systemKnowledgeAll,
+      });
     },
   });
 }
