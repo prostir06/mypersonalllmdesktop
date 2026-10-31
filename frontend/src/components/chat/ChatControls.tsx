@@ -23,6 +23,8 @@ export type ChatControlsProps = {
   onExportPdf: () => void;
   messagesCount: number;
   conversationId?: string | number | null;
+  onShowGuideModal?: () => void;
+  advisoryWarningCount?: number;
 };
 
 const ChatControls = React.memo(function ChatControls({
@@ -41,6 +43,8 @@ const ChatControls = React.memo(function ChatControls({
   onExportPdf,
   messagesCount,
   conversationId,
+  onShowGuideModal,
+  advisoryWarningCount,
 }: ChatControlsProps) {
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
 
@@ -110,6 +114,27 @@ const ChatControls = React.memo(function ChatControls({
               className="d-flex align-items-center gap-1"
             >
               🧠 Memory
+            </Button>
+          )}
+
+          {onShowGuideModal && (
+            <Button
+              variant={
+                advisoryWarningCount && advisoryWarningCount > 0
+                  ? 'warning'
+                  : 'outline-light'
+              }
+              size="sm"
+              onClick={onShowGuideModal}
+              title="Гід по системі та поради"
+              className="d-flex align-items-center gap-1"
+            >
+              🧭 Гід
+              {advisoryWarningCount && advisoryWarningCount > 0 ? (
+                <span className="badge bg-danger ms-1">
+                  {advisoryWarningCount}
+                </span>
+              ) : null}
             </Button>
           )}
 

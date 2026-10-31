@@ -9,9 +9,15 @@ type Props = {
   show: boolean;
   onSelectPrompt: (promptText: string) => Promise<void>;
   onHide: () => void;
+  onPromptsChanged?: () => void;
 };
 
-export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
+export default function PromptMineTab({
+  show,
+  onSelectPrompt,
+  onHide,
+  onPromptsChanged,
+}: Props) {
   const [userPrompts, setUserPrompts] = useState<UserPrompt[]>([]);
   const [loading, setLoading] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -71,6 +77,7 @@ export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
       setPinNew(false);
       toast.success('Промпт збережено');
       await loadUserPrompts();
+      onPromptsChanged?.();
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;
       toast.error(ax.response?.data?.error || 'Помилка збереження');
@@ -83,6 +90,7 @@ export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
     try {
       await promptsAPI.update(p.id, { is_pinned: !p.is_pinned });
       await loadUserPrompts();
+      onPromptsChanged?.();
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;
       toast.error(ax.response?.data?.error || 'Помилка оновлення');
@@ -93,6 +101,7 @@ export default function PromptMineTab({ show, onSelectPrompt, onHide }: Props) {
     try {
       await promptsAPI.delete(id);
       await loadUserPrompts();
+      onPromptsChanged?.();
       toast.info('Промпт видалено');
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;

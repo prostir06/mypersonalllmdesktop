@@ -10,15 +10,18 @@ import { useConversationHistory } from '../hooks/useConversationHistory';
 import { useChatExport } from '../hooks/useChatExport';
 import { useChatAttachments } from '../hooks/useChatAttachments';
 import { useChatModelSelection } from '../hooks/useChatModelSelection';
+import { useSystemKnowledge } from '../hooks/useSystemKnowledge';
 import { modelSupportsVision } from '../utils/modelSupportsVision';
 import { copyTextWithToast } from '../utils/clipboard';
-import type { Artifact, Message } from '../types/api';
+import type { Artifact, Message, AdvisoryTip } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
 import ChatHiddenFileInputs from './chat/ChatHiddenFileInputs';
 import ChatBoxModals from './chat/ChatBoxModals';
 import ArtifactPanel from './chat/ArtifactPanel';
+import SmartAdvisoryBar from './chat/SmartAdvisoryBar';
+import SystemGuideModal from './system/SystemGuideModal';
 
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
@@ -39,6 +42,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   }
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastUserContentRef = useRef('');
   const { data: settings } = useSettings();
@@ -110,6 +114,42 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   });
   const { messages, setMessages, loading } = useConversationHistory(conversationId, setError);
   const { exportMarkdown, exportPdf } = useChatExport({ conversationId, messages });
+
+  const {
+    data: systemKnowledge,
+    isLoading: isLoadingKnowledge,
+    refetch: refetchSystemKnowledge,
+  } = useSystemKnowledge({
+    provider: selectedProvider,
+    model: activeModel,
+    selectedDocCount: selectedDocIds.length,
+    webSearchEnabled,
+  });
+
+  const advisoryWarningCount =
+    systemKnowledge?.advisories.filter((a) => a.severity === 'warning').length ?? 0;
+
+  const handleAdvisoryAction = useCallback(
+    (tip: AdvisoryTip) => {
+      switch (tip.actionType) {
+        case 'navigate_settings':
+          navigate(tip.actionTarget || '/settings');
+          break;
+        case 'open_documents':
+          setShowDocModal(true);
+          break;
+        case 'open_prompts':
+          setShowPromptModal(true);
+          break;
+        case 'ask_ai':
+          if (tip.suggestedPrompt) {
+            setInputMessage(tip.suggestedPrompt);
+          }
+          break;
+      }
+    },
+    [navigate, setShowDocModal, setShowPromptModal, setInputMessage]
+  );
 
   const scrollToBottom = useCallback(() => {
     if (
@@ -222,6 +262,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onExportPdf={exportPdf}
         messagesCount={messages.length}
         conversationId={conversationId}
+        onShowGuideModal={() => setShowGuideModal(true)}
+        advisoryWarningCount={advisoryWarningCount}
       />
 
       {error && (
@@ -278,6 +320,12 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
             onSwitchBranch={handleSwitchBranch}
             onOpenArtifact={setActiveArtifact}
             messagesEndRef={messagesEndRef}
+          />
+
+          <SmartAdvisoryBar
+            advisories={systemKnowledge?.advisories ?? []}
+            versionHash={systemKnowledge?.versionHash}
+            onAction={handleAdvisoryAction}
           />
 
           <MessageInput
@@ -347,6 +395,18 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onApplySystemPrompt={async (promptText) => {
           await updateSettings.mutateAsync({ system_prompt: promptText });
         }}
+        onPromptsChanged={() => {
+          void refetchSystemKnowledge();
+        }}
+      />
+
+      <SystemGuideModal
+        show={showGuideModal}
+        onHide={() => setShowGuideModal(false)}
+        knowledge={systemKnowledge}
+        isLoading={isLoadingKnowledge}
+        onAction={handleAdvisoryAction}
+        onAskPrompt={(prompt) => setInputMessage(prompt)}
       />
     </div>
   );

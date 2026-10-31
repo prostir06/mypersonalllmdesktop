@@ -26,6 +26,7 @@ type Props = {
   loadingMoreDocuments: boolean;
   ragEmbeddingMode: 'openai' | 'ollama' | 'fallback';
   onApplySystemPrompt: (promptText: string) => Promise<void>;
+  onPromptsChanged?: () => void;
 };
 
 export default function ChatBoxModals({
@@ -49,6 +50,7 @@ export default function ChatBoxModals({
   loadingMoreDocuments,
   ragEmbeddingMode,
   onApplySystemPrompt,
+  onPromptsChanged,
 }: Props) {
   return (
     <>
@@ -78,6 +80,7 @@ export default function ChatBoxModals({
       <PromptLibraryModal
         show={showPromptModal}
         onHide={() => setShowPromptModal(false)}
+        onPromptsChanged={onPromptsChanged}
         onSelectPrompt={async (promptText: string) => {
           try {
             await onApplySystemPrompt(promptText);

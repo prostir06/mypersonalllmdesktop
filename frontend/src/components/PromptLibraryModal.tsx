@@ -10,10 +10,12 @@ const PromptLibraryModal = ({
   show,
   onHide,
   onSelectPrompt,
+  onPromptsChanged,
 }: {
   show: boolean;
   onHide: () => void;
   onSelectPrompt: (promptText: string) => Promise<void>;
+  onPromptsChanged?: () => void;
 }) => {
   const [tab, setTab] = useState<'presets' | 'mine'>('presets');
 
@@ -54,6 +56,7 @@ const PromptLibraryModal = ({
             show={show}
             onSelectPrompt={onSelectPrompt}
             onHide={onHide}
+            onPromptsChanged={onPromptsChanged}
           />
         )}
       </Modal.Body>

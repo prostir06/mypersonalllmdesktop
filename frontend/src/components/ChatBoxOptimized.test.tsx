@@ -131,6 +131,61 @@ vi.mock('../hooks/useConversationHistory', () => ({
   }),
 }));
 
+const mockKnowledgeData = {
+  versionHash: 'hash-abc',
+  generatedAt: '2026-10-31T12:00:00Z',
+  snapshot: {
+    activeProvider: 'openai',
+    activeModel: 'gpt-4o-mini',
+    modelSupportsVision: true,
+    modelSupportsWebSearch: false,
+    webSearchEnabled: false,
+    configuredProviders: {
+      openai: true,
+      gemini: false,
+      anthropic: false,
+      ollamaHost: 'http://localhost:11434',
+    },
+    ragEmbeddingMode: 'openai' as const,
+    documents: {
+      total: 3,
+      ready: 3,
+      pending: 0,
+      failed: 0,
+      needsReindex: 0,
+      selectedInChat: 0,
+    },
+    hasCustomSystemPrompt: false,
+    pinnedPromptsCount: 1,
+    userMemoryNotesCount: 2,
+    temperature: 0.5,
+    maxTokens: 2048,
+  },
+  advisories: [
+    {
+      id: 'rag_docs_ready_none_selected',
+      severity: 'warning' as const,
+      category: 'rag' as const,
+      title: 'RAG документи доступні',
+      message: 'Виберіть документи для використання.',
+      actionLabel: 'Вибрати RAG',
+      actionType: 'open_documents' as const,
+      suggestedPrompt: 'Які документи доступні?',
+    },
+  ],
+  cards: [],
+};
+
+const mockRefetchKnowledge = vi.fn();
+
+vi.mock('../hooks/useSystemKnowledge', () => ({
+  useSystemKnowledge: () => ({
+    data: mockKnowledgeData,
+    isLoading: false,
+    refetch: mockRefetchKnowledge,
+  }),
+}));
+
 vi.mock('./chat/DocumentModal', () => ({
   default: () => null,
 }));
@@ -155,6 +210,7 @@ vi.mock('react-router-dom', async () => {
 
 describe('ChatBoxOptimized', () => {
   afterEach(() => {
+    sessionStorage.clear();
     chatStreamState.error = null;
     chatAttachmentsState.attachedImage = null;
     chatAttachmentsState.chatAttachments = [];
@@ -331,5 +387,27 @@ describe('ChatBoxOptimized', () => {
     expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('claude-3-5-sonnet-20241022');
     expect(screen.getByRole('option', { name: 'Claude 3.5 Sonnet' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Додати зображення/i })).toBeInTheDocument();
+  });
+
+  it('renders SmartAdvisoryBar with active advisory chip and triggers action', async () => {
+    const user = userEvent.setup();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    expect(screen.getByText('RAG документи доступні')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Вибрати RAG' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Вибрати RAG' }));
+  });
+
+  it('renders guide button in controls with warning badge and opens SystemGuideModal', async () => {
+    const user = userEvent.setup();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    const guideBtn = screen.getByRole('button', { name: /🧭 Гід/i });
+    expect(guideBtn).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+
+    await user.click(guideBtn);
+    expect(screen.getByText(/Гід по системі та AI-асистент/i)).toBeInTheDocument();
   });
 });
