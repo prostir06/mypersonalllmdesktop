@@ -4,6 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
+| [2026-10-31-system-self-knowledge-advisor-design.md](./2026-10-31-system-self-knowledge-advisor-design.md) | Approved — System Self-Knowledge Registry, Live Advisor, Auto-Sync & UI Guide |
 | [2026-10-30-project-evolution-roadmap-v16-design.md](./2026-10-30-project-evolution-roadmap-v16-design.md) | Implemented (W1–W4) — Debt & Modularity, Hybrid RAG & Token Telemetry, Interactive Artifacts, Anthropic Claude |
 | [2026-10-28-google-gemini-integration-design.md](./2026-10-28-google-gemini-integration-design.md) | Implemented — Gemini 2.0/1.5, Grounding, Multimodal |
 | [2026-10-27-project-evolution-roadmap-v15-design.md](./2026-10-27-project-evolution-roadmap-v15-design.md) | Implemented (W1–W4) — E2E Runtime, Debt & Optimization, UX Polish, Memory 2.0 |
