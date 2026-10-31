@@ -16,6 +16,7 @@ import conversationsRoutes from './routes/conversations';
 import usersRoutes from './routes/users';
 import documentsRoutes from './routes/documents';
 import promptsRoutes from './routes/prompts';
+import systemRoutes from './routes/system';
 import prisma from './config/prisma';
 import type { RequestWithId } from './types/express';
 
@@ -99,6 +100,7 @@ app.use('/api/conversations', conversationsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/prompts', promptsRoutes);
+app.use('/api/system', systemRoutes);
 
 // Health check endpoint - DB ping via Prisma (same DATABASE_URL as app)
 app.get('/api/health', async (_req: Request, res: Response) => {
