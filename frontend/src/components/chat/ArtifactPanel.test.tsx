@@ -55,13 +55,30 @@ describe('ArtifactPanel', () => {
     expect(sandbox).not.toContain('allow-same-origin');
   });
 
-  it('injects artifact content into iframe srcDoc', () => {
+  it('injects artifact content into isolated /artifact-sandbox.html iframe via postMessage', () => {
     render(<ArtifactPanel artifact={htmlArtifact} onClose={vi.fn()} />);
 
-    const iframe = screen.getByTitle('Калькулятор розрахунку ROI');
-    const srcDoc = iframe.getAttribute('srcdoc') || '';
-    expect(srcDoc).toContain('<div class="calculator"><h3>Розрахунок</h3><button>Обчислити</button></div>');
-    expect(srcDoc).toContain('<!DOCTYPE html>');
+    const iframe = screen.getByTitle('Калькулятор розрахунку ROI') as HTMLIFrameElement;
+    expect(iframe.getAttribute('src')).toBe('/artifact-sandbox.html');
+    expect(iframe.getAttribute('srcdoc')).toBeNull();
+
+    const postMessageSpy = vi.fn();
+    Object.defineProperty(iframe, 'contentWindow', {
+      value: { postMessage: postMessageSpy },
+      configurable: true,
+    });
+
+    iframe.dispatchEvent(new Event('load'));
+
+    expect(postMessageSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ARTIFACT_RENDER',
+        html: expect.stringContaining(
+          '<div class="calculator"><h3>Розрахунок</h3><button>Обчислити</button></div>'
+        ),
+      }),
+      '*'
+    );
   });
 
   it('switches between "Попередній перегляд" and "Код" tabs', async () => {

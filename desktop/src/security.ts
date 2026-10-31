@@ -32,4 +32,8 @@ export function isSafeExternalUrl(url: string): boolean {
 
 /** Baseline CSP for packaged static UI (API is same-origin via /api proxy). */
 export const UI_CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://www.gravatar.com; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://www.gravatar.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
+/** Isolated CSP for opaque-origin /artifact-sandbox.html iframe (sandbox="allow-scripts"). */
+export const ARTIFACT_SANDBOX_CSP =
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; img-src data: blob:; font-src data: https://fonts.gstatic.com; connect-src 'none'; form-action 'none'; frame-ancestors 'self'";

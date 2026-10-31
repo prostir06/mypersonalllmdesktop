@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+</head>
+<body>
+<script>
+  window.addEventListener(
+    'message',
+    function (event) {
+      if (
+        !event.data ||
+        event.data.type !== 'ARTIFACT_RENDER' ||
+        typeof event.data.html !== 'string'
+      ) {
+        return;
+      }
+      document.open();
+      document.write(event.data.html);
+      document.close();
+    },
+    { once: true }
+  );
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: 'ARTIFACT_SANDBOX_READY' }, '*');
+  }
+</script>
+</body>
+</html>

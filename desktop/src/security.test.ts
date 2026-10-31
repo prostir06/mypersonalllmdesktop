@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isAllowedAppOrigin, isSafeExternalUrl, UI_CSP } from './security';
+import {
+  ARTIFACT_SANDBOX_CSP,
+  isAllowedAppOrigin,
+  isSafeExternalUrl,
+  UI_CSP,
+} from './security';
 
 describe('isAllowedAppOrigin', () => {
   const allowed = ['http://127.0.0.1:4173', 'http://localhost:3000'];
@@ -16,11 +21,18 @@ describe('isAllowedAppOrigin', () => {
   });
 });
 
-describe('UI_CSP', () => {
+describe('UI_CSP and ARTIFACT_SANDBOX_CSP', () => {
   it('restricts default-src to self and allows gravatar images', () => {
     assert.match(UI_CSP, /default-src 'self'/);
+    assert.match(UI_CSP, /script-src 'self'/);
     assert.match(UI_CSP, /https:\/\/www\.gravatar\.com/);
     assert.match(UI_CSP, /frame-ancestors 'none'/);
+  });
+
+  it('isolates artifact sandbox with connect-src none and frame-ancestors self', () => {
+    assert.match(ARTIFACT_SANDBOX_CSP, /default-src 'none'/);
+    assert.match(ARTIFACT_SANDBOX_CSP, /connect-src 'none'/);
+    assert.match(ARTIFACT_SANDBOX_CSP, /frame-ancestors 'self'/);
   });
 });
 

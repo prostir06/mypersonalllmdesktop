@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button } from 'react-bootstrap';
 import type { Artifact } from '../../types/api';
 import { copyTextWithToast } from '../../utils/clipboard';
@@ -75,6 +75,30 @@ export function buildSafeSrcDoc(artifact: Artifact): string {
 export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const safeDoc = useMemo(() => buildSafeSrcDoc(artifact), [artifact]);
+
+  // Isolated /artifact-sandbox.html avoids inheriting parent's strict script-src 'self' CSP.
+  const sendArtifactToSandbox = useCallback(() => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ type: 'ARTIFACT_RENDER', html: safeDoc }, '*');
+  }, [safeDoc]);
+
+  useEffect(() => {
+    if (activeTab !== 'preview') return;
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.source === iframeRef.current?.contentWindow &&
+        event.data?.type === 'ARTIFACT_SANDBOX_READY'
+      ) {
+        sendArtifactToSandbox();
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [activeTab, sendArtifactToSandbox]);
 
   const lineCount = useMemo(
     () => artifact.content.split('\n').length,
@@ -215,10 +239,13 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             style={{ minHeight: contentMinHeight }}
           >
             <iframe
+              key={`${artifact.id}-${artifact.type}-${artifact.content.length}`}
+              ref={iframeRef}
               data-testid="artifact-iframe"
               title={artifact.title}
               sandbox="allow-scripts"
-              srcDoc={buildSafeSrcDoc(artifact)}
+              src="/artifact-sandbox.html"
+              onLoad={sendArtifactToSandbox}
               className="w-100 h-100 border-0 bg-white rounded flex-grow-1"
               style={{ minHeight: contentMinHeight }}
             />
