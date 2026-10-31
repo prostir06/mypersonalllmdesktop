@@ -118,6 +118,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   const {
     data: systemKnowledge,
     isLoading: isLoadingKnowledge,
+    isError: isKnowledgeError,
     refetch: refetchSystemKnowledge,
   } = useSystemKnowledge({
     provider: selectedProvider,
@@ -405,6 +406,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onHide={() => setShowGuideModal(false)}
         knowledge={systemKnowledge}
         isLoading={isLoadingKnowledge}
+        isError={isKnowledgeError}
+        onRetry={() => void refetchSystemKnowledge()}
         onAction={handleAdvisoryAction}
         onAskPrompt={(prompt) => setInputMessage(prompt)}
       />

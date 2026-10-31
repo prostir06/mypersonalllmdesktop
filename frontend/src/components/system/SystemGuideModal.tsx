@@ -16,12 +16,15 @@ import type {
   AdvisoryTip,
   KnowledgeCategory,
 } from '../../types/api';
+import SystemGuideErrorState from './SystemGuideErrorState';
 
 export interface SystemGuideModalProps {
   show: boolean;
   onHide: () => void;
   knowledge?: SystemKnowledgeResponse;
   isLoading?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
   onAction?: (tip: AdvisoryTip) => void;
   onAskPrompt?: (prompt: string) => void;
 }
@@ -52,6 +55,8 @@ const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
   onHide,
   knowledge,
   isLoading = false,
+  isError = false,
+  onRetry,
   onAction,
   onAskPrompt,
 }) => {
@@ -116,6 +121,8 @@ const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
             <Spinner animation="border" variant="primary" className="mb-3" />
             <span>Завантаження знань про систему...</span>
           </div>
+        ) : isError && !knowledge ? (
+          <SystemGuideErrorState onRetry={onRetry} />
         ) : (
           <Tabs
             defaultActiveKey="advisories"

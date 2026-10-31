@@ -210,4 +210,37 @@ describe('SystemGuideModal', () => {
     );
     expect(onHide).toHaveBeenCalled();
   });
+
+  it('shows an error state with retry instead of the "all good" card when loading failed', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+
+    render(
+      <SystemGuideModal show onHide={vi.fn()} isError onRetry={onRetry} />
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /Не вдалося завантажити дані про систему/i
+    );
+    expect(screen.queryByText(/Усе оптимально налаштовано/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Повторити' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps showing stale knowledge when a background refetch fails', () => {
+    render(
+      <SystemGuideModal
+        show
+        onHide={vi.fn()}
+        knowledge={mockKnowledge}
+        isError
+        onRetry={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/openai \(gpt-4o\)/i)).toBeInTheDocument();
+  });
+
 });

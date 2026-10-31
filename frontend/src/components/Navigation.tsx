@@ -19,7 +19,12 @@ const Navigation: React.FC = () => {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
   const [showGuideModal, setShowGuideModal] = useState(false);
 
-  const { data: knowledge, isLoading } = useSystemKnowledge();
+  const {
+    data: knowledge,
+    isLoading,
+    isError,
+    refetch,
+  } = useSystemKnowledge();
   const warningCount =
     knowledge?.advisories.filter((a) => a.severity === 'warning').length ?? 0;
 
@@ -133,6 +138,8 @@ const Navigation: React.FC = () => {
         onHide={() => setShowGuideModal(false)}
         knowledge={knowledge}
         isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
         onAction={handleAdvisoryAction}
         onAskPrompt={handleAskPrompt}
       />

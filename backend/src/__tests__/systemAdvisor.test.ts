@@ -206,4 +206,38 @@ describe('systemKnowledge advisor', () => {
     const advisories = evaluateSystemAdvisories(snapshot);
     expect(advisories.map((a) => a.id)).not.toContain('missing-provider-key');
   });
+
+  it('rejects instead of returning misleading defaults when a data source fails', async () => {
+    mockedPrisma.userSettings.findUnique.mockRejectedValue(new Error('db down'));
+    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.userPrompt.count.mockResolvedValue(0);
+    mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
+    mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
+
+    await expect(buildUserSystemSnapshot(7)).rejects.toThrow('db down');
+  });
+
+  it('does not require an API key for the ollama provider', async () => {
+    mockedPrisma.userSettings.findUnique.mockResolvedValue({
+      defaultProvider: 'ollama',
+      defaultModel: 'llama3',
+      defaultOllamaHost: null,
+      temperature: 0.7,
+      maxTokens: 2000,
+      systemPrompt: 'Role',
+      openaiApiKeyEnc: null,
+      geminiApiKeyEnc: null,
+      anthropicApiKeyEnc: null,
+    });
+    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.userPrompt.count.mockResolvedValue(0);
+    mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
+    mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
+
+    const snapshot = await buildUserSystemSnapshot(7);
+    const ids = evaluateSystemAdvisories(snapshot).map((a) => a.id);
+
+    expect(ids).not.toContain('missing-provider-key');
+  });
+
 });
