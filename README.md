@@ -16,6 +16,7 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 - **Dual-Layer AI Memory:**
   - *Conversation Memory:* rolling auto-summary + pinned per-conversation notes.
   - *Global User Memory:* cross-conversation facts and preferences managed in Settings and injected into prompts.
+- **System Self-Knowledge & Live Advisor (`🧭 Гід`):** Built-in drift-proof knowledge registry (`GET /api/system/knowledge`) and two-tier contextual prompt injection. The assistant introspects its features, limits, and user readiness without leaking secrets, offering proactive Ukrainian advisory chips, searchable settings/feature documentation, and deep-linkable quick actions.
 - **Workspace Productivity:** Pinned conversations, reusable **Prompt Library**, message branching / regeneration, full-text message search, and Markdown / JSON / PDF export.
 - **Token & Cost Telemetry:** Optional per-message token usage (`prompt` / `completion` / `total`) and estimated USD cost badge.
 - **Security & Auth:** Short-lived JWT access tokens + `httpOnly` rotating refresh cookies, AES-256-GCM encrypted per-user API keys (`ENCRYPTION_KEY`), SSRF-guarded Ollama URL allowlist, magic-byte upload verification, and strict Nginx Content-Security-Policy.

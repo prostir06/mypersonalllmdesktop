@@ -14,7 +14,6 @@ import {
 import type {
   SystemKnowledgeResponse,
   AdvisoryTip,
-  KnowledgeCard,
   KnowledgeCategory,
 } from '../../types/api';
 
@@ -63,9 +62,9 @@ const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
 
   const snapshot = knowledge?.snapshot;
   const advisories = knowledge?.advisories ?? [];
-  const cards = knowledge?.cards ?? [];
 
   const filteredCards = useMemo(() => {
+    const cards = knowledge?.cards ?? [];
     const q = searchQuery.trim().toLowerCase();
     return cards.filter((card) => {
       if (selectedCategory !== 'all' && card.category !== selectedCategory) {
@@ -89,7 +88,7 @@ const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
         Boolean(keywordsMatch)
       );
     });
-  }, [cards, selectedCategory, searchQuery]);
+  }, [knowledge?.cards, selectedCategory, searchQuery]);
 
   return (
     <Modal

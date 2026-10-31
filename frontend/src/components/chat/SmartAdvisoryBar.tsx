@@ -25,7 +25,7 @@ const SmartAdvisoryBar: React.FC<SmartAdvisoryBarProps> = ({
   versionHash,
   onAction,
 }) => {
-  const [dismissTrigger, setDismissTrigger] = useState(0);
+  const [dismissedId, setDismissedId] = useState<string | null>(null);
 
   const activeTip = useMemo(() => {
     if (!advisories || advisories.length === 0) return null;
@@ -36,8 +36,12 @@ const SmartAdvisoryBar: React.FC<SmartAdvisoryBarProps> = ({
       return 0;
     });
 
-    return sorted.find((tip) => !isTipDismissed(tip.id, versionHash)) || null;
-  }, [advisories, versionHash, dismissTrigger]);
+    return (
+      sorted.find(
+        (tip) => tip.id !== dismissedId && !isTipDismissed(tip.id, versionHash)
+      ) || null
+    );
+  }, [advisories, versionHash, dismissedId]);
 
   if (!activeTip) return null;
 
@@ -50,7 +54,7 @@ const SmartAdvisoryBar: React.FC<SmartAdvisoryBarProps> = ({
     } catch {
       // sessionStorage might be restricted in some environments
     }
-    setDismissTrigger((prev) => prev + 1);
+    setDismissedId(activeTip.id);
   };
 
   const isWarning = activeTip.severity === 'warning';

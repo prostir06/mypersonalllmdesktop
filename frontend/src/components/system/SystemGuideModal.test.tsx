@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SystemGuideModal from './SystemGuideModal';
-import type { SystemKnowledgeResponse, AdvisoryTip, KnowledgeCard } from '../../types/api';
+import type { SystemKnowledgeResponse } from '../../types/api';
 
 const mockKnowledge: SystemKnowledgeResponse = {
   versionHash: 'test-hash-1234',
