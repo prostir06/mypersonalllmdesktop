@@ -2,12 +2,28 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import { decryptSecret, EncryptionConfigError } from './secretCrypto';
 
-const PLACEHOLDER = 'your_openai_api_key_here';
+const PLACEHOLDERS = new Set([
+  'your_openai_api_key_here',
+  'sk-your-key',
+  'sk-your-api-key',
+  'your-key',
+  'placeholder',
+  'change_me',
+]);
+
+export function isPlaceholderOpenAiKey(key: string): boolean {
+  const trimmed = key.trim();
+  if (trimmed.length === 0) return true;
+  if (PLACEHOLDERS.has(trimmed.toLowerCase())) return true;
+  if (/^sk-(your[_-]?key|dummy|placeholder|xxx)/i.test(trimmed)) return true;
+  return false;
+}
 
 export function envOpenAiKey(): string | null {
   const key = process.env.OPENAI_API_KEY;
-  if (!key || key === PLACEHOLDER) return null;
-  return key;
+  if (!key || isPlaceholderOpenAiKey(key)) return null;
+  const trimmed = key.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /**
@@ -24,7 +40,7 @@ export async function resolveOpenAiApiKey(
     if (row?.openaiApiKeyEnc) {
       try {
         const plain = decryptSecret(row.openaiApiKeyEnc, userId);
-        if (plain && plain !== PLACEHOLDER) return plain;
+        if (plain && !isPlaceholderOpenAiKey(plain)) return plain.trim();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         if (err instanceof EncryptionConfigError) {

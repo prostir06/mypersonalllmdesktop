@@ -57,4 +57,21 @@ describe('resolveOpenAiApiKey', () => {
       expect.stringContaining('Invalid ciphertext')
     );
   });
+
+  it('ignores placeholder keys in env and returns null if no valid key is set', async () => {
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+    process.env.OPENAI_API_KEY = 'sk-your-key';
+
+    await expect(resolveOpenAiApiKey(7)).resolves.toBeNull();
+  });
+
+  it('ignores placeholder keys in decrypted user settings and falls back to valid env key', async () => {
+    mockedPrisma.userSettings.findUnique.mockResolvedValue({
+      openaiApiKeyEnc: 'blob',
+    });
+    mockedDecrypt.mockReturnValue('your_openai_api_key_here');
+    process.env.OPENAI_API_KEY = 'sk-valid-from-env';
+
+    await expect(resolveOpenAiApiKey(7)).resolves.toBe('sk-valid-from-env');
+  });
 });

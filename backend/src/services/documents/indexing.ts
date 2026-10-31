@@ -224,6 +224,11 @@ export async function reindexEmbeddings(docId: number, userId: number) {
   const embeddingCount = embeddings.filter(Boolean).length;
 
   if (embeddingCount === 0) {
+    if (embedCtx.provider === 'openai') {
+      throw new Error(
+        'Не вдалося згенерувати embeddings через OpenAI. Перевірте дійсність вашого OpenAI API ключа в налаштуваннях.'
+      );
+    }
     throw new Error(
       'Не вдалося згенерувати embeddings. Переконайтеся, що Ollama запущено та модель nomic-embed-text завантажена.'
     );
