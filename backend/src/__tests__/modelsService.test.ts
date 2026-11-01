@@ -20,16 +20,28 @@ jest.mock('../config/prisma', () => ({
   },
 }));
 
+import axios from 'axios';
 import {
   DEFAULT_CLAUDE_MODELS,
   DEFAULT_GEMINI_MODELS,
   DEFAULT_MODELS,
   parseModelId,
   toPublicModel,
+  discoverRemoteOllamaModels,
 } from '../services/modelsService';
 import ProviderFactory from '../services/providerFactory';
+import {
+  clearRuntimeModelCapabilitiesCache,
+  modelSupportsVision,
+  modelSupportsTools,
+} from '../utils/modelCapabilities';
 
 describe('modelsService', () => {
+  beforeEach(() => {
+    clearRuntimeModelCapabilitiesCache();
+    jest.restoreAllMocks();
+  });
+
   describe('DEFAULT_CLAUDE_MODELS', () => {
     it('defines official Claude 3.5 models with anthropic provider', () => {
       expect(DEFAULT_CLAUDE_MODELS).toHaveLength(2);
@@ -86,7 +98,7 @@ describe('modelsService', () => {
   });
 
   describe('toPublicModel', () => {
-    it('formats a model row and includes vision capability flag', () => {
+    it('formats a model row and includes vision and tools capability flags', () => {
       const row = {
         id: 10,
         userId: 1,
@@ -108,7 +120,73 @@ describe('modelsService', () => {
         model_id: 'claude-3-5-sonnet-20241022',
         provider: 'anthropic',
         supports_vision: true,
+        supports_tools: true,
       });
+    });
+
+    it('returns false for tools and vision on llama2', () => {
+      const row = {
+        id: 11,
+        userId: null,
+        name: 'Llama 2',
+        modelId: 'llama2',
+        description: 'Local Ollama model',
+        provider: 'ollama',
+        temperature: 0.7,
+        maxTokens: 2000,
+        isDefault: true,
+        createdAt: new Date('2026-10-30T00:00:00Z'),
+      };
+
+      const publicModel = toPublicModel(row);
+      expect(publicModel.supports_vision).toBe(false);
+      expect(publicModel.supports_tools).toBe(false);
+    });
+  });
+
+  describe('discoverRemoteOllamaModels', () => {
+    it('discovers models from /api/tags, registers runtime capabilities, and returns enriched flags', async () => {
+      const mockResponse = {
+        status: 200,
+        data: {
+          models: [
+            {
+              name: 'deepseek-r1-custom:latest',
+              model: 'deepseek-r1-custom:latest',
+              capabilities: ['tools'],
+            },
+            {
+              name: 'custom-vl:latest',
+              model: 'custom-vl:latest',
+              capabilities: ['vision', 'tools'],
+            },
+          ],
+        },
+      };
+
+      jest.spyOn(axios, 'get').mockResolvedValue(mockResponse);
+
+      const discovered = await discoverRemoteOllamaModels('http://127.0.0.1:11434');
+
+      expect(discovered).toEqual([
+        {
+          id: 'deepseek-r1-custom:latest',
+          name: 'deepseek-r1-custom:latest',
+          supports_vision: false,
+          supports_tools: true,
+        },
+        {
+          id: 'custom-vl:latest',
+          name: 'custom-vl:latest',
+          supports_vision: true,
+          supports_tools: true,
+        },
+      ]);
+
+      // Verify that runtime capabilities were cached in modelCapabilities
+      expect(modelSupportsTools('deepseek-r1-custom:latest')).toBe(true);
+      expect(modelSupportsVision('deepseek-r1-custom:latest')).toBe(false);
+      expect(modelSupportsVision('custom-vl:latest')).toBe(true);
     });
   });
 });

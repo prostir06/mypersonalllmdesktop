@@ -5,7 +5,11 @@ import {
   assertAllowedHttpUrlWithDns,
   UrlNotAllowedError,
 } from '../utils/urlAllowlist';
-import { modelSupportsVision } from '../utils/modelCapabilities';
+import {
+  modelSupportsVision,
+  modelSupportsTools,
+  registerRuntimeModelCapabilities,
+} from '../utils/modelCapabilities';
 import { numTemp } from '../utils/numTemp';
 
 type LlmModelRow = {
@@ -136,7 +140,8 @@ export function toPublicModel(row: LlmModelRow) {
     max_tokens: row.maxTokens,
     is_default: row.isDefault,
     created_at: row.createdAt,
-    supports_vision: modelSupportsVision(row.modelId),
+    supports_vision: modelSupportsVision(row.modelId, row.provider),
+    supports_tools: modelSupportsTools(row.modelId, row.provider),
   };
 }
 
@@ -214,7 +219,14 @@ export class RemoteModelsError extends Error {
 
 export async function discoverRemoteOllamaModels(
   host?: string
-): Promise<{ id: string; name: string }[]> {
+): Promise<
+  {
+    id: string;
+    name: string;
+    supports_vision?: boolean;
+    supports_tools?: boolean;
+  }[]
+> {
   const hostUrl =
     host ||
     process.env.OLLAMA_API_URL ||
@@ -238,7 +250,12 @@ export async function discoverRemoteOllamaModels(
     `${origin}/v1/engines`,
   ];
 
-  let models: { id: string; name: string }[] | null = null;
+  let models: {
+    id: string;
+    name: string;
+    supports_vision?: boolean;
+    supports_tools?: boolean;
+  }[] | null = null;
   for (const url of candidates) {
     try {
       const r = await axios.get(url, { timeout: 5000, maxRedirects: 0 });
@@ -246,15 +263,31 @@ export async function discoverRemoteOllamaModels(
         const data = r.data.models || r.data.data || r.data.engines || r.data;
         if (Array.isArray(data)) {
           models = data.map((m: unknown) => {
-            if (typeof m === 'string') return { id: m, name: m };
+            if (typeof m === 'string') {
+              return {
+                id: m,
+                name: m,
+                supports_vision: modelSupportsVision(m, 'ollama'),
+                supports_tools: modelSupportsTools(m, 'ollama'),
+              };
+            }
             const obj = m as {
               name?: string;
               id?: string;
               model?: string;
               engine?: string;
+              capabilities?: string[];
             };
             const val = obj.name || obj.id || obj.model || obj.engine || '';
-            return { id: val, name: val };
+            if (Array.isArray(obj.capabilities) && val) {
+              registerRuntimeModelCapabilities(val, obj.capabilities);
+            }
+            return {
+              id: val,
+              name: val,
+              supports_vision: modelSupportsVision(val, 'ollama'),
+              supports_tools: modelSupportsTools(val, 'ollama'),
+            };
           });
           break;
         }

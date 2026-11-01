@@ -196,6 +196,7 @@ export interface ModelRecord {
   created_at?: string;
   /** From catalog / server capability map — prefer over name heuristics. */
   supports_vision?: boolean;
+  supports_tools?: boolean;
 }
 
 export interface ModelCreatePayload {
@@ -221,6 +222,25 @@ export interface RemoteModelOption {
   name?: string;
   value?: string;
   label?: string;
+  supports_vision?: boolean;
+  supports_tools?: boolean;
+  [key: string]: unknown;
+}
+
+export interface RemoteModelItem {
+  id: string;
+  name: string;
+  supports_vision?: boolean;
+  supports_tools?: boolean;
+}
+
+export interface CatalogModelItem {
+  id?: string | number;
+  name: string;
+  model_id: string;
+  provider: string;
+  supports_vision?: boolean;
+  supports_tools?: boolean;
   [key: string]: unknown;
 }
 
@@ -403,4 +423,3 @@ export interface SystemKnowledgeResponse {
   advisories: AdvisoryTip[];
   cards: KnowledgeCard[];
 }
-
