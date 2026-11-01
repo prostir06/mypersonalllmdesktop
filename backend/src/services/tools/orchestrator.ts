@@ -160,7 +160,7 @@ export async function runToolOrchestratedTurn(
     const readToolCalls: Array<{ call: NormalizedToolCall; tool: RegisteredTool; args: any }> = [];
 
     for (const call of toolCalls) {
-      let args: any = {};
+      let args: any;
       try {
         args = typeof call.argumentsJson === 'string'
           ? JSON.parse(call.argumentsJson)
@@ -282,7 +282,7 @@ export async function runToolOrchestratedTurn(
     // Handle write tool pause if called
     if (writeToolFound) {
       const { call, tool, args } = writeToolFound;
-      let proposal = '';
+      let proposal: string;
       try {
         proposal = (await tool.describeProposal?.(args, {
           userId: options.userId,

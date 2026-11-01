@@ -114,7 +114,7 @@ export function formatClaudeMessages(
 
     if (msg.role === 'assistant' && (msg as any).tool_calls && Array.isArray((msg as any).tool_calls)) {
       for (const tc of (msg as any).tool_calls) {
-        let input: Record<string, unknown> = {};
+        let input: Record<string, unknown>;
         try {
           input = typeof tc.function?.arguments === 'string'
             ? JSON.parse(tc.function.arguments)

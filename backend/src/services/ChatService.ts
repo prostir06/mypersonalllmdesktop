@@ -1,12 +1,10 @@
 /** Chat orchestration facade. HTTP/SSE mapping lives in chatController. */
 import logger from '../logger';
-import ProviderFactory from './providerFactory';
 import {
   ChatError,
   type ChatMessage,
   type ChatOptions,
   type SendInput,
-  type TokenUsage,
 } from './chat/types';
 import { ensureConversationId as ensureConversationIdImpl } from './chat/ownership';
 import {
