@@ -3,6 +3,7 @@ import logger from '../../logger';
 import { conversationTitle, isPlaceholderTitle } from './ownership';
 import type { RagSource, TokenUsage } from './types';
 import type { Prisma, Message } from '@prisma/client';
+import type { ToolTraceEntry } from '../tools/types';
 
 export async function persistTurn(
   conversationId: number,
@@ -13,9 +14,10 @@ export async function persistTurn(
     skipUserMessage?: boolean;
     sources?: RagSource[];
     tokenUsage?: TokenUsage;
+    toolTrace?: ToolTraceEntry[] | Prisma.InputJsonValue;
   } = {}
 ): Promise<{ id: number; createdAt: Date }> {
-  const { sources, tokenUsage } = opts;
+  const { sources, tokenUsage, toolTrace } = opts;
   try {
     return await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       let userMessageId = opts.regenerateFromMessageId;
@@ -34,6 +36,7 @@ export async function persistTurn(
           content: assistantContent,
           ...(sources?.length ? { sources } : {}),
           ...(tokenUsage ? { tokenUsage: tokenUsage as unknown as Prisma.InputJsonValue } : {}),
+          ...(toolTrace ? { toolTrace: toolTrace as unknown as Prisma.InputJsonValue } : {}),
           ...(userMessageId != null ? { parentId: userMessageId } : {}),
         },
       });
@@ -65,7 +68,8 @@ export async function persistAssistantMessage(
   content: string,
   sources?: RagSource[],
   tokenUsage?: TokenUsage,
-  parentId?: number
+  parentId?: number,
+  toolTrace?: ToolTraceEntry[] | Prisma.InputJsonValue
 ): Promise<Message> {
   return prisma.message.create({
     data: {
@@ -74,6 +78,7 @@ export async function persistAssistantMessage(
       content,
       sources: sources && sources.length > 0 ? (sources as unknown as Prisma.InputJsonValue) : undefined,
       tokenUsage: tokenUsage ? (tokenUsage as unknown as Prisma.InputJsonValue) : undefined,
+      toolTrace: toolTrace ? (toolTrace as unknown as Prisma.InputJsonValue) : undefined,
       parentId,
     },
   });

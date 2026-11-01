@@ -8,6 +8,7 @@ import {
 } from './providers/shared';
 import { ChatError } from './chat/types';
 import type { RagSource, TokenUsage } from './chat/types';
+import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
 
 export type GeminiMessagePart =
   | { text: string }
@@ -79,6 +80,16 @@ export function buildGeminiPayload(
       continue;
     }
 
+    if (msg.role === 'tool') {
+      contents.push({
+        role: 'user',
+        parts: [{
+          text: `Tool result: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`,
+        }],
+      });
+      continue;
+    }
+
     const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
     const parts: GeminiMessagePart[] = [];
 
@@ -121,8 +132,23 @@ export function buildGeminiPayload(
     config.systemInstruction = { parts: [{ text: systemInstructionText.trim() }] };
   }
 
+  const toolsArray: any[] = [];
   if (enableWebSearch) {
-    config.tools = [{ googleSearch: {} }];
+    toolsArray.push({ googleSearch: {} });
+  }
+
+  const rawTools = options.tools;
+  if (Array.isArray(rawTools) && rawTools.length > 0) {
+    const functionDeclarations = (rawTools as ToolDefinitionSpec[]).map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    }));
+    toolsArray.push({ functionDeclarations });
+  }
+
+  if (toolsArray.length > 0) {
+    config.tools = toolsArray;
   }
 
   return { contents, config };
@@ -164,12 +190,43 @@ async function sendGeminiMessage(
       text = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
     }
 
+    const toolCalls: NormalizedToolCall[] = [];
+    if (typeof (response as any).functionCalls === 'function') {
+      const fcs = (response as any).functionCalls();
+      if (Array.isArray(fcs)) {
+        for (const fc of fcs) {
+          toolCalls.push({
+            id: fc.name || `gemini_call_${Date.now()}`,
+            name: fc.name,
+            argumentsJson: typeof fc.args === 'string' ? fc.args : JSON.stringify(fc.args ?? {}),
+          });
+        }
+      }
+    }
+    if (toolCalls.length === 0 && candidate?.content?.parts) {
+      for (const part of candidate.content.parts as any[]) {
+        if (part.functionCall) {
+          toolCalls.push({
+            id: part.functionCall.name || `gemini_call_${Date.now()}`,
+            name: part.functionCall.name,
+            argumentsJson: typeof part.functionCall.args === 'string' ? part.functionCall.args : JSON.stringify(part.functionCall.args ?? {}),
+          });
+        }
+      }
+    }
+
     const groundingChunks = (candidate as any)?.groundingMetadata?.groundingChunks;
     const sources = formatGroundingSources(groundingChunks);
 
     const tokenUsage = formatGeminiTokenUsage(response.usageMetadata, model);
 
-    return { content: text, tokenUsage, sources, model };
+    return {
+      content: text,
+      tokenUsage,
+      sources,
+      model,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    };
   } catch (error: any) {
     if (
       isAbortOrCallbackError(error) ||
@@ -231,6 +288,7 @@ async function streamGeminiMessage(
     let finalGroundingChunks: any[] = [];
     let isSafetyBlocked = false;
     let finalUsageMetadata: any = undefined;
+    const toolCalls: NormalizedToolCall[] = [];
 
     for await (const chunk of responseStream) {
       if (signal?.aborted) {
@@ -246,6 +304,18 @@ async function streamGeminiMessage(
       const candidate = chunk.candidates?.[0];
       if (candidate?.finishReason === 'SAFETY') {
         isSafetyBlocked = true;
+      }
+
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts as any[]) {
+          if (part.functionCall) {
+            toolCalls.push({
+              id: part.functionCall.name || `gemini_call_${Date.now()}`,
+              name: part.functionCall.name,
+              argumentsJson: typeof part.functionCall.args === 'string' ? part.functionCall.args : JSON.stringify(part.functionCall.args ?? {}),
+            });
+          }
+        }
       }
 
       const chunkText = chunk.text || '';
@@ -287,7 +357,13 @@ async function streamGeminiMessage(
 
     const sources = formatGroundingSources(finalGroundingChunks);
     const tokenUsage = formatGeminiTokenUsage(finalUsageMetadata, model);
-    return { content: fullText, tokenUsage, sources, model };
+    return {
+      content: fullText,
+      tokenUsage,
+      sources,
+      model,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    };
   } catch (error: any) {
     if (
       isAbortOrCallbackError(error) ||
@@ -314,10 +390,9 @@ async function streamGeminiMessage(
   }
 }
 
-export default {
+const geminiService = {
   sendGeminiMessage,
   streamGeminiMessage,
-  formatGeminiTokenUsage,
-  formatGroundingSources,
-  buildGeminiPayload,
 };
+
+export default geminiService;

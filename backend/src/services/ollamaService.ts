@@ -7,6 +7,7 @@ import {
   isAbortOrCallbackError,
 } from './providers/shared';
 import type { TokenUsage } from './chat/types';
+import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -24,6 +25,7 @@ const OLLAMA_SAMPLING_KEYS = [
 type ChatMessage = { role: string; content: unknown };
 type ProviderOptions = {
   ollama_host?: string;
+  tools?: ToolDefinitionSpec[];
   temperature?: number;
   max_tokens?: number;
   top_p?: number;
@@ -84,6 +86,18 @@ function buildOllamaPayload(
   if (sampling.seed !== undefined) payload.seed = sampling.seed;
   if (stream) payload.stream = true;
 
+  const rawTools = options.tools;
+  if (Array.isArray(rawTools) && rawTools.length > 0) {
+    payload.tools = (rawTools as ToolDefinitionSpec[]).map((t) => ({
+      type: 'function',
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+  }
+
   return payload;
 }
 
@@ -129,8 +143,23 @@ async function sendOllamaMessage(
       maxRedirects: 0,
     });
 
+    const choice = response.data.choices?.[0];
+    const rawToolCalls = choice?.message?.tool_calls;
+    let toolCalls: NormalizedToolCall[] | undefined;
+    if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
+      toolCalls = rawToolCalls
+        .filter((tc: any) => tc.function || tc.type === 'function')
+        .map((tc: any) => ({
+          id: tc.id || `ollama_call_${Date.now()}`,
+          name: tc.function?.name || tc.name,
+          argumentsJson: typeof tc.function?.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc.function?.arguments ?? {}),
+        }));
+    }
+
     return {
-      content: response.data.choices[0].message.content as string,
+      content: (choice?.message?.content as string) || '',
       usage: response.data.usage,
       tokenUsage: formatOllamaTokenUsage({
         prompt_eval_count: response.data?.prompt_eval_count,
@@ -138,6 +167,7 @@ async function sendOllamaMessage(
         usage: response.data?.usage,
       }),
       model: response.data.model as string,
+      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: unknown) {
     if (isAllowlistError(error)) throw error;
@@ -174,11 +204,13 @@ async function streamOllamaMessage(
 
     let fullContent = '';
     let tokenUsage: TokenUsage | undefined;
+    const toolCallsAcc: Record<number, { id: string; name: string; argumentsJson: string }> = {};
 
     return new Promise<{
       content: string;
       tokenUsage?: TokenUsage;
       model: string;
+      toolCalls?: NormalizedToolCall[];
     }>((resolve, reject) => {
       let buffer = '';
 
@@ -188,9 +220,9 @@ async function streamOllamaMessage(
         } catch (destroyErr: unknown) {
           const message =
             destroyErr instanceof Error ? destroyErr.message : String(destroyErr);
-          logger.warn(`Ollama stream destroy on abort failed: ${message}`);
+          logger.warn(`Failed to destroy Ollama stream on abort: ${message}`);
         }
-        const err = new Error('Aborted');
+        const err = new Error('Generation stopped by user');
         err.name = 'AbortError';
         reject(err);
       };
@@ -203,7 +235,7 @@ async function streamOllamaMessage(
         signal.addEventListener('abort', onAbort, { once: true });
       }
 
-      response.data.on('data', (chunk: Buffer | string) => {
+      response.data.on('data', (chunk: Buffer) => {
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
@@ -250,6 +282,19 @@ async function streamOllamaMessage(
                   }
                 }
               }
+
+              const rawToolCalls = parsed.choices?.[0]?.delta?.tool_calls || parsed.message?.tool_calls;
+              if (Array.isArray(rawToolCalls)) {
+                for (const tc of rawToolCalls) {
+                  const idx = tc.index ?? 0;
+                  if (!toolCallsAcc[idx]) {
+                    toolCallsAcc[idx] = { id: tc.id || '', name: tc.function?.name || tc.name || '', argumentsJson: '' };
+                  }
+                  if (tc.id) toolCallsAcc[idx].id = tc.id;
+                  if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
+                  if (tc.function?.arguments) toolCallsAcc[idx].argumentsJson += tc.function.arguments;
+                }
+              }
             } catch {
               // Incomplete SSE JSON line — wait for more bytes.
             }
@@ -259,7 +304,13 @@ async function streamOllamaMessage(
 
       response.data.on('end', () => {
         if (signal) signal.removeEventListener('abort', onAbort);
-        resolve({ content: fullContent, tokenUsage, model });
+        const toolCalls = Object.values(toolCallsAcc);
+        resolve({
+          content: fullContent,
+          tokenUsage,
+          model,
+          ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        });
       });
 
       response.data.on('error', (err: Error) => {
@@ -268,21 +319,15 @@ async function streamOllamaMessage(
       });
     });
   } catch (error: unknown) {
-    if (isAllowlistError(error)) throw error;
-    if (
-      isAbortOrCallbackError(error) ||
-      (error &&
-        typeof error === 'object' &&
-        (error as { code?: string }).code === 'ERR_CANCELED')
-    ) {
+    if (isAbortOrCallbackError(error)) {
       throw error;
     }
-    const err = error as { response?: { data?: unknown }; message?: string };
-    const detail =
-      err.response?.data !== undefined
-        ? JSON.stringify(err.response.data)
-        : err.message;
-    logger.error(`Ollama Stream API error: ${detail}`);
+    if (isAllowlistError(error)) throw error;
+    logger.error(
+      `Ollama Stream API error: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
     throw new Error('Failed to stream from Ollama API');
   }
 }
@@ -290,5 +335,4 @@ async function streamOllamaMessage(
 export default {
   sendOllamaMessage,
   streamOllamaMessage,
-  formatOllamaTokenUsage,
 };

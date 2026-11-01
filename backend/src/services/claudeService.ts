@@ -8,6 +8,7 @@ import {
 } from './providers/shared';
 import { ChatError } from './chat/types';
 import type { TokenUsage } from './chat/types';
+import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
 
 export type ClaudeImageMediaType =
   | 'image/jpeg'
@@ -58,6 +59,27 @@ export function formatClaudeMessages(
       continue;
     }
 
+    if (msg.role === 'tool') {
+      const toolUseId = (msg as any).tool_call_id || (msg as any).id || 'tool_call';
+      const rawContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? {});
+      const toolResultBlock: Anthropic.Messages.ToolResultBlockParam = {
+        type: 'tool_result',
+        tool_use_id: toolUseId,
+        content: rawContent,
+      };
+      if (formatted.length > 0 && formatted[formatted.length - 1].role === 'user') {
+        const prev = formatted[formatted.length - 1];
+        if (Array.isArray(prev.content)) {
+          (prev.content as any[]).push(toolResultBlock);
+        } else {
+          prev.content = [{ type: 'text', text: String(prev.content) }, toolResultBlock];
+        }
+      } else {
+        formatted.push({ role: 'user', content: [toolResultBlock] });
+      }
+      continue;
+    }
+
     const role: 'user' | 'assistant' =
       msg.role === 'assistant' ? 'assistant' : 'user';
     const contentBlocks: Anthropic.Messages.ContentBlockParam[] = [];
@@ -87,6 +109,25 @@ export function formatClaudeMessages(
             });
           }
         }
+      }
+    }
+
+    if (msg.role === 'assistant' && (msg as any).tool_calls && Array.isArray((msg as any).tool_calls)) {
+      for (const tc of (msg as any).tool_calls) {
+        let input: Record<string, unknown> = {};
+        try {
+          input = typeof tc.function?.arguments === 'string'
+            ? JSON.parse(tc.function.arguments)
+            : (tc.function?.arguments ?? (typeof tc.argumentsJson === 'string' ? JSON.parse(tc.argumentsJson) : (tc.argumentsJson || {})));
+        } catch {
+          input = {};
+        }
+        contentBlocks.push({
+          type: 'tool_use',
+          id: tc.id || tc.function?.name || 'tool_use',
+          name: tc.function?.name || tc.name,
+          input,
+        });
       }
     }
 
@@ -259,6 +300,16 @@ export async function sendClaudeMessage(
   const maxTokens =
     typeof options.max_tokens === 'number' ? options.max_tokens : 4096;
 
+  const rawTools = options.tools;
+  let claudeTools: Anthropic.Messages.Tool[] | undefined;
+  if (Array.isArray(rawTools) && rawTools.length > 0) {
+    claudeTools = (rawTools as ToolDefinitionSpec[]).map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters as Anthropic.Messages.Tool.InputSchema,
+    }));
+  }
+
   try {
     const response = await client.messages.create({
       model,
@@ -266,12 +317,20 @@ export async function sendClaudeMessage(
       temperature,
       messages: formattedMessages,
       ...(system ? { system } : {}),
+      ...(claudeTools ? { tools: claudeTools } : {}),
     } as any);
 
     let text = '';
+    const toolCalls: NormalizedToolCall[] = [];
     for (const block of response.content) {
       if (block.type === 'text') {
         text += block.text;
+      } else if (block.type === 'tool_use') {
+        toolCalls.push({
+          id: block.id,
+          name: block.name,
+          argumentsJson: typeof block.input === 'string' ? block.input : JSON.stringify(block.input ?? {}),
+        });
       }
     }
 
@@ -284,6 +343,7 @@ export async function sendClaudeMessage(
       content: text,
       tokenUsage,
       model: response.model || model,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: any) {
     return handleClaudeError(error, signal);
@@ -315,6 +375,16 @@ export async function streamClaudeMessage(
   const maxTokens =
     typeof options.max_tokens === 'number' ? options.max_tokens : 4096;
 
+  const rawTools = options.tools;
+  let claudeTools: Anthropic.Messages.Tool[] | undefined;
+  if (Array.isArray(rawTools) && rawTools.length > 0) {
+    claudeTools = (rawTools as ToolDefinitionSpec[]).map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters as Anthropic.Messages.Tool.InputSchema,
+    }));
+  }
+
   let stream: any;
   let abortHandler: (() => void) | undefined;
 
@@ -325,6 +395,7 @@ export async function streamClaudeMessage(
       temperature,
       messages: formattedMessages,
       ...(system ? { system } : {}),
+      ...(claudeTools ? { tools: claudeTools } : {}),
     } as any);
 
     if (signal) {
@@ -332,7 +403,6 @@ export async function streamClaudeMessage(
         try {
           stream.controller.abort();
         } catch (abortErr: unknown) {
-          // Stream may have already closed or finished
           const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
           logger.warn(`Failed to abort Claude stream: ${message}`);
         }
@@ -363,6 +433,19 @@ export async function streamClaudeMessage(
 
     const finalMessage = await stream.finalMessage();
 
+    const toolCalls: NormalizedToolCall[] = [];
+    if (finalMessage?.content) {
+      for (const block of finalMessage.content) {
+        if (block.type === 'tool_use') {
+          toolCalls.push({
+            id: block.id,
+            name: block.name,
+            argumentsJson: typeof block.input === 'string' ? block.input : JSON.stringify(block.input ?? {}),
+          });
+        }
+      }
+    }
+
     const tokenUsage = formatClaudeTokenUsage(
       finalMessage.usage,
       finalMessage.model || model
@@ -372,6 +455,7 @@ export async function streamClaudeMessage(
       content: fullText,
       tokenUsage,
       model: finalMessage.model || model,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: any) {
     return handleClaudeError(error, signal);

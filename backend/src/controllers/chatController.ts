@@ -45,9 +45,12 @@ export async function sendMessage(
       req.body.enableWebSearch !== undefined
         ? req.body.enableWebSearch
         : options?.enableWebSearch;
+    const toolsEnabled =
+      req.body.toolsEnabled ?? req.body.tools_enabled ?? options?.toolsEnabled ?? options?.tools_enabled;
     const safeOptions = {
       ...options,
       ...(enableWebSearch !== undefined ? { enableWebSearch: Boolean(enableWebSearch) } : {}),
+      ...(toolsEnabled !== undefined ? { toolsEnabled: Boolean(toolsEnabled), tools_enabled: Boolean(toolsEnabled) } : {}),
       enableTools: false,
       requestId: req.id,
     };
@@ -78,9 +81,12 @@ export async function streamMessage(
       req.body.enableWebSearch !== undefined
         ? req.body.enableWebSearch
         : options?.enableWebSearch;
+    const toolsEnabled =
+      req.body.toolsEnabled ?? req.body.tools_enabled ?? options?.toolsEnabled ?? options?.tools_enabled;
     const streamOptions = {
       ...(options || {}),
       ...(enableWebSearch !== undefined ? { enableWebSearch: Boolean(enableWebSearch) } : {}),
+      ...(toolsEnabled !== undefined ? { toolsEnabled: Boolean(toolsEnabled), tools_enabled: Boolean(toolsEnabled) } : {}),
       tools: undefined,
       enableTools: false,
       requestId: req.id,
@@ -125,6 +131,8 @@ export async function streamMessage(
       content: result.content,
       sources: result.sources,
       ...(result.ragStatus ? { ragStatus: result.ragStatus } : {}),
+      ...((result as any).toolTrace ? { toolTrace: (result as any).toolTrace } : {}),
+      ...((result as any).status ? { status: (result as any).status } : {}),
     });
     res.end();
   } catch (error: unknown) {
@@ -191,5 +199,55 @@ export async function searchMessages(
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`GET /chat/search error: ${message} requestId=${req.id || '-'}`);
     jsonError(res, req, 500, 'Помилка пошуку');
+  }
+}
+
+export async function approveToolAction(
+  req: AuthRequest,
+  res: Response,
+  _next?: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId ?? (req as any).user?.id;
+    if (!userId) {
+      jsonError(res, req, 401, 'Unauthorized');
+      return;
+    }
+    const { resolvePendingToolAction } = await import(
+      '../services/tools/orchestrator'
+    );
+    const result = await resolvePendingToolAction(
+      String(req.params.id),
+      userId,
+      'approve'
+    );
+    res.json(result);
+  } catch (error: unknown) {
+    respondChatError(req, res, error, 'Failed to approve tool action');
+  }
+}
+
+export async function rejectToolAction(
+  req: AuthRequest,
+  res: Response,
+  _next?: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.userId ?? (req as any).user?.id;
+    if (!userId) {
+      jsonError(res, req, 401, 'Unauthorized');
+      return;
+    }
+    const { resolvePendingToolAction } = await import(
+      '../services/tools/orchestrator'
+    );
+    const result = await resolvePendingToolAction(
+      String(req.params.id),
+      userId,
+      'reject'
+    );
+    res.json(result);
+  } catch (error: unknown) {
+    respondChatError(req, res, error, 'Failed to reject tool action');
   }
 }

@@ -6,6 +6,8 @@ import {
   streamMessage,
   getHistory,
   searchMessages,
+  approveToolAction,
+  rejectToolAction,
 } from '../controllers/chatController';
 import { uploadChatAttachment } from '../controllers/chatAttachmentsController';
 import {
@@ -30,5 +32,7 @@ router.post(
 );
 router.get('/history/:conversationId', auth, validateChatHistory, getHistory);
 router.get('/search', auth, validateChatSearch, searchMessages);
+router.post('/tool-actions/:id/approve', auth, approveToolAction);
+router.post('/tool-actions/:id/reject', auth, rejectToolAction);
 
 export default router;

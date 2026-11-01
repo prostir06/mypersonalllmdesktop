@@ -5,6 +5,7 @@ import claudeService from './claudeService';
 import logger from '../logger';
 import { ChatError } from './chat/types';
 import type { TokenUsage } from './chat/types';
+import type { NormalizedToolCall } from './providers/types';
 
 type SendFn = (
   messages: unknown[],
@@ -16,6 +17,7 @@ type SendFn = (
   tokenUsage?: TokenUsage;
   model?: string;
   sources?: unknown[];
+  toolCalls?: NormalizedToolCall[];
 }>;
 
 type StreamFn = (
@@ -28,6 +30,7 @@ type StreamFn = (
   tokenUsage?: TokenUsage;
   model: string;
   sources?: unknown[];
+  toolCalls?: NormalizedToolCall[];
 }>;
 
 type ProviderHandlers = { send: SendFn; stream: StreamFn };

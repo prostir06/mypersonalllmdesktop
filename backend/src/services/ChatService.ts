@@ -23,6 +23,7 @@ import { prepareMessages as prepareMessagesImpl } from './chat/prepare';
 import { searchMessages as searchMessagesImpl } from './chat/search';
 import { maybeRefreshSummary } from './conversationMemoryService';
 import { writeSseEvent } from '../utils/sse';
+import { runToolOrchestratedTurn } from './tools/orchestrator';
 
 export { ChatError };
 
@@ -68,31 +69,20 @@ class ChatService {
       regenerateFromMessageId,
     } = await this.prepareMessages(input);
 
-    const response = await ProviderFactory.sendMessage(
-      input.provider || 'openai',
+    const result = await runToolOrchestratedTurn({
+      userId: input.userId,
+      conversationId: convId,
+      userMessage: input.message,
       chatMessages,
-      input.model || 'gpt-3.5-turbo',
-      options
-    );
-
-    const mergedSources = [
-      ...(sources || []),
-      ...((response as any).sources || []),
-    ];
-
-    const tokenUsage = (response as any).tokenUsage as TokenUsage | undefined;
-
-    const assistant = await this.persistTurn(
-      convId,
-      input.message,
-      response.content,
-      {
-        skipUserMessage: isRegenerate,
-        regenerateFromMessageId,
-        sources: mergedSources,
-        tokenUsage,
-      }
-    );
+      provider: input.provider || 'openai',
+      model: input.model || 'gpt-3.5-turbo',
+      options,
+      signal: input.signal,
+      skipUserMessage: isRegenerate,
+      regenerateFromMessageId,
+      sources,
+      toolsEnabled: (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled,
+    });
 
     void maybeRefreshSummary(input.userId, convId).catch((err) => {
       logger.warn(
@@ -105,14 +95,7 @@ class ChatService {
     );
 
     return {
-      conversationId: convId,
-      messageId: assistant.id,
-      content: response.content,
-      role: 'assistant' as const,
-      timestamp: assistant.createdAt,
-      usage: response.usage,
-      tokenUsage,
-      sources: mergedSources,
+      ...result,
       ragStatus,
     };
   }
@@ -134,36 +117,27 @@ class ChatService {
     } = await this.prepareMessages(input);
     if (onInit) onInit(convId, ragStatus);
 
-    const response = await ProviderFactory.streamMessage(
-      input.provider || 'openai',
-      chatMessages,
-      input.model || 'gpt-3.5-turbo',
-      { ...options, signal: input.signal },
-      onToken
-    );
-
-    const mergedSources = [
-      ...(sources || []),
-      ...((response as any).sources || []),
-    ];
-
-    const tokenUsage = (response as any).tokenUsage as TokenUsage | undefined;
     const responseStream = res || input.res;
-    if (responseStream && tokenUsage) {
-      writeSseEvent(responseStream as any, 'token_usage', tokenUsage);
-    }
+    const result = await runToolOrchestratedTurn({
+      userId: input.userId,
+      conversationId: convId,
+      userMessage: input.message,
+      chatMessages,
+      provider: input.provider || 'openai',
+      model: input.model || 'gpt-3.5-turbo',
+      options,
+      signal: input.signal,
+      res: responseStream,
+      onToken,
+      skipUserMessage: isRegenerate,
+      regenerateFromMessageId,
+      sources,
+      toolsEnabled: (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled,
+    });
 
-    const assistant = await this.persistTurn(
-      convId,
-      input.message,
-      response.content,
-      {
-        skipUserMessage: isRegenerate,
-        regenerateFromMessageId,
-        sources: mergedSources,
-        tokenUsage,
-      }
-    );
+    if (responseStream && result.tokenUsage) {
+      writeSseEvent(responseStream as any, 'token_usage', result.tokenUsage);
+    }
 
     void maybeRefreshSummary(input.userId, convId).catch((err) => {
       logger.warn(
@@ -172,12 +146,8 @@ class ChatService {
     });
 
     return {
-      conversationId: convId,
-      messageId: assistant.id,
-      content: response.content,
-      sources: mergedSources,
+      ...result,
       ragStatus,
-      tokenUsage,
     };
   }
 

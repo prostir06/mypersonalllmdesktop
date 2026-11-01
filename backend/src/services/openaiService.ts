@@ -7,10 +7,12 @@ import {
   isAbortOrCallbackError,
 } from './providers/shared';
 import type { TokenUsage } from './chat/types';
+import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
 
 type ChatMessage = { role: string; content?: unknown; [key: string]: unknown };
 type ProviderOptions = {
   enableTools?: boolean;
+  tools?: ToolDefinitionSpec[];
   ollama_host?: string;
   image?: string;
   temperature?: number;
@@ -43,7 +45,7 @@ function buildBaseParams(
     enableTools: _et,
     ollama_host: _oh,
     image: _img,
-    tools: _tools,
+    tools: rawTools,
     tool_choice: _tc,
     stream: _stream,
     signal: _signal,
@@ -51,12 +53,25 @@ function buildBaseParams(
     ...rest
   } = options;
 
+  let tools: OpenAI.Chat.ChatCompletionTool[] | undefined;
+  if (Array.isArray(rawTools) && rawTools.length > 0) {
+    tools = (rawTools as ToolDefinitionSpec[]).map((t) => ({
+      type: 'function' as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters,
+      },
+    }));
+  }
+
   return {
     model,
     messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
     temperature: typeof rest.temperature === 'number' ? rest.temperature : 0.7,
     max_tokens: typeof rest.max_tokens === 'number' ? rest.max_tokens : 2000,
     ...(typeof rest.top_p === 'number' ? { top_p: rest.top_p } : {}),
+    ...(tools ? { tools } : {}),
   };
 }
 
@@ -90,12 +105,24 @@ async function sendOpenAIMessage(
   try {
     const response = await openai.chat.completions.create(base);
     const choice = response.choices[0];
+    const rawToolCalls = choice?.message?.tool_calls;
+    let toolCalls: NormalizedToolCall[] | undefined;
+    if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
+      toolCalls = rawToolCalls
+        .filter((tc: any) => tc.type === 'function' && tc.function)
+        .map((tc: any) => ({
+          id: tc.id,
+          name: tc.function.name,
+          argumentsJson: tc.function.arguments,
+        }));
+    }
 
     return {
       content: choice?.message?.content || '',
       usage: response.usage,
       tokenUsage: toTokenUsage(response.usage, response.model || model),
       model: response.model,
+      ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (err: unknown) {
     if (isAbortOrCallbackError(err)) {
@@ -140,6 +167,8 @@ async function streamOpenAIMessage(
 
     let fullContent = '';
     let tokenUsage: TokenUsage | undefined;
+    const toolCallsAcc: Record<number, { id: string; name: string; argumentsJson: string }> = {};
+
     for await (const chunk of stream) {
       if (signal?.aborted) {
         const err = new Error('Aborted');
@@ -150,16 +179,35 @@ async function streamOpenAIMessage(
         tokenUsage = toTokenUsage(chunk.usage, model);
       }
       if (!chunk.choices || chunk.choices.length === 0) continue;
-      const token = chunk.choices[0]?.delta?.content || '';
+      const delta = chunk.choices[0]?.delta;
+      const token = delta?.content || '';
       if (token) {
         fullContent += token;
         invokeStreamTokenCallback(onChunk, token, (msg) => {
           logger.error(`Помилка в onChunk коллбеку: ${msg}`);
         });
       }
+      if (delta?.tool_calls) {
+        for (const tc of delta.tool_calls) {
+          const idx = tc.index ?? 0;
+          if (!toolCallsAcc[idx]) {
+            toolCallsAcc[idx] = { id: tc.id || '', name: tc.function?.name || '', argumentsJson: '' };
+          }
+          if (tc.id) toolCallsAcc[idx].id = tc.id;
+          if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
+          if (tc.function?.arguments) toolCallsAcc[idx].argumentsJson += tc.function.arguments;
+        }
+      }
     }
 
-    return { content: fullContent, tokenUsage, model };
+    const toolCalls = Object.values(toolCallsAcc);
+
+    return {
+      content: fullContent,
+      tokenUsage,
+      model,
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    };
   } catch (error: unknown) {
     if (isAbortOrCallbackError(error)) {
       throw error;
