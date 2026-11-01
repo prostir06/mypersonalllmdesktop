@@ -3,6 +3,7 @@ import ollamaService from './ollamaService';
 import geminiService from './geminiService';
 import claudeService from './claudeService';
 import logger from '../logger';
+import { ChatError } from './chat/types';
 import type { TokenUsage } from './chat/types';
 
 type SendFn = (
@@ -57,12 +58,7 @@ class ProviderFactory {
     if (this.providers[providerName]) {
       return this.providers[providerName];
     }
-    if (providerName && providerName !== 'openai') {
-      logger.warn(
-        `Unknown provider "${name}" — using OpenAI handlers (via OpenAI)`
-      );
-    }
-    return this.providers.openai;
+    throw new ChatError(400, `Unsupported LLM provider: "${name}"`);
   }
 
   static async sendMessage(

@@ -1,6 +1,11 @@
 import axios from 'axios';
 import { assertAllowedHttpUrlWithDns } from '../utils/urlAllowlist';
 import logger from '../logger';
+import {
+  buildTokenUsage,
+  invokeStreamTokenCallback,
+  isAbortOrCallbackError,
+} from './providers/shared';
 import type { TokenUsage } from './chat/types';
 
 const DEFAULT_OLLAMA_API_URL =
@@ -102,15 +107,9 @@ export function formatOllamaTokenUsage(
 
   const promptTokens = data.prompt_eval_count ?? data.usage?.prompt_tokens ?? 0;
   const completionTokens = data.eval_count ?? data.usage?.completion_tokens ?? 0;
-  const totalTokens =
-    data.usage?.total_tokens ?? (promptTokens + completionTokens);
+  const totalTokens = data.usage?.total_tokens;
 
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens,
-    estimatedCostUsd: 0,
-  };
+  return buildTokenUsage(promptTokens, completionTokens, 'ollama', totalTokens);
 }
 
 async function sendOllamaMessage(
@@ -242,27 +241,11 @@ async function streamOllamaMessage(
                 fullContent += token;
                 if (onChunk) {
                   try {
-                    onChunk(token);
+                    invokeStreamTokenCallback(onChunk, token, (msg) => {
+                      logger.error(`Ollama onChunk callback error: ${msg}`);
+                    });
                   } catch (cbError: unknown) {
-                    if (
-                      cbError &&
-                      typeof cbError === 'object' &&
-                      ((cbError as { name?: string }).name === 'AbortError' ||
-                        (cbError as { code?: string }).code === 'ABORT_ERR')
-                    ) {
-                      reject(cbError);
-                      return;
-                    }
-                    const message =
-                      cbError instanceof Error
-                        ? cbError.message
-                        : String(cbError);
-                    logger.error(`Ollama onChunk callback error: ${message}`);
-                    reject(
-                      cbError instanceof Error
-                        ? cbError
-                        : new Error(message)
-                    );
+                    reject(cbError);
                     return;
                   }
                 }
@@ -287,9 +270,9 @@ async function streamOllamaMessage(
   } catch (error: unknown) {
     if (isAllowlistError(error)) throw error;
     if (
-      error &&
-      typeof error === 'object' &&
-      ((error as { name?: string }).name === 'AbortError' ||
+      isAbortOrCallbackError(error) ||
+      (error &&
+        typeof error === 'object' &&
         (error as { code?: string }).code === 'ERR_CANCELED')
     ) {
       throw error;

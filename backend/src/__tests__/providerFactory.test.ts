@@ -70,11 +70,12 @@ import openaiService from '../services/openaiService';
 import ollamaService from '../services/ollamaService';
 import geminiService from '../services/geminiService';
 import claudeService from '../services/claudeService';
+import { ChatError } from '../services/chat/types';
 
 describe('ProviderFactory', () => {
   afterEach(() => jest.clearAllMocks());
 
-  it('resolves providers by name and falls back to openai', () => {
+  it('resolves known providers by name', () => {
     expect(ProviderFactory.getProvider('openai').send).toBe(
       openaiService.sendOpenAIMessage
     );
@@ -87,20 +88,20 @@ describe('ProviderFactory', () => {
     expect(ProviderFactory.getProvider('anthropic').send).toBe(
       claudeService.sendClaudeMessage
     );
-    expect(ProviderFactory.getProvider('unknown-provider').send).toBe(
-      openaiService.sendOpenAIMessage
-    );
-    expect(ProviderFactory.getProvider('ChatGPT').send).toBe(
+    expect(ProviderFactory.getProvider('OPENAI').send).toBe(
       openaiService.sendOpenAIMessage
     );
   });
 
-  it('warns when unknown provider falls back via OpenAI', () => {
-    const logger = require('../logger');
-    ProviderFactory.getProvider('microsoft');
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringMatching(/via OpenAI/i)
-    );
+  it('throws ChatError 400 for unknown providers', () => {
+    expect(() => ProviderFactory.getProvider('unknown-xyz')).toThrow(ChatError);
+    try {
+      ProviderFactory.getProvider('unknown-xyz');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(ChatError);
+      expect((err as ChatError).statusCode).toBe(400);
+      expect((err as ChatError).message).toBe('Unsupported LLM provider: "unknown-xyz"');
+    }
   });
 
   it('sendMessage wires to openai', async () => {

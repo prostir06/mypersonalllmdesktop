@@ -1,7 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
 import logger from '../logger';
 import { isAbortError } from '../utils/requestAbort';
-import { calculateTokenCost } from '../utils/tokenCostCalculator';
+import {
+  buildTokenUsage,
+  invokeStreamTokenCallback,
+  isAbortOrCallbackError,
+} from './providers/shared';
 import { ChatError } from './chat/types';
 import type { RagSource, TokenUsage } from './chat/types';
 
@@ -52,21 +56,12 @@ export function formatGeminiTokenUsage(
   model?: string
 ): TokenUsage | undefined {
   if (!usageMetadata) return undefined;
-  const promptTokens = usageMetadata.promptTokenCount ?? 0;
-  const completionTokens = usageMetadata.candidatesTokenCount ?? 0;
-  const totalTokens =
-    usageMetadata.totalTokenCount ?? (promptTokens + completionTokens);
-  const estimatedCostUsd = calculateTokenCost(
+  return buildTokenUsage(
+    usageMetadata.promptTokenCount ?? 0,
+    usageMetadata.candidatesTokenCount ?? 0,
     model || 'gemini-2.0-flash',
-    promptTokens,
-    completionTokens
+    usageMetadata.totalTokenCount
   );
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens,
-    estimatedCostUsd,
-  };
 }
 
 export function buildGeminiPayload(
@@ -177,10 +172,9 @@ async function sendGeminiMessage(
     return { content: text, tokenUsage, sources, model };
   } catch (error: any) {
     if (
+      isAbortOrCallbackError(error) ||
       isAbortError(error) ||
-      error?.name === 'AbortError' ||
       error?.code === 'ERR_CANCELED' ||
-      error?.code === 'ABORT_ERR' ||
       error instanceof ChatError
     ) {
       throw error;
@@ -259,23 +253,13 @@ async function streamGeminiMessage(
         fullText += chunkText;
         if (onChunk) {
           try {
-            onChunk(chunkText);
+            invokeStreamTokenCallback(onChunk, chunkText, (msg) => {
+              logger.error(`Помилка в onChunk коллбеку: ${msg}`);
+            });
           } catch (cbError: unknown) {
-            // Rethrow abort errors so client cancellation terminates the stream
-            if (
-              isAbortError(cbError) ||
-              (cbError &&
-                typeof cbError === 'object' &&
-                ((cbError as { name?: string }).name === 'AbortError' ||
-                  (cbError as { code?: string }).code === 'ABORT_ERR'))
-            ) {
+            if (isAbortOrCallbackError(cbError) && (cbError as Error)?.name !== 'StreamCallbackError') {
               throw cbError;
             }
-            logger.error(
-              `Помилка в onChunk коллбеку: ${
-                cbError instanceof Error ? cbError.message : String(cbError)
-              }`
-            );
           }
         }
       }
@@ -289,15 +273,11 @@ async function streamGeminiMessage(
       const fallback = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
       if (!fullText && onChunk) {
         try {
-          onChunk(fallback);
+          invokeStreamTokenCallback(onChunk, fallback, (msg) => {
+            logger.error(`Помилка в onChunk коллбеку: ${msg}`);
+          });
         } catch (cbError: unknown) {
-          if (
-            isAbortError(cbError) ||
-            (cbError &&
-              typeof cbError === 'object' &&
-              ((cbError as { name?: string }).name === 'AbortError' ||
-                (cbError as { code?: string }).code === 'ABORT_ERR'))
-          ) {
+          if (isAbortOrCallbackError(cbError) && (cbError as Error)?.name !== 'StreamCallbackError') {
             throw cbError;
           }
         }
@@ -310,10 +290,9 @@ async function streamGeminiMessage(
     return { content: fullText, tokenUsage, sources, model };
   } catch (error: any) {
     if (
+      isAbortOrCallbackError(error) ||
       isAbortError(error) ||
-      error?.name === 'AbortError' ||
       error?.code === 'ERR_CANCELED' ||
-      error?.code === 'ABORT_ERR' ||
       error instanceof ChatError
     ) {
       throw error;

@@ -1,7 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../logger';
 import { isAbortError } from '../utils/requestAbort';
-import { calculateTokenCost } from '../utils/tokenCostCalculator';
+import {
+  buildTokenUsage,
+  invokeStreamTokenCallback,
+  isAbortOrCallbackError,
+} from './providers/shared';
 import { ChatError } from './chat/types';
 import type { TokenUsage } from './chat/types';
 
@@ -28,20 +32,11 @@ export function formatClaudeTokenUsage(
   model?: string
 ): TokenUsage | undefined {
   if (!usage) return undefined;
-  const promptTokens = usage.input_tokens ?? 0;
-  const completionTokens = usage.output_tokens ?? 0;
-  const totalTokens = promptTokens + completionTokens;
-  const estimatedCostUsd = calculateTokenCost(
-    model || 'claude-3-5-sonnet-20241022',
-    promptTokens,
-    completionTokens
+  return buildTokenUsage(
+    usage.input_tokens ?? 0,
+    usage.output_tokens ?? 0,
+    model || 'claude-3-5-sonnet-20241022'
   );
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens,
-    estimatedCostUsd,
-  };
 }
 
 export function formatClaudeMessages(
@@ -160,11 +155,10 @@ export function formatClaudeMessages(
 
 function handleClaudeError(error: any, signal?: AbortSignal): never {
   if (
+    isAbortOrCallbackError(error) ||
     isAbortError(error) ||
-    error?.name === 'AbortError' ||
     error?.name === 'APIUserAbortError' ||
     error?.code === 'ERR_CANCELED' ||
-    error?.code === 'ABORT_ERR' ||
     signal?.aborted
   ) {
     const err = new Error('Generation stopped by user');
@@ -351,30 +345,17 @@ export async function streamClaudeMessage(
       fullText += delta;
       if (onChunk) {
         try {
-          onChunk(delta);
+          invokeStreamTokenCallback(onChunk, delta, (msg) => {
+            logger.error(`Помилка в onChunk коллбеку Claude: ${msg}`);
+          });
         } catch (cbError: unknown) {
-          // If consumer cancelled, abort Anthropic stream immediately
-          if (
-            isAbortError(cbError) ||
-            (cbError &&
-              typeof cbError === 'object' &&
-              ((cbError as { name?: string }).name === 'AbortError' ||
-                (cbError as { code?: string }).code === 'ABORT_ERR'))
-          ) {
-            try {
-              stream.controller.abort();
-            } catch {
-              // ignore secondary abort errors
-            }
-            return;
-          }
-          const message =
-            cbError instanceof Error ? cbError.message : String(cbError);
-          logger.error(`Помилка в onChunk коллбеку Claude: ${message}`);
           try {
             stream.controller.abort();
           } catch {
             // best-effort abort to prevent runaway streaming on broken callback
+          }
+          if (isAbortOrCallbackError(cbError)) {
+            return;
           }
         }
       }

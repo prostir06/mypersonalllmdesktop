@@ -1,37 +1,12 @@
 import OpenAI from 'openai';
 import logger from '../logger';
-import { evaluateSafeMathExpression } from '../utils/safeMath';
-import { calculateTokenCost } from '../utils/tokenCostCalculator';
+import { envOpenAiKey, isPlaceholderOpenAiKey } from '../utils/openaiKeyResolver';
+import {
+  buildTokenUsage,
+  invokeStreamTokenCallback,
+  isAbortOrCallbackError,
+} from './providers/shared';
 import type { TokenUsage } from './chat/types';
-
-const tools: OpenAI.Chat.ChatCompletionTool[] = [
-  {
-    type: 'function',
-    function: {
-      name: 'calculate',
-      description:
-        'Evaluate a mathematical expression. Use this for ANY math calculation.',
-      parameters: {
-        type: 'object',
-        properties: {
-          expression: {
-            type: 'string',
-            description: "The math expression to evaluate, e.g., '2 + 2'",
-          },
-        },
-        required: ['expression'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'get_current_time',
-      description: 'Get the current time and date in the local timezone.',
-      parameters: { type: 'object', properties: {} },
-    },
-  },
-];
 
 type ChatMessage = { role: string; content?: unknown; [key: string]: unknown };
 type ProviderOptions = {
@@ -48,9 +23,14 @@ type ProviderOptions = {
 
 function clientFor(options: ProviderOptions): OpenAI {
   const apiKey =
-    typeof options.apiKey === 'string' && options.apiKey.trim()
+    typeof options.apiKey === 'string' &&
+    !isPlaceholderOpenAiKey(options.apiKey)
       ? options.apiKey.trim()
-      : process.env.OPENAI_API_KEY || 'dummy';
+      : envOpenAiKey();
+
+  if (!apiKey) {
+    throw new Error('OpenAI API key is not configured');
+  }
   return new OpenAI({ apiKey });
 }
 
@@ -80,22 +60,6 @@ function buildBaseParams(
   };
 }
 
-function executeTool(name: string, args: { expression?: string }): string {
-  try {
-    if (name === 'calculate') {
-      return String(evaluateSafeMathExpression(args.expression || ''));
-    }
-    if (name === 'get_current_time') {
-      return new Date().toLocaleString('uk-UA');
-    }
-    return 'Unknown tool: ' + name;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error(`Помилка виконання інструмента ${name}: ${message}`);
-    return `Error evaluating: ${message}`;
-  }
-}
-
 function toTokenUsage(
   rawUsage:
     | {
@@ -107,21 +71,12 @@ function toTokenUsage(
   model: string
 ): TokenUsage | undefined {
   if (!rawUsage) return undefined;
-  const promptTokens = rawUsage.prompt_tokens ?? 0;
-  const completionTokens = rawUsage.completion_tokens ?? 0;
-  const totalTokens =
-    rawUsage.total_tokens ?? (promptTokens + completionTokens);
-  const estimatedCostUsd = calculateTokenCost(
+  return buildTokenUsage(
+    rawUsage.prompt_tokens ?? 0,
+    rawUsage.completion_tokens ?? 0,
     model,
-    promptTokens,
-    completionTokens
+    rawUsage.total_tokens
   );
-  return {
-    promptTokens,
-    completionTokens,
-    totalTokens,
-    estimatedCostUsd,
-  };
 }
 
 async function sendOpenAIMessage(
@@ -129,71 +84,23 @@ async function sendOpenAIMessage(
   model = 'gpt-3.5-turbo',
   options: ProviderOptions = {}
 ) {
+  const openai = clientFor(options);
+  const base = buildBaseParams(messages, model, options);
+
   try {
-    const enableTools = options.enableTools === true;
-    const base = buildBaseParams(messages, model, options);
-    const openai = clientFor(options);
-
-    const response = await openai.chat.completions.create({
-      ...base,
-      ...(enableTools ? { tools, tool_choice: 'auto' as const } : {}),
-    });
-
+    const response = await openai.chat.completions.create(base);
     const choice = response.choices[0];
-    const workingMessages: ChatMessage[] = [...messages];
-
-    if (
-      enableTools &&
-      choice.message.tool_calls &&
-      choice.message.tool_calls.length > 0
-    ) {
-      workingMessages.push(choice.message as unknown as ChatMessage);
-
-      for (const toolCall of choice.message.tool_calls) {
-        if (toolCall.type !== 'function') continue;
-        let toolContent: string;
-        try {
-          const args = JSON.parse(toolCall.function.arguments || '{}') as {
-            expression?: string;
-          };
-          toolContent = executeTool(toolCall.function.name, args);
-        } catch (parseError: unknown) {
-          const parseMsg =
-            parseError instanceof Error
-              ? parseError.message
-              : String(parseError);
-          logger.error(
-            `Помилка парсингу аргументів інструмента: ${parseMsg}`
-          );
-          // Surface parse failure to the model instead of running the tool with {}.
-          toolContent = `Error parsing tool arguments: ${parseMsg}`;
-        }
-        workingMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: toolContent,
-        });
-      }
-
-      const second = await openai.chat.completions.create(
-        buildBaseParams(workingMessages, model, options)
-      );
-
-      return {
-        content: second.choices[0].message.content || '',
-        usage: second.usage,
-        tokenUsage: toTokenUsage(second.usage, second.model || model),
-        model: second.model,
-      };
-    }
 
     return {
-      content: choice.message.content || '',
+      content: choice?.message?.content || '',
       usage: response.usage,
       tokenUsage: toTokenUsage(response.usage, response.model || model),
       model: response.model,
     };
   } catch (err: unknown) {
+    if (isAbortOrCallbackError(err)) {
+      throw err;
+    }
     const status =
       err && typeof err === 'object' && 'status' in err
         ? String((err as { status: unknown }).status)
@@ -216,11 +123,12 @@ async function streamOpenAIMessage(
   options: ProviderOptions = {},
   onChunk?: (token: string) => void
 ) {
+  const openai = clientFor(options);
+  const base = buildBaseParams(messages, model, options);
+  const signal =
+    options.signal instanceof AbortSignal ? options.signal : undefined;
+
   try {
-    const base = buildBaseParams(messages, model, options);
-    const signal =
-      options.signal instanceof AbortSignal ? options.signal : undefined;
-    const openai = clientFor(options);
     const stream = await openai.chat.completions.create(
       {
         ...base,
@@ -245,44 +153,15 @@ async function streamOpenAIMessage(
       const token = chunk.choices[0]?.delta?.content || '';
       if (token) {
         fullContent += token;
-        if (onChunk) {
-          try {
-            onChunk(token);
-          } catch (cbError: unknown) {
-            if (
-              cbError &&
-              typeof cbError === 'object' &&
-              ((cbError as { name?: string }).name === 'AbortError' ||
-                (cbError as { code?: string }).code === 'ABORT_ERR')
-            ) {
-              throw cbError;
-            }
-            logger.error(
-              `Помилка в onChunk коллбеку: ${
-                cbError instanceof Error ? cbError.message : String(cbError)
-              }`
-            );
-            // Fail the stream — continuing would hide a broken UI callback.
-            const wrapped =
-              cbError instanceof Error
-                ? cbError
-                : new Error(String(cbError));
-            wrapped.name = 'StreamCallbackError';
-            throw wrapped;
-          }
-        }
+        invokeStreamTokenCallback(onChunk, token, (msg) => {
+          logger.error(`Помилка в onChunk коллбеку: ${msg}`);
+        });
       }
     }
 
     return { content: fullContent, tokenUsage, model };
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      ((error as { name?: string }).name === 'AbortError' ||
-        (error as { code?: string }).code === 'ABORT_ERR' ||
-        (error as { name?: string }).name === 'StreamCallbackError')
-    ) {
+    if (isAbortOrCallbackError(error)) {
       throw error;
     }
     logger.error(
@@ -295,7 +174,6 @@ async function streamOpenAIMessage(
 }
 
 export default {
-  executeTool,
   sendOpenAIMessage,
   streamOpenAIMessage,
 };

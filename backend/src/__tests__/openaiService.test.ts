@@ -15,7 +15,7 @@ jest.mock('../logger', () => ({
 import openaiService from '../services/openaiService';
 import logger from '../logger';
 
-const { executeTool, sendOpenAIMessage, streamOpenAIMessage } = openaiService;
+const { sendOpenAIMessage, streamOpenAIMessage } = openaiService;
 
 describe('openaiService (SDK)', () => {
   beforeEach(() => {
@@ -24,30 +24,42 @@ describe('openaiService (SDK)', () => {
     process.env.OPENAI_API_KEY = 'test-key';
   });
 
-  describe('executeTool', () => {
-    it('calculates safe expressions', () => {
-      expect(executeTool('calculate', { expression: '2 + 2' })).toBe('4');
+  describe('apiKey validation', () => {
+    beforeEach(() => {
+      delete process.env.OPENAI_API_KEY;
     });
 
-    it('rejects exponentiation **', () => {
-      const result = executeTool('calculate', { expression: '2**1024' });
-      expect(result).toMatch(/Error|Недійсний|invalid|Exponentiation/i);
+    it('sendOpenAIMessage throws when no apiKey provided and env is empty', async () => {
+      await expect(
+        sendOpenAIMessage([{ role: 'user', content: 'hi' }])
+      ).rejects.toThrow('OpenAI API key is not configured');
     });
 
-    it('rejects identifier injection', () => {
-      const result = executeTool('calculate', {
-        expression: 'process.exit(1)',
-      });
-      expect(result).toMatch(/Error/i);
+    it('sendOpenAIMessage throws when apiKey is placeholder', async () => {
+      await expect(
+        sendOpenAIMessage([{ role: 'user', content: 'hi' }], 'gpt-3.5-turbo', {
+          apiKey: 'your_openai_api_key_here',
+        })
+      ).rejects.toThrow('OpenAI API key is not configured');
     });
 
-    it('evaluates precedence without Function', () => {
-      expect(executeTool('calculate', { expression: '1+2*3' })).toBe('7');
+    it('streamOpenAIMessage throws when no apiKey provided and env is empty', async () => {
+      await expect(
+        streamOpenAIMessage([{ role: 'user', content: 'hi' }])
+      ).rejects.toThrow('OpenAI API key is not configured');
+    });
+
+    it('streamOpenAIMessage throws when apiKey is placeholder', async () => {
+      await expect(
+        streamOpenAIMessage([{ role: 'user', content: 'hi' }], 'gpt-3.5-turbo', {
+          apiKey: 'sk-your-key',
+        })
+      ).rejects.toThrow('OpenAI API key is not configured');
     });
   });
 
   describe('sendOpenAIMessage', () => {
-    it('omits tools when enableTools is not true', async () => {
+    it('omits tools and unused provider options', async () => {
       mockCreate.mockResolvedValueOnce({
         choices: [{ message: { content: 'Hi', role: 'assistant' } }],
         usage: { total_tokens: 1 },
@@ -60,7 +72,6 @@ describe('openaiService (SDK)', () => {
         {
           temperature: 0.2,
           ollama_host: 'http://x',
-          tools: [{ type: 'function' }],
         }
       );
 
@@ -70,95 +81,6 @@ describe('openaiService (SDK)', () => {
       expect(arg.tool_choice).toBeUndefined();
       expect(arg.temperature).toBe(0.2);
       expect(arg.ollama_host).toBeUndefined();
-    });
-
-    it('runs tool_calls when enableTools true', async () => {
-      mockCreate
-        .mockResolvedValueOnce({
-          choices: [
-            {
-              message: {
-                role: 'assistant',
-                content: null,
-                tool_calls: [
-                  {
-                    id: 'call_1',
-                    type: 'function',
-                    function: {
-                      name: 'calculate',
-                      arguments: '{"expression":"2+2"}',
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-          usage: {},
-          model: 'gpt-3.5-turbo',
-        })
-        .mockResolvedValueOnce({
-          choices: [{ message: { content: '4', role: 'assistant' } }],
-          usage: { total_tokens: 5 },
-          model: 'gpt-3.5-turbo',
-        });
-
-      const result = await sendOpenAIMessage(
-        [{ role: 'user', content: 'calc' }],
-        'gpt-3.5-turbo',
-        { enableTools: true }
-      );
-
-      expect(result.content).toBe('4');
-      expect(mockCreate).toHaveBeenCalledTimes(2);
-      expect(mockCreate.mock.calls[0][0].tools).toBeDefined();
-      expect(mockCreate.mock.calls[1][0].tools).toBeUndefined();
-      const secondMessages = mockCreate.mock.calls[1][0].messages;
-      expect(
-        secondMessages.some((m: { role: string }) => m.role === 'tool')
-      ).toBe(true);
-    });
-
-    it('surfaces invalid tool JSON instead of running tool with empty args', async () => {
-      mockCreate
-        .mockResolvedValueOnce({
-          choices: [
-            {
-              message: {
-                role: 'assistant',
-                content: null,
-                tool_calls: [
-                  {
-                    id: 'call_bad',
-                    type: 'function',
-                    function: {
-                      name: 'calculate',
-                      arguments: '{not-json',
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-          usage: {},
-          model: 'gpt-3.5-turbo',
-        })
-        .mockResolvedValueOnce({
-          choices: [{ message: { content: 'sorry', role: 'assistant' } }],
-          usage: { total_tokens: 2 },
-          model: 'gpt-3.5-turbo',
-        });
-
-      const result = await sendOpenAIMessage(
-        [{ role: 'user', content: 'calc' }],
-        'gpt-3.5-turbo',
-        { enableTools: true }
-      );
-
-      expect(result.content).toBe('sorry');
-      const toolMsg = mockCreate.mock.calls[1][0].messages.find(
-        (m: { role: string }) => m.role === 'tool'
-      );
-      expect(toolMsg.content).toMatch(/Error parsing tool arguments/i);
     });
 
     it('maps response.usage to tokenUsage with estimated cost', async () => {

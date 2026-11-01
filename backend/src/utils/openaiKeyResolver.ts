@@ -1,4 +1,3 @@
-import prisma from '../config/prisma';
 import logger from '../logger';
 import { decryptSecret, EncryptionConfigError } from './secretCrypto';
 
@@ -33,6 +32,8 @@ export async function resolveOpenAiApiKey(
   userId: number
 ): Promise<string | null> {
   try {
+    const prismaModule = await import('../config/prisma');
+    const prisma = prismaModule.default || prismaModule.prisma;
     const row = await prisma.userSettings.findUnique({
       where: { userId },
       select: { openaiApiKeyEnc: true },
