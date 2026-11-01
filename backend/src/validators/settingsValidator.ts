@@ -26,6 +26,7 @@ export const ALLOWED_SETTINGS_FIELDS = [
   'temperature',
   'max_tokens',
   'system_prompt',
+  'tools_enabled',
   'openai_api_key',
   'clear_openai_api_key',
   'gemini_api_key',
@@ -33,6 +34,22 @@ export const ALLOWED_SETTINGS_FIELDS = [
   'anthropic_api_key',
   'clear_anthropic_api_key',
 ] as const;
+
+export type UpdateSettingsInput = {
+  default_provider?: string;
+  default_model?: string;
+  default_ollama_host?: string;
+  temperature?: number;
+  max_tokens?: number;
+  system_prompt?: string;
+  tools_enabled?: boolean;
+  openai_api_key?: string;
+  clear_openai_api_key?: boolean;
+  gemini_api_key?: string;
+  clear_gemini_api_key?: boolean;
+  anthropic_api_key?: string;
+  clear_anthropic_api_key?: boolean;
+};
 
 export const validateSettingsUpdate = [
   body('default_provider')
@@ -63,6 +80,10 @@ export const validateSettingsUpdate = [
     .optional()
     .isString()
     .withMessage('System prompt must be a string'),
+  body('tools_enabled')
+    .optional()
+    .isBoolean()
+    .withMessage('tools_enabled must be boolean'),
   body('openai_api_key')
     .optional()
     .isString()

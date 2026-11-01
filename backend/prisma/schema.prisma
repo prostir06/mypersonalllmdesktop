@@ -23,6 +23,7 @@ model User {
   refreshTokens    RefreshToken[]
   userPrompts      UserPrompt[]
   userMemoryNotes  UserMemoryNote[]
+  pendingToolActions PendingToolAction[]
 
   @@map("users")
 }
@@ -36,6 +37,7 @@ model UserSettings {
   temperature       Decimal  @default(0.7) @db.Decimal(3, 2)
   maxTokens         Int      @default(2000) @map("max_tokens")
   systemPrompt      String   @default("") @map("system_prompt") @db.Text
+  toolsEnabled      Boolean  @default(true) @map("tools_enabled")
   openaiApiKeyEnc   String?  @map("openai_api_key_enc") @db.Text
   geminiApiKeyEnc   String?  @map("gemini_api_key_enc") @db.Text
   anthropicApiKeyEnc String? @map("anthropic_api_key_enc") @db.Text
@@ -60,8 +62,9 @@ model Conversation {
   summaryUpdatedAt  DateTime? @map("summary_updated_at")
   memoryNotes       ConversationMemoryNote[]
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages           Message[]
+  pendingToolActions PendingToolAction[]
 
   @@index([userId], map: "idx_conversations_user_id")
   @@index([userId, isPinned, updatedAt(sort: Desc)], map: "idx_conversations_user_pin_updated")
@@ -102,17 +105,41 @@ model Message {
   content        String   @db.Text
   sources        Json?    @map("sources")
   tokenUsage     Json?    @map("token_usage")
+  toolTrace      Json?    @map("tool_trace")
   parentId       Int?     @map("parent_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  parent       Message?     @relation("MessageBranches", fields: [parentId], references: [id], onDelete: Cascade)
-  branches     Message[]    @relation("MessageBranches")
+  conversation       Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  parent             Message?            @relation("MessageBranches", fields: [parentId], references: [id], onDelete: Cascade)
+  branches           Message[]           @relation("MessageBranches")
+  pendingToolActions PendingToolAction[]
 
   @@index([conversationId], map: "idx_messages_conversation_id")
   @@index([conversationId, createdAt(sort: Asc)], map: "idx_messages_conv_created")
   @@index([parentId], map: "idx_messages_parent_id")
   @@map("messages")
+}
+
+model PendingToolAction {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         Int          @map("user_id")
+  conversationId Int          @map("conversation_id")
+  messageId      Int          @map("message_id")
+  toolName       String       @map("tool_name") @db.VarChar(100)
+  toolArgs       Json         @map("tool_args")
+  status         String       @default("pending") @db.VarChar(20)
+  resultSummary  String?      @map("result_summary") @db.Text
+  expiresAt      DateTime     @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt     DateTime?    @map("resolved_at") @db.Timestamptz(6)
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([conversationId])
+  @@map("pending_tool_actions")
 }
 
 model UserPrompt {

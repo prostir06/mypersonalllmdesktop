@@ -248,6 +248,7 @@ export function getCuratedKnowledgeCards(): KnowledgeCard[] {
       howToUse:
         'Увімкніть перемикач Веб-пошук під полем вводу для пошуку актуальної інформації або натисніть значок розгалуження біля повідомлення.',
       uiPath: '/chat',
+      relatedSettings: ['tools_enabled', 'toolsEnabled'],
       relatedRoutes: ['chat', 'auth', 'system'],
       keywords: [
         'веб-пошук',

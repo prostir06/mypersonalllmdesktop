@@ -22,6 +22,7 @@ export type UpdateSettingsBody = {
   default_provider?: string;
   default_ollama_host?: string;
   system_prompt?: string;
+  tools_enabled?: boolean;
   openai_api_key?: string;
   clear_openai_api_key?: boolean;
   gemini_api_key?: string;
@@ -59,12 +60,15 @@ export function defaultSettings() {
     default_provider: 'openai',
     default_ollama_host: FALLBACK_OLLAMA,
     system_prompt: '',
+    tools_enabled: true,
     has_openai_api_key: false,
     has_gemini_api_key: false,
     has_anthropic_api_key: false,
     rag_embedding_mode: 'fallback' as const,
   };
 }
+
+export const DEFAULT_SETTINGS = defaultSettings();
 
 function hasEncKey(row: { openaiApiKeyEnc?: string | null }): boolean {
   return Boolean(row.openaiApiKeyEnc && row.openaiApiKeyEnc.length > 0);
@@ -86,6 +90,7 @@ export async function toPublicSettingsAsync(row: {
   defaultProvider: string;
   defaultOllamaHost: string | null;
   systemPrompt: string;
+  toolsEnabled?: boolean | null;
   openaiApiKeyEnc?: string | null;
   geminiApiKeyEnc?: string | null;
   anthropicApiKeyEnc?: string | null;
@@ -98,6 +103,7 @@ export async function toPublicSettingsAsync(row: {
     default_provider: row.defaultProvider,
     default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
     system_prompt: row.systemPrompt ?? '',
+    tools_enabled: Boolean(row.toolsEnabled ?? true),
     has_openai_api_key: hasEncKey(row),
     has_gemini_api_key: hasGeminiKey(row),
     has_anthropic_api_key: hasAnthropicKey(row),
@@ -112,6 +118,8 @@ export async function toPublicSettingsAsync(row: {
   return base;
 }
 
+export const toPublicSettings = toPublicSettingsAsync;
+
 /** PUT full row */
 export function toSettingsRow(row: {
   id: number;
@@ -122,6 +130,7 @@ export function toSettingsRow(row: {
   defaultProvider: string;
   defaultOllamaHost: string | null;
   systemPrompt: string;
+  toolsEnabled?: boolean | null;
   openaiApiKeyEnc?: string | null;
   geminiApiKeyEnc?: string | null;
   anthropicApiKeyEnc?: string | null;
@@ -137,6 +146,7 @@ export function toSettingsRow(row: {
     default_provider: row.defaultProvider,
     default_ollama_host: row.defaultOllamaHost || FALLBACK_OLLAMA,
     system_prompt: row.systemPrompt ?? '',
+    tools_enabled: Boolean(row.toolsEnabled ?? true),
     has_openai_api_key: hasEncKey(row),
     has_gemini_api_key: hasGeminiKey(row),
     has_anthropic_api_key: hasAnthropicKey(row),
@@ -172,6 +182,7 @@ export async function updateSettingsForUser(
     default_provider,
     default_ollama_host,
     system_prompt,
+    tools_enabled,
     openai_api_key,
     clear_openai_api_key,
     gemini_api_key,
@@ -191,6 +202,7 @@ export async function updateSettingsForUser(
     defaultProvider: string;
     defaultOllamaHost: string;
     systemPrompt: string;
+    toolsEnabled?: boolean;
     openaiApiKeyEnc?: string | null;
     geminiApiKeyEnc?: string | null;
     anthropicApiKeyEnc?: string | null;
@@ -203,6 +215,8 @@ export async function updateSettingsForUser(
       default_ollama_host || existing?.defaultOllamaHost || FALLBACK_OLLAMA,
     systemPrompt:
       system_prompt !== undefined ? system_prompt : existing?.systemPrompt || '',
+    toolsEnabled:
+      tools_enabled !== undefined ? Boolean(tools_enabled) : existing?.toolsEnabled ?? true,
   };
 
   const clearKey =
@@ -257,3 +271,5 @@ export async function updateSettingsForUser(
 
   return toSettingsRow(row);
 }
+
+export const updateSettings = updateSettingsForUser;

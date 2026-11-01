@@ -61,6 +61,7 @@ describe('Settings API (Prisma)', () => {
       max_tokens: 2000,
       default_provider: 'openai',
       system_prompt: '',
+      tools_enabled: true,
       has_openai_api_key: false,
       has_gemini_api_key: false,
       has_anthropic_api_key: false,
@@ -98,6 +99,7 @@ describe('Settings API (Prisma)', () => {
       default_provider: 'openai',
       default_ollama_host: 'http://ollama.local/v1',
       system_prompt: 'Be concise',
+      tools_enabled: true,
       has_openai_api_key: false,
       has_gemini_api_key: false,
       has_anthropic_api_key: false,
@@ -317,5 +319,35 @@ describe('Settings API (Prisma)', () => {
     expect(res.status).toBe(200);
     expect(res.body.default_provider).toBe(provider);
     expect(res.body.max_tokens).toBe(4096);
+  });
+
+  it('PUT updates tools_enabled flag and validates boolean type', async () => {
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+    mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
+      id: 2,
+      userId: 9,
+      ...args.create,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    }));
+
+    const res = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tools_enabled: false });
+
+    expect(res.status).toBe(200);
+    expect(res.body.tools_enabled).toBe(false);
+    const upsertCall = mockedPrisma.userSettings.upsert.mock.calls[0][0];
+    expect(upsertCall.create.toolsEnabled).toBe(false);
+
+    // Invalid non-boolean value
+    const badRes = await request(app)
+      .put('/api/settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ tools_enabled: 'not-a-bool' });
+
+    expect(badRes.status).toBe(400);
   });
 });
