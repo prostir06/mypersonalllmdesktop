@@ -233,12 +233,14 @@ describe('ChatBoxOptimized', () => {
     expect(chatStreamState.sendMessage).toHaveBeenNthCalledWith(
       1,
       'hello',
-      expect.any(Function)
+      expect.any(Function),
+      { toolsEnabled: true }
     );
     expect(chatStreamState.sendMessage).toHaveBeenNthCalledWith(
       2,
       'hello',
-      expect.any(Function)
+      expect.any(Function),
+      { toolsEnabled: true }
     );
     expect(navigateMock).toHaveBeenCalledWith('/settings');
   });
@@ -253,7 +255,8 @@ describe('ChatBoxOptimized', () => {
 
     expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
       'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.',
-      expect.any(Function)
+      expect.any(Function),
+      { toolsEnabled: true }
     );
   });
 
@@ -288,11 +291,11 @@ describe('ChatBoxOptimized', () => {
     expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
       'search query',
       expect.any(Function),
-      { enableWebSearch: true }
+      { enableWebSearch: true, toolsEnabled: true }
     );
   });
 
-  it('does not pass enableWebSearch if provider is switched away from gemini', async () => {
+  it('keeps enableWebSearch active when provider is switched (universal web search)', async () => {
     const user = userEvent.setup();
     chatStreamState.sendMessage.mockClear();
     render(<ChatBoxOptimized conversationId={null} />);
@@ -310,7 +313,33 @@ describe('ChatBoxOptimized', () => {
 
     expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
       'openai query',
-      expect.any(Function)
+      expect.any(Function),
+      { enableWebSearch: true, toolsEnabled: true }
+    );
+  });
+
+  it('renders autonomous tools toggle in ChatControls and allows disabling tools', async () => {
+    const user = userEvent.setup();
+    chatStreamState.sendMessage.mockClear();
+    render(<ChatBoxOptimized conversationId={null} />);
+
+    const toolsBtn = screen.getByRole('button', {
+      name: /Автономні інструменти/i,
+    });
+    expect(toolsBtn).toBeInTheDocument();
+    expect(toolsBtn).toBeEnabled();
+    expect(screen.getByText('Увімк')).toBeInTheDocument();
+
+    // Click to toggle off
+    await user.click(toolsBtn);
+
+    await user.type(screen.getByLabelText(/Введення повідомлення/i), 'test without tools');
+    await user.click(screen.getByRole('button', { name: /надіслати/i }));
+
+    expect(chatStreamState.sendMessage).toHaveBeenCalledWith(
+      'test without tools',
+      expect.any(Function),
+      { toolsEnabled: false }
     );
   });
 

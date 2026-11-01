@@ -65,4 +65,50 @@ describe('GeneralSettingsTab token visibility toggle', () => {
     );
     expect(toggle).not.toBeChecked();
   });
+
+  it('renders autonomous tools switch checked by default with Ukrainian label and help text', () => {
+    render(<GeneralSettingsTab {...defaultProps} />);
+
+    const toolsSwitch = screen.getByLabelText(
+      'Автономні інструменти (Tools & Function Calling)'
+    );
+    expect(toolsSwitch).toBeInTheDocument();
+    expect(toolsSwitch).toBeChecked();
+    expect(
+      screen.getByText(
+        /Дозволяє моделям автоматично виконувати безпечний пошук у документах/i
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('toggles autonomous tools switch and notifies onToolsEnabledChange', () => {
+    const onToolsEnabledChange = vi.fn();
+    render(
+      <GeneralSettingsTab
+        {...defaultProps}
+        onToolsEnabledChange={onToolsEnabledChange}
+      />
+    );
+
+    const toolsSwitch = screen.getByLabelText(
+      'Автономні інструменти (Tools & Function Calling)'
+    );
+    fireEvent.click(toolsSwitch);
+
+    expect(toolsSwitch).not.toBeChecked();
+    expect(onToolsEnabledChange).toHaveBeenCalledWith(false);
+
+    fireEvent.click(toolsSwitch);
+    expect(toolsSwitch).toBeChecked();
+    expect(onToolsEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it('respects controlled tools_enabled={false}', () => {
+    render(<GeneralSettingsTab {...defaultProps} tools_enabled={false} />);
+
+    const toolsSwitch = screen.getByLabelText(
+      'Автономні інструменти (Tools & Function Calling)'
+    );
+    expect(toolsSwitch).not.toBeChecked();
+  });
 });

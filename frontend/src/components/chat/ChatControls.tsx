@@ -25,6 +25,11 @@ export type ChatControlsProps = {
   conversationId?: string | number | null;
   onShowGuideModal?: () => void;
   advisoryWarningCount?: number;
+  webSearchEnabled?: boolean;
+  onToggleWebSearch?: () => void;
+  toolsEnabled?: boolean;
+  onToggleTools?: () => void;
+  toolsSupported?: boolean;
 };
 
 const ChatControls = React.memo(function ChatControls({
@@ -45,6 +50,11 @@ const ChatControls = React.memo(function ChatControls({
   conversationId,
   onShowGuideModal,
   advisoryWarningCount,
+  webSearchEnabled,
+  onToggleWebSearch,
+  toolsEnabled,
+  onToggleTools,
+  toolsSupported,
 }: ChatControlsProps) {
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
 
@@ -105,6 +115,52 @@ const ChatControls = React.memo(function ChatControls({
               ? `RAG (${selectedDocIds.length})`
               : 'Документи'}
           </Button>
+
+          {onToggleWebSearch && (
+            <Button
+              variant={webSearchEnabled ? 'primary' : 'outline-secondary'}
+              size="sm"
+              onClick={onToggleWebSearch}
+              disabled={streaming}
+              title={
+                webSearchEnabled
+                  ? 'Вимкнути веб-пошук'
+                  : 'Увімкнути веб-пошук (Google Search / SearXNG / Tavily)'
+              }
+              aria-label="Веб-пошук"
+              className="d-flex align-items-center gap-1"
+            >
+              🌐 Веб-пошук
+              {webSearchEnabled ? (
+                <span className="badge bg-light text-dark ms-1">Увімк</span>
+              ) : null}
+            </Button>
+          )}
+
+          {onToggleTools && (
+            <Button
+              variant={toolsEnabled ? 'primary' : 'outline-secondary'}
+              size="sm"
+              onClick={onToggleTools}
+              disabled={streaming || toolsSupported === false}
+              title={
+                toolsSupported === false
+                  ? 'Обрана модель не підтримує автономні інструменти'
+                  : toolsEnabled
+                  ? 'Вимкнути автономні інструменти'
+                  : 'Увімкнути автономні інструменти (Tools)'
+              }
+              aria-label="Автономні інструменти"
+              className="d-flex align-items-center gap-1"
+            >
+              🛠 Інструменти
+              {toolsSupported === false ? (
+                <span className="badge bg-secondary ms-1">Н/Д</span>
+              ) : toolsEnabled ? (
+                <span className="badge bg-light text-dark ms-1">Увімк</span>
+              ) : null}
+            </Button>
+          )}
 
           {conversationId != null && (
             <Button

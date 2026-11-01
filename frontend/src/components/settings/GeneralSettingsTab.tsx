@@ -28,6 +28,9 @@ export interface GeneralSettingsTabProps {
   error?: string;
   ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
   hasOpenaiKey?: boolean;
+  tools_enabled?: boolean;
+  toolsEnabled?: boolean;
+  onToolsEnabledChange?: (enabled: boolean) => void;
 }
 
 export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
@@ -52,7 +55,29 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   error,
   ragEmbeddingMode,
   hasOpenaiKey,
+  tools_enabled,
+  toolsEnabled,
+  onToolsEnabledChange,
 }) => {
+  const isControlled = tools_enabled !== undefined || toolsEnabled !== undefined;
+  const [internalToolsEnabled, setInternalToolsEnabled] = React.useState<boolean>(() => {
+    if (tools_enabled !== undefined) return Boolean(tools_enabled);
+    if (toolsEnabled !== undefined) return Boolean(toolsEnabled);
+    return true;
+  });
+
+  const currentToolsEnabled = isControlled
+    ? Boolean(tools_enabled ?? toolsEnabled)
+    : internalToolsEnabled;
+
+  const handleToggleTools = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    if (!isControlled) {
+      setInternalToolsEnabled(checked);
+    }
+    onToolsEnabledChange?.(checked);
+  };
+
   const [showTokens, setShowTokens] = React.useState<boolean>(() => {
     if (typeof window === 'undefined' || !window.localStorage) return true;
     return window.localStorage.getItem('llm_assistant_show_tokens') !== 'false';
@@ -96,6 +121,24 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
         ragEmbeddingMode={ragEmbeddingMode}
         hasOpenaiKey={hasOpenaiKey}
       />
+      <div className="glass-panel p-4 mb-3">
+        <h6
+          className="fw-semibold mb-3 text-muted text-uppercase"
+          style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}
+        >
+          🛠 Автономні інструменти
+        </h6>
+        <Form.Check
+          type="switch"
+          id="settings-tools-enabled"
+          label="Автономні інструменти (Tools & Function Calling)"
+          checked={currentToolsEnabled}
+          onChange={handleToggleTools}
+        />
+        <Form.Text className="text-muted d-block mt-2">
+          Дозволяє моделям автоматично виконувати безпечний пошук у документах, перегляд пам'яті, системний час та запитувати підтвердження для операцій запису.
+        </Form.Text>
+      </div>
       <div className="glass-panel p-4 mb-3">
         <h6
           className="fw-semibold mb-3 text-muted text-uppercase"

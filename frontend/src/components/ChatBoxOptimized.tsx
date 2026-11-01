@@ -28,6 +28,33 @@ type ChatBoxOptimizedProps = {
   onNewMessage?: (conversationId?: string | number) => void;
 };
 
+export function modelSupportsTools(
+  modelId: string | null | undefined,
+  catalog: Array<{ model_id?: string; supports_tools?: boolean }> | null | undefined = [],
+  provider?: string | null
+): boolean {
+  if (!modelId || typeof modelId !== 'string') return false;
+  const row = (catalog || []).find((m) => m?.model_id === modelId);
+  if (row?.supports_tools !== undefined) return Boolean(row.supports_tools);
+  const p = (provider || '').trim().toLowerCase();
+  if (p === 'openai' || p === 'anthropic' || p === 'gemini') return true;
+  const m = modelId.trim().toLowerCase();
+  return (
+    m.includes('gpt') ||
+    m.includes('claude') ||
+    m.includes('gemini') ||
+    m.includes('llama3.1') ||
+    m.includes('llama3.2') ||
+    m.includes('llama3.3') ||
+    m.includes('qwen2.5') ||
+    m.includes('qwen3') ||
+    m.includes('mistral') ||
+    m.includes('command-r') ||
+    m.includes('gemma4') ||
+    m.includes('minicpm')
+  );
+}
+
 const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   conversationId,
   onNewMessage,
@@ -41,11 +68,27 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     setActiveArtifact(null);
   }
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const { data: settings } = useSettings();
+  const [toolsEnabled, setToolsEnabled] = useState<boolean>(() => {
+    return settings?.tools_enabled ?? settings?.toolsEnabled ?? true;
+  });
+  const [toolsHydrated, setToolsHydrated] = useState(false);
+
+  useEffect(() => {
+    if (settings && !toolsHydrated) {
+      if (settings.tools_enabled !== undefined) {
+        setToolsEnabled(Boolean(settings.tools_enabled));
+      } else if (settings.toolsEnabled !== undefined) {
+        setToolsEnabled(Boolean(settings.toolsEnabled));
+      }
+      setToolsHydrated(true);
+    }
+  }, [settings, toolsHydrated]);
+
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastUserContentRef = useRef('');
-  const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
   const {
     catalogModels,
@@ -185,15 +228,13 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         toast.warn('Неможливо перегенерувати — оновіть історію чату');
         return;
       }
-      const regenOpts =
-        selectedProvider === 'gemini' && webSearchEnabled
-          ? { enableWebSearch: true }
-          : undefined;
-      await (regenOpts
-        ? regenerateMessage(userMsg, assistantIdx, setMessages, regenOpts)
-        : regenerateMessage(userMsg, assistantIdx, setMessages));
+      const regenOpts = {
+        ...(webSearchEnabled ? { enableWebSearch: true } : {}),
+        toolsEnabled,
+      };
+      await regenerateMessage(userMsg, assistantIdx, setMessages, regenOpts);
     },
-    [messages, regenerateMessage, setMessages, selectedProvider, webSearchEnabled]
+    [messages, regenerateMessage, setMessages, webSearchEnabled, toolsEnabled]
   );
 
   const handleSwitchBranch = useCallback(
@@ -233,13 +274,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
       'Проаналізуй вкладені файли та відповідай на основі їхнього вмісту.';
     lastUserContentRef.current = userContent;
     setInputMessage('');
-    const sendOpts =
-      selectedProvider === 'gemini' && webSearchEnabled
-        ? { enableWebSearch: true }
-        : undefined;
-    await (sendOpts
-      ? sendMessage(userContent, setMessages, sendOpts)
-      : sendMessage(userContent, setMessages));
+    const sendOpts = {
+      ...(webSearchEnabled ? { enableWebSearch: true } : {}),
+      toolsEnabled,
+    };
+    await sendMessage(userContent, setMessages, sendOpts);
   };
 
   return (
@@ -265,6 +304,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         conversationId={conversationId}
         onShowGuideModal={() => setShowGuideModal(true)}
         advisoryWarningCount={advisoryWarningCount}
+        webSearchEnabled={webSearchEnabled}
+        onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
+        toolsEnabled={toolsEnabled}
+        onToggleTools={() => setToolsEnabled((prev) => !prev)}
+        toolsSupported={modelSupportsTools(activeModel, catalogModels, selectedProvider)}
       />
 
       {error && (
@@ -281,13 +325,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
               className="btn btn-sm btn-outline-light"
               onClick={() => {
                 if (lastUserContentRef.current && !streaming && !loading) {
-                  const sendOpts =
-                    selectedProvider === 'gemini' && webSearchEnabled
-                      ? { enableWebSearch: true }
-                      : undefined;
-                  void (sendOpts
-                    ? sendMessage(lastUserContentRef.current, setMessages, sendOpts)
-                    : sendMessage(lastUserContentRef.current, setMessages));
+                  const sendOpts = {
+                    ...(webSearchEnabled ? { enableWebSearch: true } : {}),
+                    toolsEnabled,
+                  };
+                  void sendMessage(lastUserContentRef.current, setMessages, sendOpts);
                 }
               }}
             >
@@ -346,7 +388,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
             supportsVision={modelSupportsVision(activeModel, catalogModels)}
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
-            isGeminiProvider={selectedProvider === 'gemini'}
+            isGeminiProvider={true}
           />
         </div>
 
