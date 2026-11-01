@@ -7,6 +7,7 @@ jest.mock('../logger', () => ({
 }));
 
 import axios from 'axios';
+import logger from '../logger';
 import {
   clampMaxResults,
   formatUntrustedWebResultsBlock,
@@ -23,7 +24,11 @@ import type { WebSearchResultItem } from '../services/webSearch';
 const mockedAxios = axios as unknown as {
   get: jest.Mock;
   post: jest.Mock;
+  isAxiosError: jest.Mock;
 };
+
+// Ensure axios.isAxiosError returns true when mock AxiosError object is provided
+(axios as any).isAxiosError = (err: any): boolean => Boolean(err?.isAxiosError);
 
 describe('WebSearchService', () => {
   const originalEnv = process.env;
@@ -176,6 +181,31 @@ describe('WebSearchService', () => {
       expect(results[1].snippet).toBe('Short snippet');
       expect(results[1].score).toBeUndefined();
     });
+
+    it('unmasks axios error details when Tavily returns upstream 401/429 response', async () => {
+      const axiosError: any = new Error('Request failed with status code 401');
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 401,
+        data: { detail: { error: 'Invalid API key provided' } },
+      };
+
+      mockedAxios.post = jest.fn().mockRejectedValue(axiosError);
+
+      await expect(searchTavily('query', 5, 'tvly-bad-key')).rejects.toThrow(
+        'Tavily search failed (401): Invalid API key provided'
+      );
+    });
+
+    it('throws error when Tavily returns 200 with an explicit error field', async () => {
+      mockedAxios.post = jest.fn().mockResolvedValue({
+        data: { error: 'Monthly quota exceeded' },
+      });
+
+      await expect(searchTavily('query', 5, 'tvly-key-12345')).rejects.toThrow(
+        'Tavily error: Monthly quota exceeded'
+      );
+    });
   });
 
   describe('searchSearxng', () => {
@@ -228,6 +258,31 @@ describe('WebSearchService', () => {
         expect.any(Object)
       );
     });
+
+    it('throws when SearXNG returns HTML instead of JSON', async () => {
+      mockedAxios.get = jest.fn().mockResolvedValue({
+        data: '<!DOCTYPE html><html><body>Error</body></html>',
+      });
+
+      await expect(searchSearxng('test query')).rejects.toThrow(
+        /SearXNG returned non-JSON response/
+      );
+    });
+
+    it('unmasks axios error details when SearXNG request fails', async () => {
+      const axiosError: any = new Error('Request failed with status code 502');
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 502,
+        data: { message: 'Bad Gateway from upstream engine' },
+      };
+
+      mockedAxios.get = jest.fn().mockRejectedValue(axiosError);
+
+      await expect(searchSearxng('query')).rejects.toThrow(
+        'SearXNG search failed (502): Bad Gateway from upstream engine'
+      );
+    });
   });
 
   describe('searchWeb', () => {
@@ -270,6 +325,16 @@ describe('WebSearchService', () => {
       expect(mockedAxios.post).not.toHaveBeenCalled();
     });
 
+    it('logs and throws error when SearXNG direct backend fails', async () => {
+      process.env.SEARXNG_URL = 'http://searxng:8080';
+      mockedAxios.get = jest.fn().mockRejectedValue(new Error('SearXNG connection refused'));
+
+      await expect(searchWeb('failing searxng')).rejects.toThrow('SearXNG connection refused');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('[WebSearchService] SearXNG search failed')
+      );
+    });
+
     it('falls back to SearXNG when Tavily fails and SearXNG is configured', async () => {
       process.env.TAVILY_API_KEY = 'tvly-failing-key';
       process.env.SEARXNG_URL = 'http://searxng:8080';
@@ -290,6 +355,21 @@ describe('WebSearchService', () => {
       expect(mockedAxios.get).toHaveBeenCalled();
     });
 
+    it('preserves both errors and logs error when both Tavily and SearXNG fallback fail', async () => {
+      process.env.TAVILY_API_KEY = 'tvly-failing-key';
+      process.env.SEARXNG_URL = 'http://searxng:8080';
+
+      mockedAxios.post = jest.fn().mockRejectedValue(new Error('Tavily timeout'));
+      mockedAxios.get = jest.fn().mockRejectedValue(new Error('SearXNG 500 server error'));
+
+      await expect(searchWeb('dual fail')).rejects.toThrow(
+        'Web search failed across providers. Tavily: Tavily timeout; SearXNG fallback: SearXNG 500 server error'
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Both Tavily and SearXNG fallback failed')
+      );
+    });
+
     it('rethrows error if Tavily fails and SearXNG is not configured', async () => {
       process.env.TAVILY_API_KEY = 'tvly-failing-key';
 
@@ -301,8 +381,9 @@ describe('WebSearchService', () => {
   });
 
   describe('formatUntrustedWebResultsBlock', () => {
-    it('returns empty string when items is empty', () => {
+    it('returns empty string when items is empty or contains only falsy entries', () => {
       expect(formatUntrustedWebResultsBlock([])).toBe('');
+      expect(formatUntrustedWebResultsBlock([null as any, undefined as any])).toBe('');
     });
 
     it('formats items inside <untrusted_web_result> tags with disclaimer', () => {
@@ -326,8 +407,9 @@ describe('WebSearchService', () => {
   });
 
   describe('toWebRagSources', () => {
-    it('returns empty array when items is empty', () => {
+    it('returns empty array when items is empty or contains only falsy entries', () => {
       expect(toWebRagSources([])).toEqual([]);
+      expect(toWebRagSources([null as any])).toEqual([]);
     });
 
     it('maps WebSearchResultItem array to RagSource array with type: web', () => {
