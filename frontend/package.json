@@ -22,6 +22,7 @@
     "start": "vite",
     "build": "vite build",
     "build:analyze": "vite build --mode analyze",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
     "serve": "vite preview",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

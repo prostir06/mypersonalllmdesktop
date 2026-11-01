@@ -140,6 +140,9 @@ jobs:
         env:
           VITE_API_URL: /api
 
+      - name: Check frontend bundle budget
+        run: npm run check:bundle --prefix frontend
+
   test-desktop:
     name: Desktop Smoke
     runs-on: ubuntu-latest
