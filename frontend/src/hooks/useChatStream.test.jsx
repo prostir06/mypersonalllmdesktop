@@ -443,4 +443,30 @@ describe('useChatStream', () => {
     });
   });
 
+  it('forwards toolsEnabled and enableWebSearch in streamMessage request options', async () => {
+    chatAPI.streamMessage.mockImplementation(
+      async (_id, _msg, _model, _provider, _opts, onToken) => {
+        onToken('ok');
+      }
+    );
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('hello', setMessages, {
+        toolsEnabled: false,
+        enableWebSearch: true,
+      });
+    });
+
+    expect(chatAPI.streamMessage).toHaveBeenCalledTimes(1);
+    expect(chatAPI.streamMessage.mock.calls[0][4]).toMatchObject({
+      toolsEnabled: false,
+      enableWebSearch: true,
+    });
+  });
 });

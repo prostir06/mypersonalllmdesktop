@@ -41,6 +41,9 @@ export const chatAPI = {
       ...(options?.enableWebSearch !== undefined
         ? { enableWebSearch: options.enableWebSearch }
         : {}),
+      ...(options?.toolsEnabled !== undefined
+        ? { toolsEnabled: options.toolsEnabled }
+        : {}),
     }),
 
   streamMessage: async (
@@ -80,8 +83,11 @@ export const chatAPI = {
           provider,
           options,
           ...(options?.enableWebSearch !== undefined
-            ? { enableWebSearch: options.enableWebSearch }
-            : {}),
+        ? { enableWebSearch: options.enableWebSearch }
+        : {}),
+      ...(options?.toolsEnabled !== undefined
+        ? { toolsEnabled: options.toolsEnabled }
+        : {}),
         }),
         signal,
         credentials: 'include',

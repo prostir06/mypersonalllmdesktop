@@ -25,6 +25,7 @@ export type SendOptions = {
   skipOptimisticUser?: boolean;
   replaceAssistantIndex?: number;
   enableWebSearch?: boolean;
+  toolsEnabled?: boolean;
 };
 
 export function appendOrReplaceAssistant(
@@ -49,7 +50,11 @@ export function buildChatRequestOptions(args: {
   selectedDocIds: Array<string | number>;
   attachedImage: AttachedImage;
   chatAttachments: ChatAttachmentPayload[];
-  extra?: { regenerateFromMessageId?: number; enableWebSearch?: boolean };
+  extra?: {
+    regenerateFromMessageId?: number;
+    enableWebSearch?: boolean;
+    toolsEnabled?: boolean;
+  };
 }) {
   return {
     temperature: args.temperature,

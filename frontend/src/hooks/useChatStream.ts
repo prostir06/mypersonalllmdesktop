@@ -70,7 +70,7 @@ export function useChatStream({
   }, []);
 
   const buildRequestOptions = useCallback(
-    (extra?: { regenerateFromMessageId?: number; enableWebSearch?: boolean }) =>
+    (extra?: { regenerateFromMessageId?: number; enableWebSearch?: boolean; toolsEnabled?: boolean }) =>
       buildChatRequestOptions({
         temperature,
         maxTokens,
@@ -104,6 +104,7 @@ export function useChatStream({
       const requestOptions = buildRequestOptions({
         regenerateFromMessageId: opts.regenerateFromMessageId,
         enableWebSearch: opts.enableWebSearch,
+        toolsEnabled: opts.toolsEnabled,
       });
 
       const controller = new AbortController();
@@ -449,7 +450,7 @@ export function useChatStream({
       userMessage: Message,
       assistantIndex: number,
       setMessages: Dispatch<SetStateAction<Message[]>>,
-      opts?: Pick<SendOptions, 'enableWebSearch'>
+      opts?: Pick<SendOptions, 'enableWebSearch' | 'toolsEnabled'>
     ) => {
       if (!userMessage.id || streaming) return;
       const userId = Number(userMessage.id);
@@ -460,6 +461,7 @@ export function useChatStream({
         skipOptimisticUser: true,
         replaceAssistantIndex: assistantIndex,
         enableWebSearch: opts?.enableWebSearch,
+        toolsEnabled: opts?.toolsEnabled,
       });
     },
     [sendMessage, streaming]
