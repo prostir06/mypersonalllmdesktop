@@ -42,6 +42,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(2000);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [toolsEnabled, setToolsEnabled] = useState(true);
   const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
   const [error, setError] = useState('');
   const [loadingRemote, setLoadingRemote] = useState(false);
@@ -59,6 +60,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
         settingsData.has_openai_api_key,
         settingsData.has_gemini_api_key,
         settingsData.has_anthropic_api_key,
+        settingsData.tools_enabled ?? settingsData.toolsEnabled,
       ].join('|')
     : '';
 
@@ -74,6 +76,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
         'http://127.0.0.1:11434/v1/chat/completions'
     );
     setSystemPrompt(String(settingsData.system_prompt || ''));
+    const serverTools = settingsData.tools_enabled ?? settingsData.toolsEnabled;
+    setToolsEnabled(serverTools !== undefined ? Boolean(serverTools) : true);
     setHasOpenaiKey(Boolean(settingsData.has_openai_api_key));
   }
 
@@ -145,6 +149,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
         max_tokens: Number(maxTokens),
         default_ollama_host: ollamaHost,
         system_prompt: systemPrompt,
+        tools_enabled: toolsEnabled,
       };
       await updateSettingsMutation.mutateAsync(payload);
       toast.success('Налаштування збережено! ✅');
@@ -273,6 +278,8 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
             error={error}
             ragEmbeddingMode={settingsData?.rag_embedding_mode}
             hasOpenaiKey={hasOpenaiKey}
+            tools_enabled={toolsEnabled}
+            onToolsEnabledChange={setToolsEnabled}
             onProviderChange={handleProviderChange}
             onModelChange={setModel}
             onOllamaHostChange={(value) => {

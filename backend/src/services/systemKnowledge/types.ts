@@ -46,6 +46,8 @@ export interface UserSystemSnapshot {
   modelSupportsVision: boolean;
   modelSupportsWebSearch: boolean;
   webSearchEnabled: boolean;
+  toolsEnabled?: boolean;
+  webSearchBackend?: 'gemini_grounding' | 'tavily' | 'searxng' | 'none';
   configuredProviders: {
     openai: boolean;
     gemini: boolean;
@@ -68,6 +70,12 @@ export interface UserSystemSnapshot {
   maxTokens: number;
 }
 
+export interface LiveSystemToolMetadata {
+  name: string;
+  description: string;
+  category: 'read' | 'write';
+}
+
 export interface LiveSystemMetadata {
   allowedProviders: string[];
   temperatureRange: { min: number; max: number; default: number };
@@ -79,6 +87,7 @@ export interface LiveSystemMetadata {
   userMemoryMaxNotes: number;
   userMemoryNoteMaxChars: number;
   supportedPricingModels: string[];
+  tools: LiveSystemToolMetadata[];
 }
 
 export interface SystemKnowledgeResponse {

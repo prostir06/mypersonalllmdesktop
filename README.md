@@ -9,6 +9,10 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 ## Features
 
 - **Multi-Provider Streaming Chat:** Real-time SSE token streaming and instant Stop across **OpenAI**, **Anthropic Claude**, **Google Gemini**, and **Ollama**.
+- **Autonomous Tools & Function Calling (v18):** Full-turn multi-iteration autonomous tool loop across **OpenAI**, **Anthropic Claude**, **Google Gemini**, and tool-capable **Ollama** models. Includes 10 built-in tools (`search_documents`, `list_documents`, `read_memory`, `get_system_help`, `calculate`, `get_current_time`, `web_search`, `add_user_memory_note`, `add_conversation_note`, `update_settings`), collapsible `ToolCallCard` traces, and per-chat `🛠 Інструменти` toggle.
+- **Human-in-the-Loop Confirmation with Visual Diff (v18):** Confirmation-gated write operations (`add_user_memory_note`, `add_conversation_note`, `update_settings`) automatically pause execution and render an interactive `ConfirmActionCard` featuring before/after parameter diffs and single-click Approve / Reject (`/api/chat/tool-actions/:id/approve|reject`).
+- **Universal Web Search (v18):** Live web search for all providers via self-hosted air-gapped **SearXNG** (Docker) with optional **Tavily** fallback and native **Google Search Grounding** for Gemini. Armed with strict `<untrusted_web_result>` prompt-injection defense tags and unified clickable citation chips.
+- **Safe Arithmetic Engine (v18):** Deterministic mathematical expression evaluation (`calculate`) using a sandboxed arithmetic parser without dangerous dynamic `eval`.
 - **Multimodal Vision & Inline File Attachments:** Analyze images (PNG, JPEG, WEBP, GIF) with vision-capable models and attach PDF, DOCX, XLSX, TXT, or MD files directly into a conversation turn.
 - **Interactive Artifacts Split-View:** Render generated HTML and SVG blocks inside a sandboxed preview pane (`/artifact-sandbox.html` with isolated CSP), switch between **Preview / Code**, copy, download, or inspect in fullscreen.
 - **Google Search Grounding:** Toggle live web search on Gemini models with clickable external source citations below assistant replies.
@@ -159,6 +163,8 @@ ALLOW_REGISTRATION=true       # unset = allow in dev, deny in production
 OPENAI_API_KEY=               # optional
 GEMINI_API_KEY=               # optional
 ANTHROPIC_API_KEY=            # optional
+SEARXNG_URL=http://searxng:8080 # optional (internal Docker or host SearXNG instance)
+TAVILY_API_KEY=                # optional fallback for universal web search
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
 OLLAMA_EMBED_MODEL=nomic-embed-text
 EMBEDDING_DIMENSIONS=768
@@ -178,10 +184,12 @@ CORS_ORIGIN=http://localhost:3000
 
 ### Chat & Attachments
 - `POST /api/chat/send` — Non-streaming chat completion
-- `POST /api/chat/stream` — SSE streaming chat (`init`, `token`, `token_usage`, `done`)
+- `POST /api/chat/stream` — SSE streaming chat (`init`, `token`, `token_usage`, `tool_call`, `tool_result`, `tool_confirmation_required`, `done`)
 - `POST /api/chat/attachments` — Extract inline document attachment text for chat context
 - `GET /api/chat/history/:conversationId` — Linearized + branched conversation history
 - `GET /api/chat/search` — Full-text message search
+- `POST /api/chat/tool-actions/:id/approve` — Approve pending write action (Human-in-the-loop)
+- `POST /api/chat/tool-actions/:id/reject` — Reject pending write action
 
 ### Conversations & Memory
 - `GET | POST /api/conversations` — Paginated list (pinned-first) & create

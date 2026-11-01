@@ -19,6 +19,7 @@ import {
 import { EXPECTED_ROUTE_DOMAINS } from '../routes/routeManifest';
 import { Prisma } from '@prisma/client';
 import { KnowledgeCategory } from '../services/systemKnowledge/types';
+import toolRegistry from '../services/tools/registry';
 
 describe('System Knowledge Sync & Drift Guard', () => {
   it('exports valid validator constants and numeric bounds', () => {
@@ -59,6 +60,8 @@ describe('System Knowledge Sync & Drift Guard', () => {
     expect(metadata.userMemoryNoteMaxChars).toBe(500);
     expect(Array.isArray(metadata.supportedPricingModels)).toBe(true);
     expect(metadata.supportedPricingModels.length).toBeGreaterThan(0);
+    expect(Array.isArray(metadata.tools)).toBe(true);
+    expect(metadata.tools.length).toBeGreaterThanOrEqual(10);
   });
 
   it('provides curated cards covering all 7 knowledge categories in Ukrainian', () => {
@@ -195,5 +198,37 @@ describe('System Knowledge Sync & Drift Guard', () => {
 
     expect(hash1).toBe(hash2);
     expect(hash1.length).toBe(12);
+  });
+
+  it('strictly covers 100% of registered tools from ToolRegistry in system knowledge and live metadata', () => {
+    const metadata = getLiveSystemMetadata();
+    const registeredTools = toolRegistry.getAll();
+    const registeredToolNames = registeredTools.map((t) => t.name);
+
+    expect(registeredToolNames.length).toBeGreaterThanOrEqual(10);
+    expect(metadata.tools).toBeDefined();
+    expect(metadata.tools.length).toBe(registeredToolNames.length);
+
+    const metadataToolNames = new Set(metadata.tools.map((t) => t.name));
+    for (const name of registeredToolNames) {
+      expect(metadataToolNames.has(name)).toBe(true);
+    }
+
+    const cards = getCuratedKnowledgeCards();
+    const agentToolsCard = cards.find(
+      (c) => c.id === 'feature.agent_tools' || c.id === 'agent-tools'
+    );
+    expect(agentToolsCard).toBeDefined();
+
+    const documentedTools = new Set([
+      ...(agentToolsCard?.keywords || []),
+      ...((agentToolsCard?.liveFacts?.tools as string[]) || []),
+      ...((agentToolsCard?.liveFacts?.readTools as string[]) || []),
+      ...((agentToolsCard?.liveFacts?.writeTools as string[]) || []),
+    ]);
+
+    for (const tool of registeredTools) {
+      expect(documentedTools.has(tool.name)).toBe(true);
+    }
   });
 });

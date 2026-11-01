@@ -7,6 +7,7 @@ import { envOpenAiKey } from '../../utils/openaiKeyResolver';
 import { envGeminiKey } from '../../utils/geminiKeyResolver';
 import { envClaudeKey } from '../../utils/claudeKeyResolver';
 import { numTemp } from '../../utils/numTemp';
+import { resolveWebSearchBackend } from '../webSearch';
 import type { AdvisoryTip, UserSystemSnapshot } from './types';
 
 export interface SnapshotOverrides {
@@ -14,6 +15,7 @@ export interface SnapshotOverrides {
   model?: string;
   selectedDocCount?: number;
   webSearchEnabled?: boolean;
+  toolsEnabled?: boolean;
 }
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -98,12 +100,26 @@ export async function buildUserSystemSnapshot(
   const activeProvider = overrides?.provider || defaultProvider;
   const activeModel = overrides?.model || defaultModel;
 
+  const toolsEnabled =
+    overrides?.toolsEnabled !== undefined
+      ? overrides.toolsEnabled
+      : (userSettings?.toolsEnabled ?? true);
+
+  let webSearchBackend: 'gemini_grounding' | 'tavily' | 'searxng' | 'none' = 'none';
+  if (activeProvider === 'gemini') {
+    webSearchBackend = 'gemini_grounding';
+  } else {
+    webSearchBackend = resolveWebSearchBackend();
+  }
+
   return {
     activeProvider,
     activeModel,
     modelSupportsVision: modelSupportsVision(activeModel),
-    modelSupportsWebSearch: activeProvider === 'gemini',
+    modelSupportsWebSearch: activeProvider === 'gemini' || resolveWebSearchBackend() !== 'none',
     webSearchEnabled: Boolean(overrides?.webSearchEnabled),
+    toolsEnabled,
+    webSearchBackend,
     configuredProviders,
     ragEmbeddingMode,
     documents: {
@@ -224,6 +240,41 @@ export function evaluateSystemAdvisories(
       actionType: 'ask_ai',
       suggestedPrompt:
         'Розкажи, як працює пошук в інтернеті у Gemini та які джерела ти використовуєш?',
+    });
+  }
+
+  // 7. web-search-no-backend (warning, chat_tools)
+  if (
+    snapshot.webSearchEnabled &&
+    snapshot.activeProvider !== 'gemini' &&
+    snapshot.webSearchBackend === 'none'
+  ) {
+    advisories.push({
+      id: 'web-search-no-backend',
+      severity: 'warning',
+      category: 'chat_tools',
+      title: 'Веб-пошук увімкнено, але бекенд не налаштовано',
+      message:
+        'Для використання універсального веб-пошуку потрібен запущений сервіс SearXNG або валідний ключ TAVILY_API_KEY.',
+      actionLabel: 'Налаштувати ключі',
+      actionType: 'navigate_settings',
+      actionTarget: '/settings?tab=api-keys',
+    });
+  }
+
+  // 8. tools-confirmation-guidance (info, chat_tools)
+  if (snapshot.toolsEnabled !== false) {
+    advisories.push({
+      id: 'tools-confirmation-guidance',
+      severity: 'info',
+      category: 'chat_tools',
+      title: 'Автономні інструменти та безпека дій',
+      message:
+        'Асистент може виконувати читання (пошук, калькулятор, веб-пошук) автономно, а операції запису (зміна налаштувань, нотатки в пам’ять) вимагають обов’язкового підтвердження (Human-in-the-loop).',
+      actionLabel: 'Дізнатися про інструменти',
+      actionType: 'ask_ai',
+      suggestedPrompt:
+        'Які автономні інструменти тобі доступні та як працює підтвердження змін?',
     });
   }
 

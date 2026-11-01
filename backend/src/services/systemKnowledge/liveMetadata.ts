@@ -16,11 +16,18 @@ import {
   MAX_USER_NOTES,
   MAX_USER_NOTE_CHARS,
 } from '../userMemoryService';
-import type { LiveSystemMetadata } from './types';
+import toolRegistry from '../tools/registry';
+import type { LiveSystemMetadata, LiveSystemToolMetadata } from './types';
 
 export function getLiveSystemMetadata(): LiveSystemMetadata {
   const maxBytes = getMaxUploadBytes();
   const maxUploadMb = Math.round((maxBytes / (1024 * 1024)) * 10) / 10;
+
+  const tools: LiveSystemToolMetadata[] = (toolRegistry?.getAll ? toolRegistry.getAll() : []).map((t) => ({
+    name: t.name,
+    description: t.description,
+    category: t.category,
+  }));
 
   return {
     allowedProviders: [...ALLOWED_PROVIDERS],
@@ -33,5 +40,6 @@ export function getLiveSystemMetadata(): LiveSystemMetadata {
     userMemoryMaxNotes: MAX_USER_NOTES,
     userMemoryNoteMaxChars: MAX_USER_NOTE_CHARS,
     supportedPricingModels: getSupportedPricingModels(),
+    tools,
   };
 }

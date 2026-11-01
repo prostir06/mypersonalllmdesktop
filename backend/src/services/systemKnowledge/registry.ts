@@ -286,5 +286,104 @@ export function getCuratedKnowledgeCards(): KnowledgeCard[] {
         client: 'Electron Desktop',
       },
     },
+    {
+      id: 'feature.agent_tools',
+      category: 'chat_tools',
+      title: 'Автономні інструменти та виклик функцій (Function Calling)',
+      summary:
+        'Набір із 10 автономних інструментів: пошук у документах (search_documents), список документів (list_documents), веб-пошук (web_search), безпечний калькулятор (calculate), поточний час (get_current_time), перегляд пам’яті (read_memory), системна довідка (get_system_help), а також операції з підтвердженням: додавання фактів у пам’ять (add_user_memory_note), нотатки розмови (add_conversation_note) та зміна параметрів (update_settings).',
+      whyUse:
+        'Дозволяє моделі самостійно шукати факти, перевіряти розрахунки без помилок генерації та оновлювати контекст зі згодою користувача.',
+      howToUse:
+        'Увімкніть тумблер 🛠 Інструменти над полем введення в чаті. При спробі змінити налаштування чи пам’ять з’явиться картка з кнопками «Підтвердити» або «Відхилити».',
+      uiPath: '/chat',
+      relatedSettings: ['tools_enabled', 'toolsEnabled'],
+      relatedRoutes: ['chat', 'system'],
+      keywords: [
+        'інструменти',
+        'tools',
+        'function calling',
+        'search_documents',
+        'list_documents',
+        'read_memory',
+        'get_system_help',
+        'calculate',
+        'get_current_time',
+        'web_search',
+        'add_user_memory_note',
+        'add_conversation_note',
+        'update_settings',
+        'human-in-the-loop',
+        'підтвердження',
+      ],
+      liveFacts: {
+        totalTools: metadata.tools.length,
+        readTools: [
+          'search_documents',
+          'list_documents',
+          'read_memory',
+          'get_system_help',
+          'calculate',
+          'get_current_time',
+          'web_search',
+        ],
+        writeTools: [
+          'add_user_memory_note',
+          'add_conversation_note',
+          'update_settings',
+        ],
+        tools: metadata.tools.map((t) => t.name),
+        confirmationRequired: true,
+      },
+    },
+    {
+      id: 'feature.universal_web_search',
+      category: 'chat_tools',
+      title: 'Універсальний веб-пошук (SearXNG та Tavily)',
+      summary:
+        'Пошук свіжих фактів у відкритому інтернеті для всіх моделей (OpenAI, Claude, Ollama, Gemini) із безпечним обгортанням у теги <untrusted_web_result> для захисту від prompt-injection.',
+      whyUse:
+        'Надає актуальну інформацію та клікабельні цитування джерел, нейтралізуючи спроби зловмисних інструкцій із зовнішніх веб-сторінок.',
+      howToUse:
+        'Увімкніть перемикач «🌐 Веб-пошук» у панелі керування чатом. Асистент виконає пошук через SearXNG або Tavily та вкаже посилання на першоджерела.',
+      uiPath: '/chat',
+      relatedRoutes: ['chat'],
+      keywords: [
+        'веб-пошук',
+        'web_search',
+        'searxng',
+        'tavily',
+        'інтернет',
+        'захист',
+        'цитування',
+        'prompt-injection',
+        'untrusted_web_result',
+      ],
+      liveFacts: {
+        supportedBackends: ['searxng', 'tavily', 'gemini_grounding'],
+        promptInjectionDefense: true,
+      },
+    },
+    {
+      id: 'setting.tools_enabled',
+      category: 'settings',
+      title: 'Налаштування: Автономні інструменти (tools_enabled)',
+      summary:
+        'Глобальне керування можливістю моделі викликати автономні інструменти під час формулювання відповіді.',
+      whyUse:
+        'Дозволяє вимкнути виклики інструментів для зниження витрат токенів або ввімкнути їх для розширеного аналізу та обчислень.',
+      howToUse:
+        'Перемкніть тумблер у Налаштуваннях (Загальні) або безпосередньо у чаті кнопкою 🛠 Інструменти.',
+      uiPath: '/settings',
+      relatedSettings: ['tools_enabled', 'toolsEnabled'],
+      relatedRoutes: ['settings', 'chat'],
+      keywords: [
+        'tools_enabled',
+        'toolsEnabled',
+        'налаштування інструментів',
+        'вимикач інструментів',
+      ],
+      liveFacts: {},
+    },
   ];
 }
