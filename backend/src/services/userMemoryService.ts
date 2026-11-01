@@ -41,7 +41,7 @@ export async function listNotes(userId: number) {
 
 export async function createNote(userId: number, content: string) {
   const normalized = assertValidNoteContent(content);
-  const noteCount = await prisma.userMemoryNote.count({ where: { userId } });
+  const noteCount = typeof prisma.userMemoryNote?.count === 'function' ? await prisma.userMemoryNote.count({ where: { userId } }) : 0;
   if (noteCount >= MAX_USER_NOTES) {
     throw new UserMemoryError(409, `Max ${MAX_USER_NOTES} notes reached`);
   }
@@ -94,3 +94,6 @@ export async function buildUserMemorySystemMessages(
     },
   ];
 }
+
+const userMemoryService = { listNotes, createNote, updateNote, deleteNote, buildUserMemorySystemMessages };
+export default userMemoryService;

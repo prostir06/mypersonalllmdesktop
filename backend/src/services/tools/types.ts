@@ -18,6 +18,12 @@ export class ToolValidationError extends Error {
   }
 }
 
+export interface ToolProposal {
+  title: string;
+  summary: string;
+  diff?: Record<string, { from: unknown; to: unknown }>;
+}
+
 export interface RegisteredTool<TArgs = Record<string, any>> {
   name: string;
   description: string;
@@ -27,7 +33,7 @@ export interface RegisteredTool<TArgs = Record<string, any>> {
   describeProposal?: (
     args: TArgs,
     ctx?: ToolExecutionContext
-  ) => Promise<string> | string;
+  ) => Promise<ToolProposal> | ToolProposal;
 }
 
 export interface ToolTraceEntry {

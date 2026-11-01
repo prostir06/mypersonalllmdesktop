@@ -28,8 +28,22 @@ jest.mock('../config/prisma', () => ({
       findMany: jest.fn(),
       create: jest.fn(),
     },
-    userSettings: {
+    conversation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 10, userId: 42 }),
+      findUnique: jest.fn().mockResolvedValue({ id: 10, userId: 42 }),
       update: jest.fn(),
+    },
+    userSettings: {
+      findUnique: jest.fn().mockResolvedValue({
+        userId: 42,
+        defaultProvider: 'openai',
+        defaultModel: 'gpt-3.5-turbo',
+        temperature: 0.7,
+        maxTokens: 2000,
+        systemPrompt: '',
+      }),
+      update: jest.fn(),
+      upsert: jest.fn(),
     },
   },
   prisma: {
@@ -48,8 +62,22 @@ jest.mock('../config/prisma', () => ({
       findMany: jest.fn(),
       create: jest.fn(),
     },
-    userSettings: {
+    conversation: {
+      findFirst: jest.fn().mockResolvedValue({ id: 10, userId: 42 }),
+      findUnique: jest.fn().mockResolvedValue({ id: 10, userId: 42 }),
       update: jest.fn(),
+    },
+    userSettings: {
+      findUnique: jest.fn().mockResolvedValue({
+        userId: 42,
+        defaultProvider: 'openai',
+        defaultModel: 'gpt-3.5-turbo',
+        temperature: 0.7,
+        maxTokens: 2000,
+        systemPrompt: '',
+      }),
+      update: jest.fn(),
+      upsert: jest.fn(),
     },
   },
 }));
@@ -58,6 +86,7 @@ jest.mock('../services/EmbeddingService', () => ({
   __esModule: true,
   default: {
     findRelevantChunks: jest.fn(),
+    generateEmbedding: jest.fn(),
   },
 }));
 
@@ -128,6 +157,7 @@ describe('ToolRegistry', () => {
       });
 
       it('calls EmbeddingService.findRelevantChunks with userId and limit and returns formatted snippets + sources', async () => {
+        (EmbeddingService.generateEmbedding as jest.Mock).mockResolvedValue([0.1, 0.2]);
         (EmbeddingService.findRelevantChunks as jest.Mock).mockResolvedValue([
           { content: 'Chunk text 1', filename: 'report.pdf', similarity: 0.88 },
           { content: 'Chunk text 2', filename: 'notes.txt', similarity: 0.75 },
@@ -139,9 +169,12 @@ describe('ToolRegistry', () => {
         );
 
         expect(EmbeddingService.findRelevantChunks).toHaveBeenCalledWith(
-          'financial report',
+          [0.1, 0.2],
           ctx.userId,
-          { limit: 3 }
+          [],
+          3,
+          {}, null,
+          'financial report'
         );
         expect(result.count).toBe(2);
         expect(result.snippets).toContain('[report.pdf] Chunk text 1');
@@ -153,14 +186,18 @@ describe('ToolRegistry', () => {
       });
 
       it('defaults limit to 5 when not provided', async () => {
+        (EmbeddingService.generateEmbedding as jest.Mock).mockResolvedValue([0.1, 0.2]);
         (EmbeddingService.findRelevantChunks as jest.Mock).mockResolvedValue([]);
 
         await searchTool.execute({ query: 'contracts' }, ctx);
 
         expect(EmbeddingService.findRelevantChunks).toHaveBeenCalledWith(
-          'contracts',
+          [0.1, 0.2],
           ctx.userId,
-          { limit: 5 }
+          [],
+          5,
+          {}, null,
+          'contracts'
         );
       });
 
@@ -438,22 +475,25 @@ describe('ToolRegistry', () => {
         expect(noteTool.category).toBe('write');
       });
 
-      it('describes proposal in Ukrainian', () => {
+      it('describes proposal in Ukrainian', async () => {
         expect(noteTool.describeProposal).toBeDefined();
-        const desc = noteTool.describeProposal!({
+        const desc = await noteTool.describeProposal!({
           content: 'Користувач любить каву',
+        }, ctx);
+        expect(desc).toEqual({
+          title: 'Додати довготривалу нотатку',
+          summary: 'Зберегти в пам\'ять: "Користувач любить каву"',
         });
-        expect(desc).toBe('Додати довготривалу нотатку пам\'яті: "Користувач любить каву"');
       });
 
-      it('creates user memory note with prisma.userMemoryNote.create', async () => {
+      it('creates user memory note with userMemoryService.createNote', async () => {
         const mockCreated = { id: 10, userId: ctx.userId, content: 'Important note' };
         ((prisma as any).userMemoryNote.create as jest.Mock).mockResolvedValue(
           mockCreated
         );
 
         const result = await noteTool.execute(
-          { content: '  Important note  ', tags: ['work', 'profile'] },
+          { content: '  Important note  ' },
           ctx
         );
 
@@ -461,21 +501,17 @@ describe('ToolRegistry', () => {
           data: {
             userId: ctx.userId,
             content: 'Important note',
-            tags: ['work', 'profile'],
           },
         });
         expect(result).toEqual(mockCreated);
       });
 
-      it('validates content bounds and tags array', async () => {
+      it('validates content bounds', async () => {
         await expect(noteTool.execute({ content: '' }, ctx)).rejects.toThrow(
           ToolValidationError
         );
         await expect(
-          noteTool.execute({ content: 'a'.repeat(1001) }, ctx)
-        ).rejects.toThrow(ToolValidationError);
-        await expect(
-          noteTool.execute({ content: 'valid', tags: 'not-array' }, ctx)
+          noteTool.execute({ content: 'a'.repeat(501) }, ctx)
         ).rejects.toThrow(ToolValidationError);
       });
     });
@@ -487,12 +523,15 @@ describe('ToolRegistry', () => {
         expect(convNoteTool.category).toBe('write');
       });
 
-      it('describes proposal in Ukrainian', () => {
+      it('describes proposal in Ukrainian', async () => {
         expect(convNoteTool.describeProposal).toBeDefined();
-        const desc = convNoteTool.describeProposal!({
+        const desc = await convNoteTool.describeProposal!({
           content: 'Підсумок зустрічі',
+        }, ctx);
+        expect(desc).toEqual({
+          title: 'Додати нотатку до розмови',
+          summary: 'Зберегти в розмову: "Підсумок зустрічі"',
         });
-        expect(desc).toBe('Додати нотатку до поточної розмови: "Підсумок зустрічі"');
       });
 
       it('requires conversationId in execution context', async () => {
@@ -502,14 +541,13 @@ describe('ToolRegistry', () => {
         ).rejects.toThrow(ToolValidationError);
       });
 
-      it('creates conversation note via prisma', async () => {
+      it('creates conversation note via conversationMemoryService', async () => {
         const mockCreated = {
           id: 5,
-          userId: ctx.userId,
           conversationId: ctx.conversationId,
           content: 'Session note',
         };
-        ((prisma as any).conversationNote.create as jest.Mock).mockResolvedValue(
+        ((prisma as any).conversationMemoryNote.create as jest.Mock).mockResolvedValue(
           mockCreated
         );
 
@@ -518,12 +556,10 @@ describe('ToolRegistry', () => {
           ctx
         );
 
-        expect((prisma as any).conversationNote.create).toHaveBeenCalledWith({
+        expect((prisma as any).conversationMemoryNote.create).toHaveBeenCalledWith({
           data: {
-            userId: ctx.userId,
             conversationId: ctx.conversationId,
             content: 'Session note',
-            tags: [],
           },
         });
         expect(result).toEqual(mockCreated);
@@ -534,7 +570,7 @@ describe('ToolRegistry', () => {
           convNoteTool.execute({ content: '' }, ctx)
         ).rejects.toThrow(ToolValidationError);
         await expect(
-          convNoteTool.execute({ content: 'x'.repeat(1001) }, ctx)
+          convNoteTool.execute({ content: 'x'.repeat(501) }, ctx)
         ).rejects.toThrow(ToolValidationError);
       });
     });
@@ -546,17 +582,19 @@ describe('ToolRegistry', () => {
         expect(settingsTool.category).toBe('write');
       });
 
-      it('describes proposal in Ukrainian with formatted fields', () => {
+      it('describes proposal in Ukrainian with formatted fields', async () => {
         expect(settingsTool.describeProposal).toBeDefined();
-        const desc = settingsTool.describeProposal!({
+        const desc = await settingsTool.describeProposal!({
           temperature: 0.8,
           max_tokens: 4000,
           default_model: 'gpt-4o',
-        });
-        expect(desc).toContain('Оновити налаштування: змінити');
-        expect(desc).toContain('температуру на 0.8');
-        expect(desc).toContain('максимальну кількість токенів на 4000');
-        expect(desc).toContain('модель за замовчуванням на "gpt-4o"');
+        }, ctx);
+        expect(desc.title).toBe('Оновити налаштування');
+        expect(desc.summary).toContain('Оновити налаштування: змінити');
+        expect(desc.summary).toContain('температуру на 0.8');
+        expect(desc.summary).toContain('максимальну кількість токенів на 4000');
+        expect(desc.summary).toContain('модель за замовчуванням на "gpt-4o"');
+        expect(desc.diff).toBeDefined();
       });
 
       it('updates user settings in prisma', async () => {
@@ -567,7 +605,7 @@ describe('ToolRegistry', () => {
           maxTokens: 3000,
           defaultModel: 'gpt-4o-mini',
         };
-        (prisma.userSettings.update as jest.Mock).mockResolvedValue(mockUpdated);
+        ((prisma.userSettings.upsert || prisma.userSettings.update) as jest.Mock).mockResolvedValue(mockUpdated);
 
         const result = await settingsTool.execute(
           {
@@ -578,15 +616,17 @@ describe('ToolRegistry', () => {
           ctx
         );
 
-        expect(prisma.userSettings.update).toHaveBeenCalledWith({
-          where: { userId: ctx.userId },
-          data: {
-            temperature: 0.5,
-            maxTokens: 3000,
-            defaultModel: 'gpt-4o-mini',
-          },
-        });
-        expect(result).toEqual(mockUpdated);
+        expect((prisma.userSettings as any).upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { userId: ctx.userId },
+            update: expect.objectContaining({
+              temperature: 0.5,
+              maxTokens: 3000,
+              defaultModel: 'gpt-4o-mini',
+            }),
+          })
+        );
+        expect(result).toMatchObject({ user_id: ctx.userId, temperature: 0.5, max_tokens: 3000, default_model: 'gpt-4o-mini' });
       });
 
       it('rejects execution when no setting fields are provided', async () => {

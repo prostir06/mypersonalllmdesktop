@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import prisma from '../../config/prisma';
 import logger from '../../logger';
-import { ChatError } from '../chat/types';
 import type { RagSource, TokenUsage } from '../chat/types';
 import { persistTurn } from '../chat/persist';
 import ProviderFactory from '../providerFactory';
@@ -11,14 +10,15 @@ import toolRegistry from './registry';
 import type {
   ToolExecutionContext,
   RegisteredTool,
+  ToolProposal,
   ToolTraceEntry,
 } from './types';
 import type { NormalizedToolCall } from '../providers/types';
 
 export const MAX_TOOL_ITERATIONS = 5;
-export const TOOL_TIMEOUT_MS = 15000;
-export const MAX_TOOL_OUTPUT_CHARS = 4000;
 export const PENDING_ACTION_TTL_MS = 15 * 60 * 1000; // 15 minutes
+export { TOOL_TIMEOUT_MS, MAX_TOOL_OUTPUT_CHARS } from './toolExecutor';
+import { executeReadTool } from './toolExecutor';
 
 export interface ToolOrchestrationOptions {
   userId: number;
@@ -137,12 +137,24 @@ export async function runToolOrchestratedTurn(
       signal: options.signal,
     };
 
-    const response = await ProviderFactory.sendMessage(
-      provider,
-      dialogueHistory,
-      model,
-      providerOpts
-    );
+    const isStreaming = Boolean(options.onToken);
+    let response: any;
+    if (isStreaming) {
+      response = await ProviderFactory.streamMessage(
+        provider,
+        dialogueHistory,
+        model,
+        providerOpts,
+        options.onToken
+      );
+    } else {
+      response = await ProviderFactory.sendMessage(
+        provider,
+        dialogueHistory,
+        model,
+        providerOpts
+      );
+    }
     lastResponse = response;
 
     if (response.sources && Array.isArray(response.sources)) {
@@ -193,14 +205,6 @@ export async function runToolOrchestratedTurn(
 
     // Execute read tools
     for (const { call, tool, args } of readToolCalls) {
-      if (options.res) {
-        writeSseEvent(options.res, 'tool_call', {
-          id: call.id,
-          name: call.name,
-          args,
-        });
-      }
-
       const ctx: ToolExecutionContext = {
         userId: options.userId,
         conversationId: options.conversationId,
@@ -208,90 +212,44 @@ export async function runToolOrchestratedTurn(
         model,
         signal: options.signal,
       };
-
-      const startMs = Date.now();
-      let result: any;
-      let hasError = false;
-      let errorMessage: string | undefined;
-
-      let timeoutId: any;
-      try {
-        const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(
-            () => reject(new Error(`Tool execution timed out after ${TOOL_TIMEOUT_MS}ms`)),
-            TOOL_TIMEOUT_MS
-          );
-        });
-        const execPromise = Promise.resolve().then(() => tool.execute(args, ctx));
-        result = await Promise.race([execPromise, timeoutPromise]);
-      } catch (err: unknown) {
-        hasError = true;
-        errorMessage = err instanceof Error ? err.message : String(err);
-        result = { error: errorMessage };
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-      const durationMs = Date.now() - startMs;
-
-      if (result?.sources && Array.isArray(result.sources)) {
-        accumulatedSources.push(...result.sources);
-      }
-
-      let resultStr = typeof result === 'string' ? result : JSON.stringify(result);
-      if (resultStr.length > MAX_TOOL_OUTPUT_CHARS) {
-        resultStr = resultStr.slice(0, MAX_TOOL_OUTPUT_CHARS) + '... [truncated]';
-      }
-
-      if (options.res) {
-        writeSseEvent(options.res, 'tool_result', {
-          id: call.id,
-          name: call.name,
-          result,
-          durationMs,
-        });
-      }
-
-      dialogueHistory.push({
-        role: 'assistant',
-        content: response.content || '',
-        tool_calls: [
-          {
-            id: call.id,
-            type: 'function',
-            function: { name: call.name, arguments: call.argumentsJson },
-          },
-        ],
-      });
-      dialogueHistory.push({
-        role: 'tool',
-        tool_call_id: call.id,
-        content: resultStr,
-      });
-
-      toolTrace.push({
-        tool: call.name,
-        args,
-        category: 'read',
-        result,
-        durationMs,
-        status: hasError ? 'failed' : 'completed',
-        ...(errorMessage ? { error: errorMessage } : {}),
+      await executeReadTool(call, tool, args, ctx, {
+        res: options.res,
+        responseContent: response.content || '',
+        dialogueHistory,
+        accumulatedSources,
+        toolTrace,
       });
     }
 
     // Handle write tool pause if called
     if (writeToolFound) {
       const { call, tool, args } = writeToolFound;
-      let proposal: string;
+      let proposal: ToolProposal;
       try {
-        proposal = (await tool.describeProposal?.(args, {
+        const rawProposal = await tool.describeProposal?.(args, {
           userId: options.userId,
           conversationId: options.conversationId,
           provider,
           model,
-        })) || '';
+        });
+        if (typeof rawProposal === 'string') {
+          proposal = {
+            title: `Запит на виконання дії ${call.name}`,
+            summary: rawProposal,
+          };
+        } else if (rawProposal && typeof rawProposal === 'object') {
+          proposal = rawProposal;
+        } else {
+          proposal = {
+            title: `Запит на виконання дії ${call.name}`,
+            summary: `Виконати ${call.name}`,
+          };
+        }
       } catch {
-        proposal = `Запит на виконання дії ${call.name}`;
+        proposal = {
+          title: `Запит на виконання дії ${call.name}`,
+          summary: `Запит на виконання дії ${call.name}`,
+        };
       }
 
       const actionId = crypto.randomUUID();
@@ -320,7 +278,7 @@ export async function runToolOrchestratedTurn(
         }
       );
 
-      await prisma.pendingToolAction.create({
+      const pendingAction = await prisma.pendingToolAction.create({
         data: {
           id: actionId,
           userId: options.userId,
@@ -333,13 +291,17 @@ export async function runToolOrchestratedTurn(
         },
       });
 
+      const effectiveActionId = pendingAction?.id || actionId;
+      const effectiveExpiresAt = pendingAction?.expiresAt ? new Date(pendingAction.expiresAt) : expiresAt;
+
       if (options.res) {
         writeSseEvent(options.res, 'tool_confirmation_required', {
-          actionId,
+          actionId: effectiveActionId,
           toolName: call.name,
-          toolArgs: args,
-          proposal,
-          expiresAt,
+          title: proposal.title,
+          summary: proposal.summary,
+          diff: proposal.diff,
+          expiresAt: effectiveExpiresAt.toISOString(),
         });
       }
 
@@ -352,11 +314,14 @@ export async function runToolOrchestratedTurn(
         sources: accumulatedSources,
         toolTrace,
         pendingAction: {
-          actionId,
+          actionId: effectiveActionId,
           toolName: call.name,
           toolArgs: args,
-          proposal,
-          expiresAt,
+          title: proposal.title,
+          summary: proposal.summary,
+          proposal: proposal.summary,
+          diff: proposal.diff,
+          expiresAt: effectiveExpiresAt,
         },
         status: 'pending_confirmation',
         tokenUsage: response.tokenUsage,
@@ -370,8 +335,8 @@ export async function runToolOrchestratedTurn(
   }
 
   const finalText = lastResponse?.content || '';
-  if (options.onToken && finalText) {
-    options.onToken(finalText);
+  if (!options.onToken && finalText) {
+    // If not streaming, do nothing
   }
 
   const assistant = await persistTurn(
@@ -399,106 +364,4 @@ export async function runToolOrchestratedTurn(
   };
 }
 
-export async function resolvePendingToolAction(
-  actionId: string,
-  userId: number,
-  decision: 'approve' | 'reject'
-) {
-  const action = await prisma.pendingToolAction.findUnique({
-    where: { id: actionId },
-  });
-
-  if (!action) {
-    throw new ChatError(404, 'Pending action not found');
-  }
-
-  if (action.userId !== userId) {
-    throw new ChatError(403, 'Forbidden: you do not own this pending action');
-  }
-
-  if (action.status !== 'pending') {
-    throw new ChatError(409, `Action is already ${action.status}`);
-  }
-
-  if (new Date(action.expiresAt) < new Date()) {
-    await prisma.pendingToolAction.update({
-      where: { id: actionId },
-      data: { status: 'expired' },
-    });
-    throw new ChatError(410, 'Pending action has expired');
-  }
-
-  if (decision === 'reject') {
-    await prisma.pendingToolAction.update({
-      where: { id: actionId },
-      data: {
-        status: 'rejected',
-        resolvedAt: new Date(),
-      },
-    });
-
-    const message = await prisma.message.findUnique({
-      where: { id: action.messageId },
-      select: { id: true, toolTrace: true },
-    });
-    if (message && Array.isArray(message.toolTrace)) {
-      const updatedTrace = (message.toolTrace as any[]).map((entry) => {
-        if (entry.pendingActionId === actionId) {
-          return { ...entry, status: 'rejected' };
-        }
-        return entry;
-      });
-      await prisma.message.update({
-        where: { id: message.id },
-        data: { toolTrace: updatedTrace },
-      });
-    }
-
-    return { success: true, status: 'rejected' };
-  }
-
-  // decision === 'approve'
-  const tool = toolRegistry.get(action.toolName);
-  if (!tool) {
-    throw new ChatError(404, `Tool "${action.toolName}" not found in registry`);
-  }
-
-  const ctx: ToolExecutionContext = {
-    userId: action.userId,
-    conversationId: action.conversationId,
-  };
-  const args = typeof action.toolArgs === 'string'
-    ? JSON.parse(action.toolArgs)
-    : action.toolArgs;
-
-  const result = await tool.execute(args, ctx);
-  const resultSummary = typeof result === 'string' ? result : JSON.stringify(result);
-
-  await prisma.pendingToolAction.update({
-    where: { id: actionId },
-    data: {
-      status: 'approved',
-      resolvedAt: new Date(),
-      resultSummary,
-    },
-  });
-
-  const message = await prisma.message.findUnique({
-    where: { id: action.messageId },
-    select: { id: true, toolTrace: true },
-  });
-  if (message && Array.isArray(message.toolTrace)) {
-    const updatedTrace = (message.toolTrace as any[]).map((entry) => {
-      if (entry.pendingActionId === actionId) {
-        return { ...entry, status: 'completed', result };
-      }
-      return entry;
-    });
-    await prisma.message.update({
-      where: { id: message.id },
-      data: { toolTrace: updatedTrace },
-    });
-  }
-
-  return { success: true, status: 'approved', result };
-}
+export { resolvePendingToolAction } from './actionResolver';

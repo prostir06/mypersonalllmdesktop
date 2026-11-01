@@ -237,7 +237,7 @@ describe('Models API (Prisma)', () => {
       .set('Authorization', `Bearer ${tokenFor(9)}`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: 'llama3', name: 'llama3' }]);
+    expect(res.body).toEqual([{ id: 'llama3', name: 'llama3', supports_tools: false, supports_vision: false }]);
     expect(mockedAxios.get).toHaveBeenCalled();
     expect(mockedAxios.get.mock.calls[0][0]).toBe('http://127.0.0.1:11434/api/tags');
     expect(mockedAxios.get.mock.calls[0][1]).toMatchObject({ maxRedirects: 0 });

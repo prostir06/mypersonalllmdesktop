@@ -6,109 +6,13 @@ import {
 } from '../systemKnowledge';
 import { updateSettingsForUser } from '../settingsService';
 import type { ToolDefinitionSpec } from '../providers/types';
-import { RegisteredTool, ToolExecutionContext, ToolValidationError } from './types';
+import { RegisteredTool, ToolExecutionContext, ToolProposal, ToolValidationError } from './types';
+import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
+import userMemoryService from '../userMemoryService';
+import conversationMemoryService from '../conversationMemoryService';
 
-/**
- * Safely evaluates basic mathematical expressions (+, -, *, /, %, ^, ()).
- * Strictly forbids eval(), Function(), letters, and unexpected tokens.
- */
-export function evaluateSafeMathExpression(expr: string): number {
-  if (typeof expr !== 'string') throw new ToolValidationError('Expression must be a string');
-  const trimmed = expr.trim();
-  if (!trimmed) throw new ToolValidationError('Expression cannot be empty');
-  if (/[^0-9.+*/%^()\s-]/.test(trimmed)) throw new ToolValidationError('Expression contains disallowed characters');
-
-  type Token = { type: 'NUM' | 'OP' | 'LP' | 'RP'; val: string };
-  const tokens: Token[] = [];
-  let i = 0;
-  while (i < trimmed.length) {
-    const ch = trimmed[i];
-    if (/\s/.test(ch)) { i++; continue; }
-    if (ch === '(' || ch === ')') { tokens.push({ type: ch === '(' ? 'LP' : 'RP', val: ch }); i++; continue; }
-    if (['+', '-', '*', '/', '%', '^'].includes(ch)) { tokens.push({ type: 'OP', val: ch }); i++; continue; }
-    if (/[0-9.]/.test(ch)) {
-      let numStr = '', dots = 0;
-      while (i < trimmed.length && /[0-9.]/.test(trimmed[i])) {
-        if (trimmed[i] === '.') dots++;
-        numStr += trimmed[i++];
-      }
-      if (dots > 1 || numStr === '.') throw new ToolValidationError(`Invalid number format: "${numStr}"`);
-      tokens.push({ type: 'NUM', val: numStr });
-      continue;
-    }
-    throw new ToolValidationError(`Unexpected character: "${ch}"`);
-  }
-
-  let pos = 0;
-  const peek = () => tokens[pos];
-  const consume = (exp?: string) => {
-    const t = tokens[pos];
-    if (!t) throw new ToolValidationError('Unexpected end of expression');
-    if (exp && t.val !== exp) throw new ToolValidationError(`Expected "${exp}", found "${t.val}"`);
-    pos++;
-    return t;
-  };
-  const parseExpr = (): number => {
-    let left = parseTerm();
-    while (pos < tokens.length && peek()?.type === 'OP' && ['+', '-'].includes(peek()!.val)) {
-      const op = consume().val;
-      left = op === '+' ? left + parseTerm() : left - parseTerm();
-    }
-    return left;
-  };
-  const parseTerm = (): number => {
-    let left = parsePower();
-    while (pos < tokens.length && peek()?.type === 'OP' && ['*', '/', '%'].includes(peek()!.val)) {
-      const op = consume().val;
-      const right = parsePower();
-      if (op === '*') left *= right;
-      else if (op === '/') {
-        if (right === 0) throw new ToolValidationError('Division by zero');
-        left /= right;
-      } else {
-        if (right === 0) throw new ToolValidationError('Division by zero in modulo operation');
-        left %= right;
-      }
-    }
-    return left;
-  };
-  const parsePower = (): number => {
-    let left = parseFactor();
-    if (pos < tokens.length && peek()?.type === 'OP' && peek()?.val === '^') {
-      consume();
-      left = Math.pow(left, parsePower());
-    }
-    return left;
-  };
-  const parseFactor = (): number => {
-    if (peek()?.type === 'OP' && ['+', '-'].includes(peek()!.val)) {
-      return consume().val === '-' ? -parseFactor() : parseFactor();
-    }
-    return parsePrimary();
-  };
-  const parsePrimary = (): number => {
-    const t = peek();
-    if (!t) throw new ToolValidationError('Unexpected end of expression');
-    if (t.type === 'NUM') {
-      consume();
-      const val = Number(t.val);
-      if (Number.isNaN(val)) throw new ToolValidationError(`Invalid number: ${t.val}`);
-      return val;
-    }
-    if (t.type === 'LP') {
-      consume('(');
-      const val = parseExpr();
-      consume(')');
-      return val;
-    }
-    throw new ToolValidationError(`Unexpected token: "${t.val}"`);
-  };
-
-  const res = parseExpr();
-  if (pos < tokens.length) throw new ToolValidationError(`Unexpected token after expression: "${tokens[pos].val}"`);
-  if (!Number.isFinite(res)) throw new ToolValidationError('Calculation produced non-finite result');
-  return res;
-}
+import { evaluateSafeMathExpression } from './safeMath';
+export { evaluateSafeMathExpression } from './safeMath';
 
 export class ToolRegistry {
   private tools = new Map<string, RegisteredTool>();
@@ -145,7 +49,18 @@ export class ToolRegistry {
           limit = parsedLimit;
         }
         const queryText = args.query.trim();
-        const chunks = await (EmbeddingService.findRelevantChunks as any)(queryText, ctx.userId, { limit });
+        const embedCtx = await resolveEmbeddingContext(ctx.userId);
+        const queryEmbedding = await EmbeddingService.generateEmbedding(queryText, embedCtx).catch(() => null);
+        const provider = embedCtx.provider !== 'none' ? embedCtx.provider : null;
+        const chunks = await EmbeddingService.findRelevantChunks(
+          queryEmbedding,
+          ctx.userId,
+          [],
+          limit,
+          {},
+          provider,
+          queryText
+        );
         const safeChunks: any[] = Array.isArray(chunks) ? chunks : [];
         return {
           query: queryText,
@@ -282,25 +197,23 @@ export class ToolRegistry {
       category: 'write',
       parameters: {
         type: 'object',
-        properties: { content: { type: 'string', minLength: 1, maxLength: 1000 }, tags: { type: 'array', items: { type: 'string' } } },
+        properties: { content: { type: 'string', minLength: 1, maxLength: 500 } },
         required: ['content'],
       },
-      describeProposal: (args: Record<string, any>) => {
+      describeProposal: (args: Record<string, any>): ToolProposal => {
         const content = typeof args?.content === 'string' ? args.content.trim() : '';
-        return `Додати довготривалу нотатку пам'яті: "${content}"`;
+        return {
+          title: 'Додати довготривалу нотатку',
+          summary: `Зберегти в пам'ять: "${content}"`,
+        };
       },
       execute: async (args: Record<string, any>, ctx: ToolExecutionContext) => {
         if (!args || typeof args.content !== 'string' || !args.content.trim()) {
           throw new ToolValidationError('content is required and must be a non-empty string');
         }
         const trimmed = args.content.trim();
-        if (trimmed.length > 1000) throw new ToolValidationError('content must not exceed 1000 characters');
-        if (args.tags !== undefined && !Array.isArray(args.tags)) {
-          throw new ToolValidationError('tags must be an array of strings');
-        }
-        return (prisma as any).userMemoryNote.create({
-          data: { userId: ctx.userId, content: trimmed, tags: args.tags || [] },
-        });
+        if (trimmed.length > 500) throw new ToolValidationError('content must not exceed 500 characters');
+        return userMemoryService.createNote(ctx.userId, trimmed);
       },
     });
 
@@ -310,12 +223,15 @@ export class ToolRegistry {
       category: 'write',
       parameters: {
         type: 'object',
-        properties: { content: { type: 'string', minLength: 1, maxLength: 1000 }, tags: { type: 'array', items: { type: 'string' } } },
+        properties: { content: { type: 'string', minLength: 1, maxLength: 500 } },
         required: ['content'],
       },
-      describeProposal: (args: Record<string, any>) => {
+      describeProposal: (args: Record<string, any>): ToolProposal => {
         const content = typeof args?.content === 'string' ? args.content.trim() : '';
-        return `Додати нотатку до поточної розмови: "${content}"`;
+        return {
+          title: 'Додати нотатку до розмови',
+          summary: `Зберегти в розмову: "${content}"`,
+        };
       },
       execute: async (args: Record<string, any>, ctx: ToolExecutionContext) => {
         if (!ctx.conversationId) throw new ToolValidationError('conversationId is required in execution context');
@@ -323,73 +239,112 @@ export class ToolRegistry {
           throw new ToolValidationError('content is required and must be a non-empty string');
         }
         const trimmed = args.content.trim();
-        if (trimmed.length > 1000) throw new ToolValidationError('content must not exceed 1000 characters');
-        if (args.tags !== undefined && !Array.isArray(args.tags)) {
-          throw new ToolValidationError('tags must be an array of strings');
-        }
-        const delegate = (prisma as any).conversationNote || (prisma as any).conversationMemoryNote;
-        return delegate.create({
-          data: { userId: ctx.userId, conversationId: ctx.conversationId, content: trimmed, tags: args.tags || [] },
-        });
+        if (trimmed.length > 500) throw new ToolValidationError('content must not exceed 500 characters');
+        return conversationMemoryService.addNote(ctx.conversationId, ctx.userId, trimmed);
       },
     });
 
     this.register({
       name: 'update_settings',
-      description: 'Update user settings (temperature, max_tokens, default_model)',
+      description: 'Update user settings (temperature, max_tokens, default_model, system_prompt)',
       category: 'write',
       parameters: {
         type: 'object',
-        properties: { temperature: { type: 'number', minimum: 0, maximum: 2 }, max_tokens: { type: 'integer', minimum: 100, maximum: 8000 }, default_model: { type: 'string' } },
+        properties: {
+          temperature: { type: 'number', minimum: 0, maximum: 2 },
+          max_tokens: { type: 'integer', minimum: 100, maximum: 8000 },
+          default_model: { type: 'string' },
+          system_prompt: { type: 'string', maxLength: 4000 },
+        },
       },
-      describeProposal: (args: Record<string, any>) => {
+      describeProposal: async (args: Record<string, any>, ctx?: ToolExecutionContext): Promise<ToolProposal> => {
         const parts: string[] = [];
         if (args?.temperature !== undefined) parts.push(`температуру на ${args.temperature}`);
         const maxTokens = args?.max_tokens ?? args?.maxTokens;
         if (maxTokens !== undefined) parts.push(`максимальну кількість токенів на ${maxTokens}`);
         const defaultModel = args?.default_model ?? args?.defaultModel;
         if (defaultModel !== undefined) parts.push(`модель за замовчуванням на "${defaultModel}"`);
-        return parts.length === 0 ? 'Оновити налаштування користувача' : `Оновити налаштування: змінити ${parts.join(', ')}`;
+        const systemPrompt = args?.system_prompt ?? args?.systemPrompt;
+        if (systemPrompt !== undefined) parts.push('системний промпт');
+
+        const summary = parts.length === 0 ? 'Оновити налаштування користувача' : `Оновити налаштування: змінити ${parts.join(', ')}`;
+
+        const current = ctx?.userId
+          ? await prisma.userSettings.findUnique({ where: { userId: ctx.userId } })
+          : null;
+
+        const diff: Record<string, { from: unknown; to: unknown }> = {};
+        if (args?.temperature !== undefined) {
+          diff.temperature = { from: current?.temperature ?? 0.7, to: args.temperature };
+        }
+        if (maxTokens !== undefined) {
+          diff.max_tokens = { from: current?.maxTokens ?? 2000, to: maxTokens };
+        }
+        if (defaultModel !== undefined) {
+          diff.default_model = { from: current?.defaultModel ?? 'gpt-3.5-turbo', to: defaultModel };
+        }
+        if (systemPrompt !== undefined) {
+          diff.system_prompt = { from: current?.systemPrompt ?? '', to: systemPrompt };
+        }
+
+        return {
+          title: 'Оновити налаштування',
+          summary,
+          diff,
+        };
       },
       execute: async (args: Record<string, any>, ctx: ToolExecutionContext) => {
         if (!args || typeof args !== 'object') throw new ToolValidationError('Settings arguments are required');
         const maxTokensVal = args.max_tokens ?? args.maxTokens;
         const defaultModelVal = args.default_model ?? args.defaultModel;
+        const systemPromptVal = args.system_prompt ?? args.systemPrompt;
         const hasTemp = args.temperature !== undefined;
         const hasTokens = maxTokensVal !== undefined;
         const hasModel = defaultModelVal !== undefined;
+        const hasPrompt = systemPromptVal !== undefined;
 
-        if (!hasTemp && !hasTokens && !hasModel) {
-          throw new ToolValidationError('At least one setting (temperature, max_tokens, default_model) must be provided');
+        if (!hasTemp && !hasTokens && !hasModel && !hasPrompt) {
+          throw new ToolValidationError('At least one setting (temperature, max_tokens, default_model, system_prompt) must be provided');
         }
-        const updateData: Record<string, any> = {};
+        let temperature: number | undefined;
+        let max_tokens: number | undefined;
+        let default_model: string | undefined;
+        let system_prompt: string | undefined;
+
         if (hasTemp) {
           if (typeof args.temperature !== 'number' || Number.isNaN(args.temperature) || args.temperature < 0 || args.temperature > 2) {
             throw new ToolValidationError('temperature must be a number between 0 and 2');
           }
-          updateData.temperature = args.temperature;
+          temperature = args.temperature;
         }
         if (hasTokens) {
           const parsed = Number(maxTokensVal);
           if (!Number.isInteger(parsed) || parsed < 100 || parsed > 8000) {
             throw new ToolValidationError('max_tokens must be an integer between 100 and 8000');
           }
-          updateData.maxTokens = parsed;
+          max_tokens = parsed;
         }
         if (hasModel) {
           if (typeof defaultModelVal !== 'string' || !defaultModelVal.trim()) {
             throw new ToolValidationError('default_model must be a non-empty string');
           }
-          updateData.defaultModel = defaultModelVal.trim();
+          default_model = defaultModelVal.trim();
+        }
+        if (hasPrompt) {
+          if (typeof systemPromptVal !== 'string') {
+            throw new ToolValidationError('system_prompt must be a string');
+          }
+          if (systemPromptVal.length > 4000) {
+            throw new ToolValidationError('system_prompt must not exceed 4000 characters');
+          }
+          system_prompt = systemPromptVal;
         }
 
-        if (typeof (prisma as any).userSettings?.update === 'function') {
-          return (prisma as any).userSettings.update({ where: { userId: ctx.userId }, data: updateData });
-        }
         return updateSettingsForUser(ctx.userId, {
-          temperature: updateData.temperature,
-          max_tokens: updateData.maxTokens,
-          default_model: updateData.defaultModel,
+          temperature,
+          max_tokens,
+          default_model,
+          system_prompt,
         });
       },
     });

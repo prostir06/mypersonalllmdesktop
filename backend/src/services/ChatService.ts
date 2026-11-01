@@ -4,8 +4,11 @@ import {
   ChatError,
   type ChatMessage,
   type ChatOptions,
+  type RagSource,
   type SendInput,
 } from './chat/types';
+import ProviderFactory from './providerFactory';
+import { modelSupportsTools } from '../utils/modelCapabilities';
 import { ensureConversationId as ensureConversationIdImpl } from './chat/ownership';
 import {
   persistTurn as persistTurnImpl,
@@ -67,19 +70,75 @@ class ChatService {
       regenerateFromMessageId,
     } = await this.prepareMessages(input);
 
+    const provider = input.provider || 'openai';
+    const model = input.model || 'gpt-3.5-turbo';
+    const toolsEnabled = Boolean(
+      (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
+    );
+
+    if (!toolsEnabled || !modelSupportsTools(model, provider)) {
+      const response = await ProviderFactory.sendMessage(
+        provider,
+        chatMessages,
+        model,
+        { ...(options || {}), signal: input.signal }
+      );
+
+      const mergedSources: RagSource[] = [
+        ...(sources || []),
+        ...((response.sources as RagSource[]) || []),
+      ];
+
+      const tokenUsage = response.tokenUsage;
+
+      const assistant = await this.persistTurn(
+        convId,
+        input.message,
+        response.content,
+        {
+          skipUserMessage: isRegenerate,
+          regenerateFromMessageId,
+          sources: mergedSources,
+          tokenUsage,
+        }
+      );
+
+      void maybeRefreshSummary(input.userId, convId).catch((err) => {
+        logger.warn(
+          `maybeRefreshSummary skipped: ${err instanceof Error ? err.message : err}`
+        );
+      });
+
+      logger.info(
+        `Message sent in conversation ${convId} by user ${input.userId}`
+      );
+
+      return {
+        conversationId: convId,
+        messageId: assistant.id,
+        content: response.content,
+        role: 'assistant' as const,
+        timestamp: assistant.createdAt,
+        usage: response.usage,
+        tokenUsage,
+        sources: mergedSources,
+        ragStatus,
+      };
+    }
+
     const result = await runToolOrchestratedTurn({
       userId: input.userId,
       conversationId: convId,
       userMessage: input.message,
       chatMessages,
-      provider: input.provider || 'openai',
-      model: input.model || 'gpt-3.5-turbo',
+      provider,
+      model,
       options,
       signal: input.signal,
       skipUserMessage: isRegenerate,
       regenerateFromMessageId,
       sources,
-      toolsEnabled: (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled,
+      toolsEnabled: true,
     });
 
     void maybeRefreshSummary(input.userId, convId).catch((err) => {
@@ -115,14 +174,68 @@ class ChatService {
     } = await this.prepareMessages(input);
     if (onInit) onInit(convId, ragStatus);
 
+    const provider = input.provider || 'openai';
+    const model = input.model || 'gpt-3.5-turbo';
+    const toolsEnabled = Boolean(
+      (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
+    );
+
+    if (!toolsEnabled || !modelSupportsTools(model, provider)) {
+      const response = await ProviderFactory.streamMessage(
+        provider,
+        chatMessages,
+        model,
+        { ...(options || {}), signal: input.signal },
+        onToken
+      );
+
+      const mergedSources: RagSource[] = [
+        ...(sources || []),
+        ...((response.sources as RagSource[]) || []),
+      ];
+
+      const tokenUsage = response.tokenUsage;
+      const responseStream = res || input.res;
+      if (responseStream && tokenUsage) {
+        writeSseEvent(responseStream as any, 'token_usage', tokenUsage);
+      }
+
+      const assistant = await this.persistTurn(
+        convId,
+        input.message,
+        response.content,
+        {
+          skipUserMessage: isRegenerate,
+          regenerateFromMessageId,
+          sources: mergedSources,
+          tokenUsage,
+        }
+      );
+
+      void maybeRefreshSummary(input.userId, convId).catch((err) => {
+        logger.warn(
+          `maybeRefreshSummary skipped: ${err instanceof Error ? err.message : err}`
+        );
+      });
+
+      return {
+        conversationId: convId,
+        messageId: assistant.id,
+        content: response.content,
+        sources: mergedSources,
+        ragStatus,
+        tokenUsage,
+      };
+    }
+
     const responseStream = res || input.res;
     const result = await runToolOrchestratedTurn({
       userId: input.userId,
       conversationId: convId,
       userMessage: input.message,
       chatMessages,
-      provider: input.provider || 'openai',
-      model: input.model || 'gpt-3.5-turbo',
+      provider,
+      model,
       options,
       signal: input.signal,
       res: responseStream,
@@ -130,7 +243,7 @@ class ChatService {
       skipUserMessage: isRegenerate,
       regenerateFromMessageId,
       sources,
-      toolsEnabled: (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled,
+      toolsEnabled: true,
     });
 
     if (responseStream && result.tokenUsage) {

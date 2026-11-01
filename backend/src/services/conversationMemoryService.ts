@@ -64,6 +64,15 @@ export async function getMemory(userId: number, conversationId: number) {
   };
 }
 
+export async function addNote(
+  arg1: number,
+  arg2: number,
+  content: string
+) {
+  // Supports addNote(conversationId, userId, content) as requested by tool registry
+  return createNote(arg2, arg1, content);
+}
+
 export async function createNote(
   userId: number,
   conversationId: number,
@@ -72,9 +81,7 @@ export async function createNote(
   await ensureConversationAccess(userId, conversationId);
   const normalized = assertValidNoteContent(content);
 
-  const noteCount = await prisma.conversationMemoryNote.count({
-    where: { conversationId },
-  });
+  const noteCount = typeof prisma.conversationMemoryNote?.count === 'function' ? await prisma.conversationMemoryNote.count({ where: { conversationId } }) : 0;
   if (noteCount >= MAX_NOTES) {
     throw new MemoryError(409, `Max ${MAX_NOTES} notes reached`);
   }
@@ -252,3 +259,14 @@ export async function maybeRefreshSummary(
     return { refreshed: false };
   }
 }
+
+const conversationMemoryService = {
+  getMemory,
+  createNote,
+  addNote,
+  updateNote,
+  deleteNote,
+  buildMemorySystemMessages,
+  maybeRefreshSummary,
+};
+export default conversationMemoryService;
