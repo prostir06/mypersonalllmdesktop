@@ -10,6 +10,7 @@ import { RegisteredTool, ToolExecutionContext, ToolProposal, ToolValidationError
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import userMemoryService from '../userMemoryService';
 import conversationMemoryService from '../conversationMemoryService';
+import WebSearchService from '../webSearch';
 
 import { evaluateSafeMathExpression } from './safeMath';
 export { evaluateSafeMathExpression } from './safeMath';
@@ -188,6 +189,43 @@ export class ToolRegistry {
         }
         const now = new Date();
         return { iso: now.toISOString(), local: formatter.format(now), timezone: tz };
+      },
+    });
+
+    this.register({
+      name: 'web_search',
+      description: 'Search the live web for up-to-date information, news, documentation, or facts',
+      category: 'read',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query keywords' },
+          max_results: { type: 'integer', minimum: 1, maximum: 8, default: 5 },
+        },
+        required: ['query'],
+      },
+      execute: async (args: Record<string, any>) => {
+        if (!args || typeof args.query !== 'string' || !args.query.trim()) {
+          throw new ToolValidationError('query is required and must be a non-empty string');
+        }
+        let maxResults = 5;
+        if (args.max_results !== undefined) {
+          const parsed = Number(args.max_results);
+          if (!Number.isInteger(parsed) || parsed < 1 || parsed > 8) {
+            throw new ToolValidationError('max_results must be an integer between 1 and 8');
+          }
+          maxResults = parsed;
+        }
+        const { items, backend } = await WebSearchService.searchWeb(args.query, {
+          maxResults,
+        });
+        return {
+          query: args.query,
+          results_count: items.length,
+          backend,
+          formatted_block: WebSearchService.formatUntrustedWebResultsBlock(items),
+          sources: WebSearchService.toWebRagSources(items),
+        };
       },
     });
 

@@ -8,6 +8,8 @@ import { buildSystemKnowledgeMessages } from '../systemKnowledge';
 import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
+import { modelSupportsTools } from '../../utils/modelCapabilities';
+import WebSearchService from '../webSearch';
 
 export async function buildSystemContext(
   userId: number,
@@ -190,6 +192,43 @@ export async function buildSystemContext(
       ragStatus = 'error';
       const message = ragErr instanceof Error ? ragErr.message : String(ragErr);
       logger.warn(`RAG context fetch error: ${message}`);
+    }
+  }
+
+  const enableWebSearch = Boolean(
+    options.enableWebSearch || (options as any)?.enable_web_search
+  );
+  const activeProvider = options.activeProvider || 'openai';
+  const activeModel = options.activeModel || 'gpt-3.5-turbo';
+  const toolsEnabled = Boolean(
+    (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
+  );
+  const supportsTools = modelSupportsTools(activeModel, activeProvider);
+
+  if (
+    enableWebSearch &&
+    activeProvider !== 'gemini' &&
+    (!toolsEnabled || !supportsTools)
+  ) {
+    try {
+      const trimmed = userMessage.trim();
+      if (trimmed) {
+        const { items } = await WebSearchService.searchWeb(trimmed, {
+          maxResults: 5,
+        });
+        if (items.length > 0) {
+          const block = WebSearchService.formatUntrustedWebResultsBlock(items);
+          if (block) {
+            systemMessages.push({ role: 'system', content: block });
+          }
+          const webSources = WebSearchService.toWebRagSources(items);
+          sources.push(...webSources);
+        }
+      }
+    } catch (searchErr: unknown) {
+      const message =
+        searchErr instanceof Error ? searchErr.message : String(searchErr);
+      logger.warn(`Web search pre-search error: ${message}`);
     }
   }
 

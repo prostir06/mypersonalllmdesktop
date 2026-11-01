@@ -9,6 +9,7 @@ import {
 } from '../services/tools/types';
 import prisma from '../config/prisma';
 import EmbeddingService from '../services/EmbeddingService';
+import WebSearchService from '../services/webSearch';
 
 jest.mock('../config/prisma', () => ({
   __esModule: true,
@@ -102,9 +103,9 @@ describe('ToolRegistry', () => {
   });
 
   describe('Registry structure & definitions', () => {
-    it('registers exactly 9 built-in tools by default', () => {
+    it('registers exactly 10 built-in tools by default', () => {
       const tools = toolRegistry.getAll();
-      expect(tools).toHaveLength(9);
+      expect(tools).toHaveLength(10);
 
       const names = tools.map((t) => t.name).sort();
       expect(names).toEqual([
@@ -117,12 +118,14 @@ describe('ToolRegistry', () => {
         'read_memory',
         'search_documents',
         'update_settings',
+        
+        'web_search',
       ]);
     });
 
     it('generates valid ToolDefinitionSpec list for providers', () => {
       const defs = toolRegistry.getDefinitions();
-      expect(defs).toHaveLength(9);
+      expect(defs).toHaveLength(10);
       for (const def of defs) {
         expect(typeof def.name).toBe('string');
         expect(typeof def.description).toBe('string');
@@ -462,6 +465,100 @@ describe('ToolRegistry', () => {
       it('rejects invalid timezone with ToolValidationError', async () => {
         await expect(
           timeTool.execute({ timezone: 'Mars/Phobos' }, ctx)
+        ).rejects.toThrow(ToolValidationError);
+      });
+    });
+
+    describe('web_search', () => {
+      const searchTool = toolRegistry.get('web_search')!;
+
+      it('is registered with category "read"', () => {
+        expect(searchTool).toBeDefined();
+        expect(searchTool.category).toBe('read');
+        expect(searchTool.name).toBe('web_search');
+      });
+
+      it('returns correct definition schema in getDefinitions()', () => {
+        const defs = toolRegistry.getDefinitions();
+        const webDef = defs.find((d) => d.name === 'web_search');
+        expect(webDef).toBeDefined();
+        expect(webDef?.description).toBe(
+          'Search the live web for up-to-date information, news, documentation, or facts'
+        );
+        expect(webDef?.parameters).toEqual({
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query keywords' },
+            max_results: { type: 'integer', minimum: 1, maximum: 8, default: 5 },
+          },
+          required: ['query'],
+        });
+      });
+
+      it('executes with mocked WebSearchService', async () => {
+        const searchSpy = jest.spyOn(WebSearchService, 'searchWeb').mockResolvedValue({
+          items: [
+            {
+              title: 'Kyiv Weather',
+              url: 'https://weather.com/kyiv',
+              snippet: 'Sunny and 20C',
+            },
+          ],
+          backend: 'searxng',
+        });
+
+        const result = await searchTool.execute({ query: 'Kyiv weather', max_results: 3 }, ctx);
+
+        expect(searchSpy).toHaveBeenCalledWith('Kyiv weather', { maxResults: 3 });
+        expect(result.query).toBe('Kyiv weather');
+        expect(result.results_count).toBe(1);
+        expect(result.backend).toBe('searxng');
+        expect(result.formatted_block).toContain('<untrusted_web_result');
+        expect(result.formatted_block).toContain('https://weather.com/kyiv');
+        expect(result.sources).toEqual([
+          expect.objectContaining({
+            filename: 'Kyiv Weather',
+            url: 'https://weather.com/kyiv',
+            snippet: 'Sunny and 20C',
+            source_type: 'web_search',
+            type: 'web',
+          }),
+        ]);
+
+        searchSpy.mockRestore();
+      });
+
+      it('defaults max_results to 5 if omitted', async () => {
+        const searchSpy = jest.spyOn(WebSearchService, 'searchWeb').mockResolvedValue({
+          items: [],
+          backend: 'tavily',
+        });
+
+        const result = await searchTool.execute({ query: 'Kyiv news' }, ctx);
+
+        expect(searchSpy).toHaveBeenCalledWith('Kyiv news', { maxResults: 5 });
+        expect(result.results_count).toBe(0);
+        expect(result.backend).toBe('tavily');
+
+        searchSpy.mockRestore();
+      });
+
+      it('throws ToolValidationError when query is missing or whitespace', async () => {
+        await expect(searchTool.execute({}, ctx)).rejects.toThrow(ToolValidationError);
+        await expect(searchTool.execute({ query: '   ' }, ctx)).rejects.toThrow(
+          ToolValidationError
+        );
+      });
+
+      it('throws ToolValidationError for invalid max_results bounds', async () => {
+        await expect(
+          searchTool.execute({ query: 'test', max_results: 0 }, ctx)
+        ).rejects.toThrow(ToolValidationError);
+        await expect(
+          searchTool.execute({ query: 'test', max_results: 9 }, ctx)
+        ).rejects.toThrow(ToolValidationError);
+        await expect(
+          searchTool.execute({ query: 'test', max_results: 2.5 }, ctx)
         ).rejects.toThrow(ToolValidationError);
       });
     });

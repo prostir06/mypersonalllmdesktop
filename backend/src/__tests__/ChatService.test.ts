@@ -57,6 +57,26 @@ jest.mock('../services/systemKnowledge', () => ({
   buildSystemKnowledgeMessages: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock('../services/webSearch', () => ({
+  __esModule: true,
+  default: {
+    searchWeb: jest.fn().mockResolvedValue({ items: [], backend: 'none' }),
+    formatUntrustedWebResultsBlock: jest.fn().mockReturnValue(''),
+    toWebRagSources: jest.fn().mockReturnValue([]),
+    resolveWebSearchBackend: jest.fn().mockReturnValue('none'),
+  },
+  WebSearchService: {
+    searchWeb: jest.fn().mockResolvedValue({ items: [], backend: 'none' }),
+    formatUntrustedWebResultsBlock: jest.fn().mockReturnValue(''),
+    toWebRagSources: jest.fn().mockReturnValue([]),
+    resolveWebSearchBackend: jest.fn().mockReturnValue('none'),
+  },
+  searchWeb: jest.fn().mockResolvedValue({ items: [], backend: 'none' }),
+  formatUntrustedWebResultsBlock: jest.fn().mockReturnValue(''),
+  toWebRagSources: jest.fn().mockReturnValue([]),
+  resolveWebSearchBackend: jest.fn().mockReturnValue('none'),
+}));
+
 jest.mock('../logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
@@ -74,6 +94,7 @@ import {
   buildMemorySystemMessages,
   maybeRefreshSummary,
 } from '../services/conversationMemoryService';
+import WebSearchService from '../services/webSearch';
 
 const mockedPrisma = prisma as any;
 const mockedEmbed = EmbeddingService as any;
@@ -82,12 +103,16 @@ const mockedResolveCtx = resolveEmbeddingContext as jest.Mock;
 const mockedBuildMemory = buildMemorySystemMessages as jest.Mock;
 const mockedMaybeRefreshSummary = maybeRefreshSummary as jest.Mock;
 const mockedBuildSystemKnowledge = buildSystemKnowledgeMessages as jest.Mock;
+const mockedWebSearch = WebSearchService as any;
 
 describe('ChatService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedBuildMemory.mockResolvedValue([]);
     mockedBuildSystemKnowledge.mockResolvedValue([]);
+    mockedWebSearch.searchWeb.mockResolvedValue({ items: [], backend: 'none' });
+    mockedWebSearch.formatUntrustedWebResultsBlock.mockReturnValue('');
+    mockedWebSearch.toWebRagSources.mockReturnValue([]);
     mockedMaybeRefreshSummary.mockResolvedValue(undefined);
     mockedResolveCtx.mockResolvedValue({
       provider: 'openai',
@@ -399,6 +424,76 @@ describe('ChatService', () => {
         content: 'CUSTOM PROMPT',
       });
     });
+
+    it('performs pre-search when enableWebSearch is true for non-gemini without tools', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedWebSearch.searchWeb.mockResolvedValueOnce({
+        items: [
+          { title: 'Kyiv News', url: 'https://news.kyiv.ua', snippet: 'Latest updates from Kyiv' },
+        ],
+        backend: 'searxng',
+      });
+      mockedWebSearch.formatUntrustedWebResultsBlock.mockReturnValueOnce(
+        '<untrusted_web_result index="1" url="https://news.kyiv.ua" title="Kyiv News">\nLatest updates from Kyiv\n</untrusted_web_result>'
+      );
+      mockedWebSearch.toWebRagSources.mockReturnValueOnce([
+        {
+          id: 'web-0',
+          filename: 'Kyiv News',
+          url: 'https://news.kyiv.ua',
+          snippet: 'Latest updates from Kyiv',
+          score: 1.0,
+          source_type: 'web_search',
+          type: 'web',
+        },
+      ]);
+
+      const result = await buildSystemContext(
+        1,
+        { enableWebSearch: true, activeProvider: 'ollama', activeModel: 'llama3:8b' },
+        'what is happening in Kyiv'
+      );
+
+      expect(mockedWebSearch.searchWeb).toHaveBeenCalledWith('what is happening in Kyiv', {
+        maxResults: 5,
+      });
+      expect(
+        result.messages.some(
+          (m) => typeof m.content === 'string' && m.content.includes('<untrusted_web_result')
+        )
+      ).toBe(true);
+      expect(result.sources).toEqual([
+        expect.objectContaining({
+          filename: 'Kyiv News',
+          url: 'https://news.kyiv.ua',
+          type: 'web',
+        }),
+      ]);
+    });
+
+    it('skips pre-search when provider is gemini even if enableWebSearch is true', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+
+      await buildSystemContext(
+        1,
+        { enableWebSearch: true, activeProvider: 'gemini', activeModel: 'gemini-2.0-flash' },
+        'what is happening'
+      );
+
+      expect(mockedWebSearch.searchWeb).not.toHaveBeenCalled();
+    });
+
+    it('skips pre-search when tools are enabled on tool-capable model', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+
+      await buildSystemContext(
+        1,
+        { enableWebSearch: true, toolsEnabled: true, activeProvider: 'openai', activeModel: 'gpt-4o' },
+        'search something'
+      );
+
+      expect(mockedWebSearch.searchWeb).not.toHaveBeenCalled();
+    });
   });
 
   describe('sendMessage', () => {
@@ -628,6 +723,76 @@ describe('ChatService', () => {
           source_type: 'web_search',
         },
       ]);
+    });
+
+    it('executes pre-search and merges web rag sources for non-tool model with enableWebSearch: true', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+      mockedProvider.sendMessage.mockResolvedValue({
+        content: 'Search results synthesized',
+        usage: { total_tokens: 25 },
+      });
+      mockedPrisma.message.create
+        .mockResolvedValueOnce({ id: 1 })
+        .mockResolvedValueOnce({
+          id: 101,
+          createdAt: new Date('2026-08-01T10:00:00Z'),
+        });
+      mockedPrisma.conversation.update.mockResolvedValue({});
+
+      mockedWebSearch.searchWeb.mockResolvedValueOnce({
+        items: [
+          { title: 'Tavily Tech News', url: 'https://tavily.com/news', snippet: 'AI breakthrough' },
+        ],
+        backend: 'tavily',
+      });
+      mockedWebSearch.formatUntrustedWebResultsBlock.mockReturnValueOnce(
+        '<untrusted_web_result index="1" url="https://tavily.com/news" title="Tavily Tech News">\nAI breakthrough\n</untrusted_web_result>'
+      );
+      mockedWebSearch.toWebRagSources.mockReturnValueOnce([
+        {
+          id: 'web-0',
+          filename: 'Tavily Tech News',
+          url: 'https://tavily.com/news',
+          snippet: 'AI breakthrough',
+          score: 1.0,
+          source_type: 'web_search',
+          type: 'web',
+        },
+      ]);
+
+      const result = await ChatService.sendMessage({
+        userId: 1,
+        message: 'latest AI breakthrough',
+        provider: 'ollama',
+        model: 'llama3:8b',
+        options: { enableWebSearch: true },
+      });
+
+      expect(mockedWebSearch.searchWeb).toHaveBeenCalledWith('latest AI breakthrough', {
+        maxResults: 5,
+      });
+      expect(result.sources).toEqual([
+        expect.objectContaining({
+          filename: 'Tavily Tech News',
+          url: 'https://tavily.com/news',
+          type: 'web',
+        }),
+      ]);
+      expect(mockedPrisma.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            sources: expect.arrayContaining([
+              expect.objectContaining({
+                filename: 'Tavily Tech News',
+                url: 'https://tavily.com/news',
+              }),
+            ]),
+          }),
+        })
+      );
     });
 
     it('returns success result when maybeRefreshSummary throws', async () => {

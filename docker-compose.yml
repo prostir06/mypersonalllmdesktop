@@ -50,6 +50,8 @@ services:
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
       OLLAMA_URL_ALLOWLIST: ${OLLAMA_URL_ALLOWLIST:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +71,19 @@ services:
       - db-network
       - llm-network
     restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: llm-assistant-searxng
+    restart: unless-stopped
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    networks:
+      - llm-network
+    mem_limit: 512m
+    cpus: 0.5
 
   frontend:
     build:

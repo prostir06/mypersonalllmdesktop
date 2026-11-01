@@ -1,0 +1,11 @@
+use_default_settings: true
+server:
+  secret_key: "change_me_searxng_secret_in_prod_random_string_32"
+  limiter: false
+  image_proxy: false
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json

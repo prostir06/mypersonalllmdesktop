@@ -106,6 +106,9 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
   const options: ChatOptions = { ...(input.options || {}) };
   // Defense-in-depth: never honor client-enabled tools at the service layer.
   options.enableTools = false;
+  if (input.options?.enableWebSearch === true) {
+    options.enableWebSearch = true;
+  }
 
   const convId = await ensureConversationId(
     input.userId,
@@ -125,8 +128,8 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
       input.userId,
       {
         ...options,
-        ...(input.provider ? { activeProvider: input.provider } : {}),
-        ...(input.model ? { activeModel: input.model } : {}),
+        activeProvider: input.provider || 'openai',
+        activeModel: input.model || 'gpt-3.5-turbo',
       },
       input.message,
       convId
