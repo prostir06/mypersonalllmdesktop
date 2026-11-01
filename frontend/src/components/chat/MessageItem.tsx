@@ -4,7 +4,9 @@
 import React, { Suspense, lazy, useMemo, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
 import ReactMarkdown from 'react-markdown';
-import type { Artifact, RagSource, TokenUsage } from '../../types/api';
+import type { Artifact, RagSource, TokenUsage, ToolTraceEntry } from '../../types/api';
+import ToolCallCard from './ToolCallCard';
+import ConfirmActionCard from './ConfirmActionCard';
 import { parseArtifacts } from '../../utils/artifactParser';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { MessageSources } from './MessageSources';
@@ -199,6 +201,31 @@ const MessageItem = React.memo(function MessageItem({
         </div>
       </div>
       <div className="markdown-content">
+        {msg.role === 'assistant' && (msg.tool_trace || msg.toolTrace)?.length ? (
+          <div className="tool-trace-container mb-2">
+            {(msg.tool_trace || msg.toolTrace)!.map((trace, traceIdx) => {
+              const isConfirm =
+                trace.requiresConfirmation ||
+                trace.status === 'pending_confirmation' ||
+                trace.category === 'write';
+
+              if (isConfirm) {
+                return (
+                  <ConfirmActionCard
+                    key={trace.pendingActionId || traceIdx}
+                    toolTrace={trace}
+                  />
+                );
+              }
+              return (
+                <ToolCallCard
+                  key={traceIdx}
+                  toolTrace={trace}
+                />
+              );
+            })}
+          </div>
+        ) : null}
         <ReactMarkdown components={components}>{msg.content}</ReactMarkdown>
         {msg.role === 'assistant' && msg.sources?.length ? (
           <MessageSources sources={msg.sources} />

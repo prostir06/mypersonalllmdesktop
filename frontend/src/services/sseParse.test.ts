@@ -103,6 +103,52 @@ describe('consumeSseChunk', () => {
     });
   });
 
+  it('invokes onToolCall for tool_call events', () => {
+    const onToolCall = vi.fn();
+    consumeSseChunk(
+      '',
+      'event: tool_call\ndata: {"id":"c-1","name":"calculate","args":{"expression":"2+2"}}\n\n',
+      { onToolCall }
+    );
+    expect(onToolCall).toHaveBeenCalledWith({
+      id: 'c-1',
+      name: 'calculate',
+      args: { expression: '2+2' },
+    });
+  });
+
+  it('invokes onToolResult for tool_result events', () => {
+    const onToolResult = vi.fn();
+    consumeSseChunk(
+      '',
+      'event: tool_result\ndata: {"id":"c-1","name":"calculate","result":4,"durationMs":12}\n\n',
+      { onToolResult }
+    );
+    expect(onToolResult).toHaveBeenCalledWith({
+      id: 'c-1',
+      name: 'calculate',
+      result: 4,
+      durationMs: 12,
+    });
+  });
+
+  it('invokes onToolConfirmationRequired for tool_confirmation_required events', () => {
+    const onToolConfirmationRequired = vi.fn();
+    consumeSseChunk(
+      '',
+      'event: tool_confirmation_required\ndata: {"actionId":"act-1","toolName":"update_settings","title":"Зміна налаштувань","summary":"Оновити температуру","diff":{"temperature":{"from":0.7,"to":0.2}},"expiresAt":"2026-11-01T15:20:00Z"}\n\n',
+      { onToolConfirmationRequired }
+    );
+    expect(onToolConfirmationRequired).toHaveBeenCalledWith({
+      actionId: 'act-1',
+      toolName: 'update_settings',
+      title: 'Зміна налаштувань',
+      summary: 'Оновити температуру',
+      diff: { temperature: { from: 0.7, to: 0.2 } },
+      expiresAt: '2026-11-01T15:20:00Z',
+    });
+  });
+
   it('throws SseStreamError on server error events', () => {
     const onError = vi.fn();
     expect(() =>

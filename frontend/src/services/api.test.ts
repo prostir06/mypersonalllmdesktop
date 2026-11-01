@@ -38,6 +38,8 @@ vi.mock('react-toastify', () => ({
 import {
   authAPI,
   chatAPI,
+  approveToolAction,
+  rejectToolAction,
   conversationAPI,
   documentsAPI,
   modelsAPI,
@@ -95,6 +97,10 @@ describe('api service wrappers', () => {
     conversationAPI.refreshSummary(7);
     conversationAPI.togglePin(7, true);
     chatAPI.togglePin(7);
+    chatAPI.approveToolAction('act-1');
+    chatAPI.rejectToolAction('act-2');
+    approveToolAction('act-3');
+    rejectToolAction('act-4');
 
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/auth/login', {
       email: 'a@example.com',
@@ -135,6 +141,10 @@ describe('api service wrappers', () => {
       is_pinned: true,
     });
     expect(mocks.apiInstance.patch).toHaveBeenCalledWith('/conversations/7/pin', {});
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith('/chat/tool-actions/act-1/approve');
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith('/chat/tool-actions/act-2/reject');
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith('/chat/tool-actions/act-3/approve');
+    expect(mocks.apiInstance.post).toHaveBeenCalledWith('/chat/tool-actions/act-4/reject');
   });
 
   it('calls chat and document endpoints with expected payloads', async () => {

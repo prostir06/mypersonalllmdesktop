@@ -333,4 +333,114 @@ describe('useChatStream', () => {
     expect(messages[0].tokenUsage).toBeUndefined();
     warn.mockRestore();
   });
+  it('accumulates tool_call and tool_result events into in-flight message tool_trace', async () => {
+    chatAPI.streamMessage.mockImplementation(
+      async (
+        _id,
+        _msg,
+        _model,
+        _provider,
+        _opts,
+        onToken,
+        _onInit,
+        _signal,
+        _onDone,
+        _onTokenUsage,
+        toolHandlers
+      ) => {
+        // Emit tool call
+        toolHandlers?.onToolCall?.({
+          id: 'call-1',
+          name: 'calculate',
+          args: { expression: '12 * 4' },
+        });
+
+        // Emit tool result
+        toolHandlers?.onToolResult?.({
+          id: 'call-1',
+          name: 'calculate',
+          result: 48,
+          durationMs: 15,
+        });
+
+        onToken('Результат: 48');
+      }
+    );
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('обчисли 12 * 4', setMessages);
+    });
+
+    const lastMsg = messages.at(-1);
+    expect(lastMsg.role).toBe('assistant');
+    expect(lastMsg.content).toBe('Результат: 48');
+    expect(lastMsg.tool_trace).toHaveLength(1);
+    expect(lastMsg.tool_trace[0]).toMatchObject({
+      tool: 'calculate',
+      args: { expression: '12 * 4' },
+      result: 48,
+      durationMs: 15,
+      status: 'completed',
+    });
+  });
+
+  it('attaches tool_confirmation_required proposal to tool_trace with status pending_confirmation', async () => {
+    chatAPI.streamMessage.mockImplementation(
+      async (
+        _id,
+        _msg,
+        _model,
+        _provider,
+        _opts,
+        onToken,
+        _onInit,
+        _signal,
+        _onDone,
+        _onTokenUsage,
+        toolHandlers
+      ) => {
+        toolHandlers?.onToolConfirmationRequired?.({
+          actionId: 'act-uuid-1',
+          toolName: 'update_settings',
+          title: 'Оновлення параметрів моделі',
+          summary: 'Зміна температури на 0.2',
+          diff: { temperature: { from: 0.7, to: 0.2 } },
+          expiresAt: '2026-11-01T16:00:00Z',
+        });
+
+        onToken('Будь ласка, підтвердіть зміну налаштувань.');
+      }
+    );
+
+    const { result } = renderHook(() => useChatStream(baseArgs()), { wrapper });
+    let messages = [];
+    const setMessages = (updater) => {
+      messages = typeof updater === 'function' ? updater(messages) : updater;
+    };
+
+    await act(async () => {
+      await result.current.sendMessage('зроби температуру 0.2', setMessages);
+    });
+
+    const lastMsg = messages.at(-1);
+    expect(lastMsg.role).toBe('assistant');
+    expect(lastMsg.tool_trace).toHaveLength(1);
+    expect(lastMsg.tool_trace[0]).toMatchObject({
+      tool: 'update_settings',
+      pendingActionId: 'act-uuid-1',
+      status: 'pending_confirmation',
+      requiresConfirmation: true,
+      title: 'Оновлення параметрів моделі',
+      summary: 'Зміна температури на 0.2',
+      diff: { temperature: { from: 0.7, to: 0.2 } },
+      expiresAt: '2026-11-01T16:00:00Z',
+    });
+  });
+
 });

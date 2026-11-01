@@ -9,3 +9,4 @@ export { settingsAPI } from './api/settings';
 export { usersAPI } from './api/users';
 export { promptsAPI } from './api/prompts';
 export { systemAPI } from './api/system';
+export { approveToolAction, rejectToolAction } from './api/chat';

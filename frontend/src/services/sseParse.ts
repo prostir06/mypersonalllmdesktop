@@ -12,6 +12,35 @@ export class SseStreamError extends Error {
   }
 }
 
+export type ToolCallEventPayload = {
+  id?: string;
+  name?: string;
+  tool?: string;
+  args?: Record<string, unknown>;
+  uiSummary?: string;
+  status?: string;
+};
+
+export type ToolResultEventPayload = {
+  id?: string;
+  name?: string;
+  tool?: string;
+  result?: unknown;
+  durationMs?: number;
+  uiSummary?: string;
+  status?: string;
+  error?: string;
+};
+
+export type ToolConfirmationRequiredEventPayload = {
+  actionId: string;
+  toolName: string;
+  title: string;
+  summary: string;
+  diff?: Record<string, { from: unknown; to: unknown }>;
+  expiresAt?: string;
+};
+
 export type SseHandlers = {
   onToken?: (token: string) => void;
   onInit?: (
@@ -86,6 +115,26 @@ export function consumeSseChunk(
         handlers.onTokenUsage
       ) {
         handlers.onTokenUsage(data as unknown as TokenUsage);
+      } else if (
+        (currentEvent === 'tool_call' ||
+          (data as { type?: string }).type === 'tool_call') &&
+        handlers.onToolCall
+      ) {
+        handlers.onToolCall(data as unknown as ToolCallEventPayload);
+      } else if (
+        (currentEvent === 'tool_result' ||
+          (data as { type?: string }).type === 'tool_result') &&
+        handlers.onToolResult
+      ) {
+        handlers.onToolResult(data as unknown as ToolResultEventPayload);
+      } else if (
+        (currentEvent === 'tool_confirmation_required' ||
+          (data as { type?: string }).type === 'tool_confirmation_required') &&
+        handlers.onToolConfirmationRequired
+      ) {
+        handlers.onToolConfirmationRequired(
+          data as unknown as ToolConfirmationRequiredEventPayload
+        );
       } else if (data.type === 'init' && handlers.onInit) {
         handlers.onInit(data.conversationId, data.ragStatus);
       } else if (data.type === 'token' && handlers.onToken) {

@@ -63,7 +63,40 @@ export interface TokenUsage {
   estimatedCostUsd?: number;
 }
 
+export interface ToolTraceEntry {
+  tool: string;
+  args: Record<string, unknown>;
+  category: 'read' | 'write';
+  result?: unknown;
+  requiresConfirmation?: boolean;
+  pendingActionId?: string;
+  status: 'completed' | 'pending_confirmation' | 'rejected' | 'failed';
+  durationMs?: number;
+  error?: string;
+  title?: string;
+  summary?: string;
+  diff?: Record<string, { from: unknown; to: unknown }>;
+  expiresAt?: string;
+  [key: string]: unknown;
+}
+
+export interface PendingToolActionDto {
+  id: string;
+  userId: number;
+  conversationId: number;
+  messageId: number;
+  toolName: string;
+  toolArgs: Record<string, unknown>;
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  resultSummary?: string | null;
+  expiresAt: string;
+  createdAt: string;
+  resolvedAt?: string | null;
+}
+
 export interface Message {
+  tool_trace?: ToolTraceEntry[];
+  toolTrace?: ToolTraceEntry[];
   id?: string | number;
   role: string;
   content: string;
@@ -75,6 +108,9 @@ export interface Message {
   branch_index?: number;
   [key: string]: unknown;
 }
+
+export type ChatMessageDto = Message;
+export type MessageRecord = Message;
 
 export interface RagSource {
   filename: string;
@@ -174,6 +210,35 @@ export type StreamEvent =
       completionTokens: number;
       totalTokens: number;
       estimatedCostUsd?: number;
+    }
+    | {
+      type: 'tool_call';
+      id?: string;
+      name?: string;
+      tool?: string;
+      args?: Record<string, unknown>;
+      uiSummary?: string;
+      status?: string;
+    }
+  | {
+      type: 'tool_result';
+      id?: string;
+      name?: string;
+      tool?: string;
+      result?: unknown;
+      durationMs?: number;
+      uiSummary?: string;
+      status?: string;
+      error?: string;
+    }
+  | {
+      type: 'tool_confirmation_required';
+      actionId: string;
+      toolName: string;
+      title: string;
+      summary: string;
+      diff?: Record<string, { from: unknown; to: unknown }>;
+      expiresAt?: string;
     }
   | { type: 'error'; error: string };
 
@@ -287,8 +352,12 @@ export interface UserSettings {
   has_gemini_api_key?: boolean;
   has_anthropic_api_key?: boolean;
   rag_embedding_mode?: 'openai' | 'ollama' | 'fallback';
+  tools_enabled?: boolean;
+  toolsEnabled?: boolean;
   [key: string]: unknown;
 }
+
+export type UserSettingsDto = UserSettings;
 
 export type SettingsUpdatePayload = Partial<UserSettings> & {
   openai_api_key?: string;

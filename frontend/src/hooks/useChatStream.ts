@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { chatAPI } from '../services/api';
 import { isAbortError, isSseStreamError } from '../services/sseParse';
-import type { Message, RagSource, TokenUsage } from '../types/api';
+import type { Message, RagSource, TokenUsage, ToolTraceEntry } from '../types/api';
 import { queryKeys } from './queryKeys';
 import {
   appendOrReplaceAssistant,
@@ -48,6 +48,7 @@ export function useChatStream({
   const pendingTextRef = useRef('');
   const doneSourcesRef = useRef<RagSource[] | undefined>(undefined);
   const tokenUsageRef = useRef<TokenUsage | undefined>(undefined);
+  const toolTraceRef = useRef<ToolTraceEntry[]>([]);
 
   const flushStreamText = useCallback(() => {
     rafRef.current = null;
@@ -110,11 +111,52 @@ export function useChatStream({
       pendingTextRef.current = '';
       doneSourcesRef.current = undefined;
       tokenUsageRef.current = undefined;
+      toolTraceRef.current = [];
       setStreamedText('');
       setStreaming(true);
 
       let sentOk = false;
       let currentStreamText = '';
+      let inFlightAssistantIndex: number | undefined = opts.replaceAssistantIndex;
+
+      const syncInFlightAssistant = () => {
+        const currentTrace = [...toolTraceRef.current];
+        setMessages((prev) => {
+          if (typeof inFlightAssistantIndex === 'number' && inFlightAssistantIndex >= 0) {
+            const next = [...prev];
+            const existing = next[inFlightAssistantIndex] || { role: 'assistant', content: '' };
+            next[inFlightAssistantIndex] = {
+              ...existing,
+              tool_trace: currentTrace,
+              toolTrace: currentTrace,
+            };
+            return next;
+          }
+          const last = prev[prev.length - 1];
+          if (last && last.role === 'assistant') {
+            inFlightAssistantIndex = prev.length - 1;
+            return [
+              ...prev.slice(0, -1),
+              {
+                ...last,
+                tool_trace: currentTrace,
+                toolTrace: currentTrace,
+              },
+            ];
+          }
+          inFlightAssistantIndex = prev.length;
+          return [
+            ...prev,
+            {
+              role: 'assistant',
+              content: currentStreamText,
+              tool_trace: currentTrace,
+              toolTrace: currentTrace,
+              created_at: new Date().toISOString(),
+            },
+          ];
+        });
+      };
 
       try {
         await chatAPI.streamMessage(
@@ -126,6 +168,18 @@ export function useChatStream({
           (token) => {
             currentStreamText += token;
             queueStreamToken(token);
+            if (inFlightAssistantIndex !== undefined) {
+              setMessages((prev) => {
+                const next = [...prev];
+                if (next[inFlightAssistantIndex!]) {
+                  next[inFlightAssistantIndex!] = {
+                    ...next[inFlightAssistantIndex!],
+                    content: currentStreamText,
+                  };
+                }
+                return next;
+              });
+            }
           },
           (newConvId, ragStatus) => {
             if (!conversationId && onNewMessage) onNewMessage(newConvId);
@@ -140,6 +194,102 @@ export function useChatStream({
           (usage) => {
             tokenUsageRef.current = usage;
             handleTokenUsageEvent('token_usage', usage, setMessages);
+          },
+          {
+            onToolCall: (payload) => {
+              const toolName = payload.name || payload.tool || 'tool';
+              const args = payload.args || {};
+              const existingIdx = payload.id
+                ? toolTraceRef.current.findIndex(
+                    (e) => (e as any).callId === payload.id || (e as any).id === payload.id
+                  )
+                : -1;
+              const newEntry: ToolTraceEntry = {
+                tool: toolName,
+                args,
+                category: 'read',
+                status: 'completed',
+                callId: payload.id,
+                ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
+              } as ToolTraceEntry;
+
+              if (existingIdx >= 0) {
+                toolTraceRef.current[existingIdx] = {
+                  ...toolTraceRef.current[existingIdx],
+                  ...newEntry,
+                };
+              } else {
+                toolTraceRef.current.push(newEntry);
+              }
+              syncInFlightAssistant();
+            },
+            onToolResult: (payload) => {
+              const toolName = payload.name || payload.tool;
+              const existingIdx = payload.id
+                ? toolTraceRef.current.findIndex(
+                    (e) => (e as any).callId === payload.id || (e as any).id === payload.id
+                  )
+                : toolTraceRef.current.findIndex((e) => e.tool === toolName);
+
+              const hasError = Boolean(
+                payload.error || payload.status === 'failed' || payload.status === 'error'
+              );
+              const status: 'completed' | 'failed' = hasError ? 'failed' : 'completed';
+
+              if (existingIdx >= 0) {
+                toolTraceRef.current[existingIdx] = {
+                  ...toolTraceRef.current[existingIdx],
+                  result: payload.result,
+                  durationMs: payload.durationMs,
+                  status,
+                  ...(payload.error ? { error: payload.error } : {}),
+                  ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
+                };
+              } else {
+                toolTraceRef.current.push({
+                  tool: toolName || 'tool',
+                  args: {},
+                  category: 'read',
+                  result: payload.result,
+                  durationMs: payload.durationMs,
+                  status,
+                  callId: payload.id,
+                  ...(payload.error ? { error: payload.error } : {}),
+                  ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
+                } as ToolTraceEntry);
+              }
+              syncInFlightAssistant();
+            },
+            onToolConfirmationRequired: (payload) => {
+              const newEntry: ToolTraceEntry = {
+                tool: payload.toolName,
+                args: (payload as any).toolArgs || (payload as any).args || {},
+                category: 'write',
+                requiresConfirmation: true,
+                pendingActionId: payload.actionId,
+                status: 'pending_confirmation',
+                title: payload.title,
+                summary: payload.summary,
+                diff: payload.diff,
+                expiresAt: payload.expiresAt,
+              };
+              const existingIdx = toolTraceRef.current.findIndex(
+                (e) =>
+                  e.pendingActionId === payload.actionId ||
+                  (e.category === 'write' &&
+                    e.tool === payload.toolName &&
+                    e.status === 'pending_confirmation')
+              );
+              if (existingIdx >= 0) {
+                toolTraceRef.current[existingIdx] = {
+                  ...toolTraceRef.current[existingIdx],
+                  ...newEntry,
+                };
+              } else {
+                toolTraceRef.current.push(newEntry);
+              }
+              syncInFlightAssistant();
+            },
           }
         );
 
@@ -156,9 +306,13 @@ export function useChatStream({
               content: currentStreamText,
               sources: doneSourcesRef.current,
               tokenUsage: tokenUsageRef.current,
+              tool_trace:
+                toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
+              toolTrace:
+                toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
               created_at: new Date().toISOString(),
             },
-            opts.replaceAssistantIndex
+            inFlightAssistantIndex ?? opts.replaceAssistantIndex
           )
         );
         if (onNewMessage) onNewMessage();
@@ -178,7 +332,22 @@ export function useChatStream({
             rafRef.current = null;
           }
           const partial = pendingTextRef.current || currentStreamText;
-          if (partial) {
+          if (typeof inFlightAssistantIndex === 'number' && inFlightAssistantIndex >= 0) {
+            setMessages((prev) => {
+              const next = [...prev];
+              if (next[inFlightAssistantIndex!]) {
+                next[inFlightAssistantIndex!] = {
+                  ...next[inFlightAssistantIndex!],
+                  content: partial || next[inFlightAssistantIndex!].content,
+                  tool_trace:
+                    toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
+                  toolTrace:
+                    toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
+                };
+              }
+              return next;
+            });
+          } else if (partial) {
             setMessages((prev) => [
               ...prev,
               {
@@ -216,6 +385,10 @@ export function useChatStream({
                 content: data.content,
                 sources: data.sources,
                 tokenUsage: (data.tokenUsage || (data.usage as TokenUsage | undefined)),
+                tool_trace:
+                  (data.tool_trace as ToolTraceEntry[]) || (data.toolTrace as ToolTraceEntry[]),
+                toolTrace:
+                  (data.toolTrace as ToolTraceEntry[]) || (data.tool_trace as ToolTraceEntry[]),
                 created_at:
                   typeof data.timestamp === 'string'
                     ? data.timestamp
@@ -223,7 +396,7 @@ export function useChatStream({
                       ? String(data.timestamp)
                       : undefined,
               },
-              opts.replaceAssistantIndex
+              inFlightAssistantIndex ?? opts.replaceAssistantIndex
             )
           );
           if (onNewMessage) onNewMessage(data.conversationId);

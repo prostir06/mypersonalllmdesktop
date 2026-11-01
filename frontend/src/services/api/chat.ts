@@ -11,7 +11,15 @@ import type {
   StreamTokenCallback,
   TokenUsage,
 } from '../../types/api';
-import { consumeSseChunk, isAbortError, readFetchErrorMessage, cancelStreamReader } from '../sseParse';
+import {
+  consumeSseChunk,
+  isAbortError,
+  readFetchErrorMessage,
+  cancelStreamReader,
+  type ToolCallEventPayload,
+  type ToolResultEventPayload,
+  type ToolConfirmationRequiredEventPayload,
+} from '../sseParse';
 import { getAccessToken } from '../authToken';
 import { api } from './client';
 import { API_URL, refreshAccessToken } from './authRefresh';
@@ -168,4 +176,12 @@ export const chatAPI = {
       `/conversations/${id}/pin`,
       is_pinned !== undefined ? { is_pinned } : {}
     ),
+  approveToolAction: (actionId: string): Promise<AxiosResponse<any>> =>
+    api.post(`/chat/tool-actions/${actionId}/approve`),
+  rejectToolAction: (actionId: string): Promise<AxiosResponse<any>> =>
+    api.post(`/chat/tool-actions/${actionId}/reject`),
 };
+
+export const approveToolAction = chatAPI.approveToolAction;
+export const rejectToolAction = chatAPI.rejectToolAction;
+
