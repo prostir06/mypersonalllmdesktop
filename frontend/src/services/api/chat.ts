@@ -57,7 +57,14 @@ export const chatAPI = {
       content?: string;
       sources?: RagSource[];
     }) => void,
-    onTokenUsage?: (usage: TokenUsage) => void
+    onTokenUsage?: (usage: TokenUsage) => void,
+    toolHandlers?: {
+      onToolCall?: (payload: ToolCallEventPayload) => void;
+      onToolResult?: (payload: ToolResultEventPayload) => void;
+      onToolConfirmationRequired?: (
+        payload: ToolConfirmationRequiredEventPayload
+      ) => void;
+    }
   ): Promise<void> => {
     const doFetch = async (accessToken: string | null): Promise<Response> => {
       const res = await fetch(`${API_URL}/chat/stream`, {
@@ -136,6 +143,10 @@ export const chatAPI = {
             onToken,
             onDone,
             onTokenUsage,
+            onToolCall: toolHandlers?.onToolCall,
+            onToolResult: toolHandlers?.onToolResult,
+            onToolConfirmationRequired:
+              toolHandlers?.onToolConfirmationRequired,
           }
         );
       }

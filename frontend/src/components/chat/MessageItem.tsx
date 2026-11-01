@@ -82,6 +82,8 @@ export type ChatMessageView = {
   sources?: RagSource[];
   tokenUsage?: TokenUsage;
   token_usage?: TokenUsage;
+  tool_trace?: ToolTraceEntry[];
+  toolTrace?: ToolTraceEntry[];
   parent_id?: number;
   branches?: Array<{ id: string | number; content: string; created_at?: string }>;
   branch_index?: number;

@@ -173,6 +173,8 @@ export interface ChatSendResponse {
   tokenUsage?: TokenUsage;
   timestamp?: string;
   usage?: unknown;
+  tool_trace?: ToolTraceEntry[];
+  toolTrace?: ToolTraceEntry[];
 }
 
 export interface ChatSearchHit {

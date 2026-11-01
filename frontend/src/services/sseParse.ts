@@ -56,6 +56,9 @@ export type SseHandlers = {
   /** Called before SseStreamError is thrown (optional telemetry). */
   onTokenUsage?: (usage: TokenUsage) => void;
   onError?: (message: string) => void;
+  onToolCall?: (payload: ToolCallEventPayload) => void;
+  onToolResult?: (payload: ToolResultEventPayload) => void;
+  onToolConfirmationRequired?: (payload: ToolConfirmationRequiredEventPayload) => void;
 };
 
 /**
