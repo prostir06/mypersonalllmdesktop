@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar, Nav, Container, Button, Badge } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useProductTour } from '../context/ProductTourContext';
 import { isElectronApp } from '../types/electron';
 import { useSystemKnowledge } from '../hooks/useSystemKnowledge';
 import SystemGuideModal from './system/SystemGuideModal';
@@ -16,6 +17,7 @@ const Navigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { startTour, hasNewVersion } = useProductTour();
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
   const [showGuideModal, setShowGuideModal] = useState(false);
 
@@ -65,7 +67,7 @@ const Navigation: React.FC = () => {
 
           <Navbar.Toggle aria-controls="main-navbar" />
           <Navbar.Collapse id="main-navbar">
-            <Nav className="ms-auto align-items-center gap-2">
+            <Nav className="ms-auto align-items-center gap-2" data-tour="header-actions">
               <Nav.Link
                 as={Link}
                 to="/dashboard"
@@ -90,6 +92,24 @@ const Navigation: React.FC = () => {
                 {warningCount > 0 && (
                   <Badge bg="warning" text="dark" className="ms-1">
                     {warningCount}
+                  </Badge>
+                )}
+              </Nav.Link>
+              <Nav.Link
+                as="button"
+                onClick={() => startTour()}
+                className="btn btn-link nav-link px-3 py-2 d-flex align-items-center position-relative"
+                title="Інтерактивний тур можливостями додатку"
+                aria-label="Запустити інтерактивний тур"
+              >
+                <span>🎓 Тур</span>
+                {hasNewVersion && (
+                  <Badge
+                    bg="primary"
+                    className="ms-1"
+                    style={{ fontSize: '0.65rem' }}
+                  >
+                    NEW
                   </Badge>
                 )}
               </Nav.Link>

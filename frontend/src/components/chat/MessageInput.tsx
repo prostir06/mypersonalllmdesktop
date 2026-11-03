@@ -53,7 +53,7 @@ const MessageInput = React.memo(function MessageInput({
   };
 
   return (
-    <div>
+    <div data-tour="message-input">
       {attachedImage && (
         <div
           className="mb-2 d-flex align-items-center gap-2 p-2"

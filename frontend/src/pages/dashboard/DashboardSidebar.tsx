@@ -140,20 +140,22 @@ export default function DashboardSidebar({
 
   return (
     <div className="sidebar-wrapper glass-panel">
-      <Button
-        className="btn-accent w-100 mb-3 py-2.5 d-flex align-items-center justify-content-center gap-2"
-        onClick={onNewConversation}
-      >
-        <span>➕</span> Нова розмова
-      </Button>
+      <div data-tour="sidebar-search">
+        <Button
+          className="btn-accent w-100 mb-3 py-2.5 d-flex align-items-center justify-content-center gap-2"
+          onClick={onNewConversation}
+        >
+          <span>➕</span> Нова розмова
+        </Button>
 
-      <MessageSearch
-        onSearchChange={setSearchTerm}
-        onSelectConversation={(id: string | number) => {
-          selectConversation(id);
-          invalidateConversations();
-        }}
-      />
+        <MessageSearch
+          onSearchChange={setSearchTerm}
+          onSelectConversation={(id: string | number) => {
+            selectConversation(id);
+            invalidateConversations();
+          }}
+        />
+      </div>
 
       <div
         className="flex-grow-1 overflow-auto pr-1"

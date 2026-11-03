@@ -10,6 +10,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ProductTourProvider } from './context/ProductTourContext';
+import ProductTour from './components/tour/ProductTour';
 import Navigation from './components/Navigation';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -44,7 +46,12 @@ const AppRoutes = () => {
 
   return (
     <>
-      {isAuthenticated && <Navigation />}
+      {isAuthenticated && (
+        <>
+          <Navigation />
+          <ProductTour autoStart={true} />
+        </>
+      )}
       <Container fluid>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -73,6 +80,7 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <ProductTourProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Suspense fallback={<LoadingFallback />}>
               <AppRoutes />
@@ -86,6 +94,7 @@ function App() {
             closeOnClick
             theme="dark"
           />
+          </ProductTourProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

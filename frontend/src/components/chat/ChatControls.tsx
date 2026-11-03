@@ -62,6 +62,7 @@ const ChatControls = React.memo(function ChatControls({
     <>
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 pb-3 mb-3 border-bottom border-secondary border-opacity-25">
         <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center gap-2" data-tour="model-selector">
           <Form.Select
             size="sm"
             value={selectedProvider}
@@ -92,6 +93,7 @@ const ChatControls = React.memo(function ChatControls({
               </option>
             ))}
           </Form.Select>
+          </div>
 
           <Button
             variant="outline-info"
@@ -128,6 +130,7 @@ const ChatControls = React.memo(function ChatControls({
                   : 'Увімкнути веб-пошук (Google Search / SearXNG / Tavily)'
               }
               aria-label="Веб-пошук"
+              data-tour="web-search-toggle"
               className="d-flex align-items-center gap-1"
             >
               🌐 Веб-пошук
@@ -151,6 +154,7 @@ const ChatControls = React.memo(function ChatControls({
                   : 'Увімкнути автономні інструменти (Tools)'
               }
               aria-label="Автономні інструменти"
+              data-tour="tools-toggle"
               className="d-flex align-items-center gap-1"
             >
               🛠 Інструменти
