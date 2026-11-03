@@ -82,4 +82,53 @@ describe('DashboardSidebar', () => {
     expect(unpinBtn.firstElementChild).toHaveClass('opacity-100');
     expect(pinBtn.firstElementChild).toHaveClass('opacity-50');
   });
+
+  it('filters conversation list by title in real-time when typing in search input', () => {
+    render(
+      <DashboardSidebar
+        {...baseProps}
+        isLoading={false}
+        conversations={[
+          { id: 1, title: '111111111', is_pinned: false },
+          { id: 2, title: '6666666666666', is_pinned: false },
+          { id: 3, title: '181818181818', is_pinned: false },
+        ]}
+      />
+    );
+
+    expect(screen.getByText(/111111111/)).toBeInTheDocument();
+    expect(screen.getByText(/6666666666666/)).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText(/Пошук розмов та повідомлень/i);
+    fireEvent.change(searchInput, { target: { value: '11111' } });
+
+    expect(screen.getByText(/111111111/)).toBeInTheDocument();
+    expect(screen.queryByText(/6666666666666/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/181818181818/)).not.toBeInTheDocument();
+  });
+
+  it('shows no conversations found message and can be cleared with clear button', () => {
+    render(
+      <DashboardSidebar
+        {...baseProps}
+        isLoading={false}
+        conversations={[
+          { id: 1, title: 'Alpha', is_pinned: false },
+          { id: 2, title: 'Beta', is_pinned: false },
+        ]}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText(/Пошук розмов та повідомлень/i);
+    fireEvent.change(searchInput, { target: { value: 'Nonexistent' } });
+
+    expect(screen.getByText(/Розмов не знайдено за запитом "Nonexistent"/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Alpha/)).not.toBeInTheDocument();
+
+    const clearBtn = screen.getByLabelText('Очистити пошук');
+    fireEvent.click(clearBtn);
+
+    expect(screen.getByText(/Alpha/)).toBeInTheDocument();
+    expect(screen.getByText(/Beta/)).toBeInTheDocument();
+  });
 });

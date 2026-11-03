@@ -1027,6 +1027,29 @@ describe('ChatService', () => {
       expect(result.total).toBe(1);
     });
 
+    it('includes matching conversation titles when searching globally', async () => {
+      mockedPrisma.$queryRaw.mockResolvedValue([]);
+      (mockedPrisma.conversation as any).findMany = jest.fn().mockResolvedValue([
+        {
+          id: 85,
+          title: '111111111',
+          createdAt: new Date('2026-11-01T15:00:00Z'),
+          updatedAt: new Date('2026-11-01T15:00:00Z'),
+        },
+      ]);
+
+      const result = await ChatService.searchMessages(3, '11111');
+      expect(result.results).toEqual([
+        expect.objectContaining({
+          id: 'conv-85',
+          conversation_id: 85,
+          conversation_title: '111111111',
+          role: 'conversation',
+        }),
+      ]);
+      expect(result.total).toBe(1);
+    });
+
     it('filters by conversationId when provided', async () => {
       mockedPrisma.$queryRaw.mockResolvedValue([]);
       await ChatService.searchMessages(1, 'ab', '12');

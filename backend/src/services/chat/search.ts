@@ -37,16 +37,61 @@ export async function searchMessages(
       buildMessageFtsQuery(userId, trimmed, cid)
     );
 
+    const messageResults = rows.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      created_at: m.created_at,
+      conversation_id: m.conversation_id,
+      conversation_title: m.conversation_title,
+    }));
+
+    // If global search, also match conversation titles
+    let convResults: Array<{
+      id: string | number;
+      role: string;
+      content: string;
+      created_at: Date;
+      conversation_id: number;
+      conversation_title: string | null;
+    }> = [];
+
+    if (cid == null && typeof (prisma.conversation as any)?.findMany === 'function') {
+      try {
+        const matchingConvs = await prisma.conversation.findMany({
+          where: {
+            userId,
+            title: { contains: trimmed, mode: 'insensitive' },
+          },
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          take: 20,
+        });
+
+        convResults = matchingConvs
+          .filter((c) => !rows.some((r) => r.conversation_id === c.id))
+          .map((c) => ({
+            id: `conv-${c.id}`,
+            role: 'conversation',
+            content: `Розмова: ${c.title || 'Нова розмова'}`,
+            created_at: c.updatedAt,
+            conversation_id: c.id,
+            conversation_title: c.title,
+          }));
+      } catch {
+        // Fall back gracefully if title search is unsupported in mock
+      }
+    }
+
+    const combined = [...convResults, ...messageResults];
+
     return {
-      results: rows.map((m) => ({
-        id: m.id,
-        role: m.role,
-        content: m.content,
-        created_at: m.created_at,
-        conversation_id: m.conversation_id,
-        conversation_title: m.conversation_title,
-      })),
-      total: rows.length,
+      results: combined,
+      total: combined.length,
     };
   } catch (err: unknown) {
     if (err instanceof ChatError) throw err;

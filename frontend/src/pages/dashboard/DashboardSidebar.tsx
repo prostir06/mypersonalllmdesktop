@@ -1,4 +1,4 @@
-import React, { type FormEvent, type MouseEvent } from 'react';
+import React, { useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import MessageSearch from '../../components/MessageSearch';
 import { isSameConversation } from './isSameConversation';
@@ -41,8 +41,18 @@ export default function DashboardSidebar({
   onNewConversation,
   onTogglePin,
 }: Props) {
-  const pinned = conversations.filter((c) => Boolean(c.is_pinned));
-  const others = conversations.filter((c) => !c.is_pinned);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredConversations = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return conversations;
+    return conversations.filter((c) =>
+      Boolean(c.title && c.title.toLowerCase().includes(term))
+    );
+  }, [conversations, searchTerm]);
+
+  const pinned = filteredConversations.filter((c) => Boolean(c.is_pinned));
+  const others = filteredConversations.filter((c) => !c.is_pinned);
 
   const renderCard = (conv: Conversation) => {
     const isActive = isSameConversation(activeConversation, conv.id);
@@ -138,6 +148,7 @@ export default function DashboardSidebar({
       </Button>
 
       <MessageSearch
+        onSearchChange={setSearchTerm}
         onSelectConversation={(id: string | number) => {
           selectConversation(id);
           invalidateConversations();
@@ -158,6 +169,10 @@ export default function DashboardSidebar({
           <div className="text-center text-muted p-4">
             <small>Немає збережених розмов</small>
           </div>
+        ) : filteredConversations.length === 0 && searchTerm.trim() ? (
+          <div className="text-center text-muted p-4">
+            <small>Розмов не знайдено за запитом &quot;{searchTerm}&quot;</small>
+          </div>
         ) : pinned.length > 0 ? (
           <>
             <div className="small text-uppercase text-muted fw-bold px-2 py-1">
@@ -174,9 +189,9 @@ export default function DashboardSidebar({
             )}
           </>
         ) : (
-          conversations.map(renderCard)
+          filteredConversations.map(renderCard)
         )}
-        {hasMore && (
+        {hasMore && !searchTerm.trim() && (
           <div className="text-center py-2">
             <Button
               variant="outline-secondary"
