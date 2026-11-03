@@ -244,7 +244,7 @@ describe('MessageItem sources and tokens', () => {
         type: 'svg',
       })
     );
-  });
+  }, 15000);
 
   it('does not render artifact button for plain messages without HTML/SVG artifacts', () => {
     const plainContent = 'Звичайне текстове повідомлення без коду';

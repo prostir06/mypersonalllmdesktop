@@ -105,12 +105,10 @@ export async function buildUserSystemSnapshot(
       ? overrides.toolsEnabled
       : (userSettings?.toolsEnabled ?? true);
 
-  let webSearchBackend: 'gemini_grounding' | 'tavily' | 'searxng' | 'none' = 'none';
-  if (activeProvider === 'gemini') {
-    webSearchBackend = 'gemini_grounding';
-  } else {
-    webSearchBackend = resolveWebSearchBackend();
-  }
+  const webSearchBackend: 'gemini_grounding' | 'tavily' | 'searxng' | 'none' =
+    activeProvider === 'gemini'
+      ? 'gemini_grounding'
+      : resolveWebSearchBackend();
 
   return {
     activeProvider,
