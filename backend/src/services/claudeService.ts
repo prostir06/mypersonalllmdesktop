@@ -50,7 +50,8 @@ function handleClaudeError(error: any, signal?: AbortSignal): never {
   ) {
     throw new ChatError(
       401,
-      'Недійсний Anthropic Claude API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.'
+      'Недійсний Anthropic Claude API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.',
+      { cause: error }
     );
   }
 
@@ -62,7 +63,8 @@ function handleClaudeError(error: any, signal?: AbortSignal): never {
   ) {
     throw new ChatError(
       429,
-      'Перевищено ліміт запитів Anthropic Claude API. Будь ласка, зачекайте або спробуйте іншу модель.'
+      'Перевищено ліміт запитів Anthropic Claude API. Будь ласка, зачекайте або спробуйте іншу модель.',
+      { cause: error }
     );
   }
 
@@ -73,13 +75,15 @@ function handleClaudeError(error: any, signal?: AbortSignal): never {
   ) {
     throw new ChatError(
       529,
-      'Сервери Anthropic Claude перевантажені (529 Overloaded). Будь ласка, спробуйте пізніше або виберіть іншу модель.'
+      'Сервери Anthropic Claude перевантажені (529 Overloaded). Будь ласка, спробуйте пізніше або виберіть іншу модель.',
+      { cause: error }
     );
   }
 
   throw new ChatError(
     typeof status === 'number' && status >= 400 && status < 600 ? status : 500,
-    `Помилка Anthropic Claude API: ${message || 'Невідома помилка'}`
+    `Помилка Anthropic Claude API: ${message || 'Невідома помилка'}`,
+    { cause: error }
   );
 }
 

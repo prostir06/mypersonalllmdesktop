@@ -140,7 +140,7 @@ async function sendOpenAIMessage(
     logger.error(
       `OpenAI API error in sendOpenAIMessage${status ? ` status=${status}` : ''}${code ? ` code=${code}` : ''}: ${message}`
     );
-    throw new Error('Failed to communicate with OpenAI API');
+    throw new Error('Failed to communicate with OpenAI API', { cause: err });
   }
 }
 
@@ -217,7 +217,7 @@ async function streamOpenAIMessage(
         error instanceof Error ? error.message : String(error)
       }`
     );
-    throw new Error('Failed to stream from OpenAI API');
+    throw new Error('Failed to stream from OpenAI API', { cause: error });
   }
 }
 

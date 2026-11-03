@@ -184,8 +184,8 @@ export class ToolRegistry {
         let formatter: Intl.DateTimeFormat;
         try {
           formatter = new Intl.DateTimeFormat('uk-UA', { timeZone: tz, dateStyle: 'full', timeStyle: 'long' });
-        } catch {
-          throw new ToolValidationError(`Invalid timezone: "${tz}"`);
+        } catch (err: unknown) {
+          throw new ToolValidationError(`Invalid timezone: "${tz}"`, { cause: err });
         }
         const now = new Date();
         return { iso: now.toISOString(), local: formatter.format(now), timezone: tz };

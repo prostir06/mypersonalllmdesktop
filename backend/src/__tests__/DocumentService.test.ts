@@ -211,16 +211,23 @@ describe('DocumentService (Prisma)', () => {
       );
     });
 
-    it('logs and rethrows a public error when XLSX parse fails', async () => {
-      mockWorkbookLoad.mockRejectedValueOnce(new Error('Corrupt zip'));
+    it('logs and rethrows a public error when XLSX parse fails and preserves cause', async () => {
+      const corruptErr = new Error('Corrupt zip');
+      mockWorkbookLoad.mockRejectedValueOnce(corruptErr);
 
-      await expect(
-        DocumentService.extractText(
+      let caught: any;
+      try {
+        await DocumentService.extractText(
           Buffer.from([0x50, 0x4b, 0x03, 0x04]),
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'sales.xlsx'
-        )
-      ).rejects.toThrow(/Excel/i);
+        );
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught.message).toMatch(/Excel/i);
+      expect(caught.cause).toBe(corruptErr);
 
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringMatching(/XLSX extract failed.*sales\.xlsx.*Corrupt zip/)

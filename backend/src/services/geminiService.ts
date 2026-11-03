@@ -238,7 +238,7 @@ async function sendGeminiMessage(
     }
     logger.error(`Gemini send error: ${error?.message || error}`);
     if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-      throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.');
+      throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.', { cause: error });
     }
     if (
       error?.status === 400 ||
@@ -247,9 +247,9 @@ async function sendGeminiMessage(
       error?.message?.includes('API_KEY_INVALID') ||
       error?.message?.includes('API key not valid')
     ) {
-      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.');
+      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.', { cause: error });
     }
-    throw new ChatError(500, `Помилка Gemini API: ${error?.message || 'Невідома помилка'}`);
+    throw new ChatError(500, `Помилка Gemini API: ${error?.message || 'Невідома помилка'}`, { cause: error });
   }
 }
 

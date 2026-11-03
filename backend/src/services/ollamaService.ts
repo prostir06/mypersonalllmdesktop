@@ -177,7 +177,7 @@ async function sendOllamaMessage(
         ? JSON.stringify(err.response.data)
         : err.message;
     logger.error(`Ollama API error: ${detail}`);
-    throw new Error('Failed to communicate with Ollama API');
+    throw new Error('Failed to communicate with Ollama API', { cause: error });
   }
 }
 
@@ -295,8 +295,10 @@ async function streamOllamaMessage(
                   if (tc.function?.arguments) toolCallsAcc[idx].argumentsJson += tc.function.arguments;
                 }
               }
-            } catch {
-              // Incomplete SSE JSON line — wait for more bytes.
+            } catch (chunkErr: unknown) {
+              logger.warn(
+                `Failed to parse Ollama SSE chunk: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`
+              );
             }
           }
         }
@@ -328,7 +330,7 @@ async function streamOllamaMessage(
         error instanceof Error ? error.message : String(error)
       }`
     );
-    throw new Error('Failed to stream from Ollama API');
+    throw new Error('Failed to stream from Ollama API', { cause: error });
   }
 }
 

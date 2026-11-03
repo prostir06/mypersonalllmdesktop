@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import logger from '../../logger';
 import { buildTokenUsage } from '../providers/shared';
 import type { TokenUsage } from '../chat/types';
 
@@ -111,7 +112,10 @@ export function formatClaudeMessages(
           input = typeof tc.function?.arguments === 'string'
             ? JSON.parse(tc.function.arguments)
             : (tc.function?.arguments ?? (typeof tc.argumentsJson === 'string' ? JSON.parse(tc.argumentsJson) : (tc.argumentsJson || {})));
-        } catch {
+        } catch (err: unknown) {
+          logger.warn(
+            `Failed to parse Claude assistant tool_calls arguments for tool "${tc.function?.name || tc.name}": ${err instanceof Error ? err.message : String(err)}`
+          );
           input = {};
         }
         contentBlocks.push({

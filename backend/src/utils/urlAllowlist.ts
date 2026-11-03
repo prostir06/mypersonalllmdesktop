@@ -10,8 +10,8 @@ import net from 'net';
 export class UrlNotAllowedError extends Error {
   statusCode = 400;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'UrlNotAllowedError';
   }
 }
@@ -67,8 +67,8 @@ export function assertAllowedHttpUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
-  } catch {
-    throw new UrlNotAllowedError('Invalid URL');
+  } catch (err: unknown) {
+    throw new UrlNotAllowedError('Invalid URL', { cause: err });
   }
 
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
@@ -109,8 +109,8 @@ export async function assertAllowedHttpUrlWithDns(raw: string): Promise<URL> {
   let addresses: Array<{ address: string; family: number }>;
   try {
     addresses = await dns.lookup(host, { all: true, verbatim: true });
-  } catch {
-    throw new UrlNotAllowedError('URL host could not be resolved');
+  } catch (err: unknown) {
+    throw new UrlNotAllowedError('URL host could not be resolved', { cause: err });
   }
 
   if (!addresses.length) {

@@ -55,6 +55,7 @@ import {
   PENDING_ACTION_TTL_MS,
 } from '../services/tools/orchestrator';
 import toolRegistry from '../services/tools/registry';
+import logger from '../logger';
 import { ChatError } from '../services/chat/types';
 
 describe('ToolOrchestrator', () => {
@@ -289,6 +290,77 @@ describe('ToolOrchestrator', () => {
       expect(joinedEvents).toContain('Користувач любить каву без цукру');
     });
 
+    it('handles malformed argumentsJson by warning and defaulting to empty args', async () => {
+      mockProviderFactory.sendMessage
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_bad_json',
+              name: 'get_current_time',
+              argumentsJson: '{not valid json',
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          content: 'Parsed successfully after warning',
+        });
+
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'Котра година?',
+        chatMessages: [{ role: 'user', content: 'Котра година?' }],
+        provider: 'openai',
+        model: 'gpt-4o',
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to parse tool call arguments for "get_current_time"')
+      );
+      expect(result.content).toBe('Parsed successfully after warning');
+      expect(result.toolTrace?.[0].args).toEqual({});
+    });
+
+    it('warns and uses fallback proposal when describeProposal throws', async () => {
+      const failingTool = {
+        name: 'failing_proposal_tool',
+        description: 'Test failing proposal',
+        category: 'write' as const,
+        parameters: { type: 'object' },
+        execute: jest.fn().mockResolvedValue('done'),
+        describeProposal: jest.fn().mockRejectedValue(new Error('Proposal engine error')),
+      };
+      toolRegistry.register(failingTool as any);
+
+      mockProviderFactory.sendMessage.mockResolvedValueOnce({
+        content: 'Виконую дію',
+        toolCalls: [
+          {
+            id: 'call_fp_1',
+            name: 'failing_proposal_tool',
+            argumentsJson: '{}',
+          },
+        ],
+      });
+
+      mockPrisma.pendingToolAction.create.mockResolvedValue({ id: 'act-fp-1' });
+
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'Test',
+        chatMessages: [{ role: 'user', content: 'Test' }],
+        provider: 'openai',
+        model: 'gpt-4o',
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to describe proposal for write tool "failing_proposal_tool"')
+      );
+      expect(result.status).toBe('pending_confirmation');
+    });
+
     it('falls back to non-tool flow when model does not support tools or tools are disabled', async () => {
       // Model llama2 does not support tools
       mockProviderFactory.sendMessage.mockResolvedValueOnce({
@@ -316,6 +388,29 @@ describe('ToolOrchestrator', () => {
   });
 
   describe('resolvePendingToolAction', () => {
+    it('throws 400 when pending toolArgs has malformed JSON', async () => {
+      mockPrisma.pendingToolAction.findUnique.mockResolvedValue({
+        id: 'act-malformed',
+        userId: 1,
+        conversationId: 5,
+        messageId: 55,
+        toolName: 'get_current_time',
+        toolArgs: '{invalid-json',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 10000),
+      });
+
+      await expect(
+        resolvePendingToolAction('act-malformed', 1, 'approve')
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'Invalid tool arguments format',
+      });
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Malformed pending tool action arguments for action act-malformed')
+      );
+    });
+
     it('throws 404 when action does not exist', async () => {
       mockPrisma.pendingToolAction.findUnique.mockResolvedValue(null);
       await expect(

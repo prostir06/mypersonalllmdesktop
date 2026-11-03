@@ -167,7 +167,8 @@ export async function retryIndexing(
       `retryIndexing: staging file missing for ${doc.filename}: ${message}`
     );
     throw new Error(
-      'Файл недоступний для повторної індексації — завантажте документ знову'
+      'Файл недоступний для повторної індексації — завантажте документ знову',
+      { cause: err }
     );
   }
 

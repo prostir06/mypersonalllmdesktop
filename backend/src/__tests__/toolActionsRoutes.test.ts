@@ -118,6 +118,28 @@ describe('Tool Actions Routes (/api/chat/tool-actions)', () => {
       });
     });
 
+    it('returns 400 Bad Request when toolArgs is corrupted JSON', async () => {
+      mockPrisma.pendingToolAction.findUnique.mockResolvedValue({
+        id: 'act-bad-args',
+        userId: 1,
+        conversationId: 5,
+        messageId: 50,
+        toolName: 'add_user_memory_note',
+        toolArgs: 'corrupted json',
+        status: 'pending',
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      });
+
+      const res = await request(app)
+        .post('/api/chat/tool-actions/act-bad-args/approve')
+        .set('Authorization', `Bearer ${user1Token}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({
+        error: 'Invalid tool arguments format',
+      });
+    });
+
     it('returns 403 Forbidden when requested by non-owner', async () => {
       mockPrisma.pendingToolAction.findUnique.mockResolvedValue({
         id: 'act-101',

@@ -83,6 +83,22 @@ describe('openaiService (SDK)', () => {
       expect(arg.ollama_host).toBeUndefined();
     });
 
+    it('preserves underlying cause when OpenAI API fails', async () => {
+      const originalErr = new Error('Rate limit exceeded');
+      (originalErr as any).status = 429;
+      mockCreate.mockRejectedValueOnce(originalErr);
+
+      let caught: any;
+      try {
+        await sendOpenAIMessage([{ role: 'user', content: 'test' }]);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught.message).toBe('Failed to communicate with OpenAI API');
+      expect(caught.cause).toBe(originalErr);
+    });
+
     it('maps response.usage to tokenUsage with estimated cost', async () => {
       mockCreate.mockResolvedValueOnce({
         choices: [{ message: { content: 'Answer', role: 'assistant' } }],
@@ -214,11 +230,18 @@ describe('openaiService (SDK)', () => {
       expect(result.tokenUsage?.estimatedCostUsd).toBeCloseTo(0.00045, 5);
     });
 
-    it('logs the original stream error before throwing a generic one', async () => {
-      mockCreate.mockRejectedValue(new Error('upstream timeout'));
-      await expect(
-        streamOpenAIMessage([{ role: 'user', content: 'Hi' }])
-      ).rejects.toThrow('Failed to stream from OpenAI API');
+    it('logs the original stream error and preserves cause when throwing generic error', async () => {
+      const upstreamErr = new Error('upstream timeout');
+      mockCreate.mockRejectedValue(upstreamErr);
+      let caught: any;
+      try {
+        await streamOpenAIMessage([{ role: 'user', content: 'Hi' }]);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect(caught.message).toBe('Failed to stream from OpenAI API');
+      expect(caught.cause).toBe(upstreamErr);
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('upstream timeout')
       );

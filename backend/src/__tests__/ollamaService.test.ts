@@ -39,11 +39,18 @@ describe('ollamaService', () => {
     expect(mockedAxios.post.mock.calls[0][1].ollama_host).toBeUndefined();
   });
 
-  it('sendOllamaMessage throws generic error on failure', async () => {
-    mockedAxios.post = jest.fn().mockRejectedValue(new Error('down'));
-    await expect(
-      sendOllamaMessage([{ role: 'user', content: 'x' }])
-    ).rejects.toThrow('Failed to communicate with Ollama API');
+  it('sendOllamaMessage throws generic error on failure and preserves cause', async () => {
+    const originalErr = new Error('down');
+    mockedAxios.post = jest.fn().mockRejectedValue(originalErr);
+    let caught: any;
+    try {
+      await sendOllamaMessage([{ role: 'user', content: 'x' }]);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toBe('Failed to communicate with Ollama API');
+    expect(caught.cause).toBe(originalErr);
   });
 
   it('sendOllamaMessage rejects disallowed ollama_host', async () => {
@@ -248,5 +255,37 @@ describe('ollamaService', () => {
       totalTokens: 70,
       estimatedCostUsd: 0,
     });
+  });
+
+  it('streamOllamaMessage preserves cause on network failure', async () => {
+    const networkErr = new Error('network down');
+    mockedAxios.post = jest.fn().mockRejectedValue(networkErr);
+    let caught: any;
+    try {
+      await streamOllamaMessage([{ role: 'user', content: 'x' }]);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toBe('Failed to stream from Ollama API');
+    expect(caught.cause).toBe(networkErr);
+  });
+
+  it('streamOllamaMessage warns on malformed SSE chunk instead of crashing silently', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => {
+        ee.emit('data', Buffer.from('data: {malformed-json\n'));
+        ee.emit('data', Buffer.from('data: {"choices":[{"delta":{"content":"ok"}}]}\n'));
+        ee.emit('end');
+      });
+      return Promise.resolve({ data: ee });
+    });
+
+    const result = await streamOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama3');
+    expect(result.content).toBe('ok');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Failed to parse Ollama SSE chunk')
+    );
   });
 });

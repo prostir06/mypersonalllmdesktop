@@ -11,8 +11,8 @@ export interface ToolExecutionContext {
 export class ToolValidationError extends Error {
   statusCode: number;
 
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = 'ToolValidationError';
     this.statusCode = 400;
   }

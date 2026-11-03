@@ -1,3 +1,4 @@
+import logger from '../../logger';
 import { writeSseEvent } from '../../utils/sse';
 import type { RegisteredTool, ToolExecutionContext, ToolTraceEntry } from './types';
 import type { NormalizedToolCall } from '../providers/types';
@@ -45,6 +46,7 @@ export async function executeReadTool(
   } catch (err: unknown) {
     hasError = true;
     errorMessage = err instanceof Error ? err.message : String(err);
+    logger.warn(`Tool execution failed for "${call.name}": ${errorMessage}`);
     result = { error: errorMessage };
   } finally {
     if (timeoutId) clearTimeout(timeoutId);

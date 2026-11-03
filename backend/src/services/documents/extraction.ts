@@ -48,7 +48,7 @@ export async function extractText(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`PDF extract failed for ${originalname}: ${message}`);
-      throw new Error('Не вдалося прочитати PDF-файл');
+      throw new Error('Не вдалося прочитати PDF-файл', { cause: err });
     } finally {
       try {
         await parser.destroy();
@@ -66,7 +66,7 @@ export async function extractText(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`DOCX extract failed for ${originalname}: ${message}`);
-      throw new Error('Не вдалося прочитати DOCX-файл');
+      throw new Error('Не вдалося прочитати DOCX-файл', { cause: err });
     }
   }
 
@@ -90,7 +90,7 @@ export async function extractText(
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(`XLSX extract failed for ${originalname}: ${message}`);
-      throw new Error('Не вдалося прочитати Excel-файл');
+      throw new Error('Не вдалося прочитати Excel-файл', { cause: err });
     }
   }
 

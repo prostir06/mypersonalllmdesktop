@@ -177,7 +177,10 @@ export async function runToolOrchestratedTurn(
         args = typeof call.argumentsJson === 'string'
           ? JSON.parse(call.argumentsJson)
           : (call.argumentsJson || {});
-      } catch {
+      } catch (err: unknown) {
+        logger.warn(
+          `Failed to parse tool call arguments for "${call.name}": ${err instanceof Error ? err.message : String(err)}`
+        );
         args = {};
       }
 
@@ -245,7 +248,10 @@ export async function runToolOrchestratedTurn(
             summary: `Виконати ${call.name}`,
           };
         }
-      } catch {
+      } catch (proposalErr: unknown) {
+        logger.warn(
+          `Failed to describe proposal for write tool "${call.name}": ${proposalErr instanceof Error ? proposalErr.message : String(proposalErr)}`
+        );
         proposal = {
           title: `Запит на виконання дії ${call.name}`,
           summary: `Запит на виконання дії ${call.name}`,

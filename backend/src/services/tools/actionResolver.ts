@@ -1,7 +1,8 @@
 import prisma from '../../config/prisma';
+import logger from '../../logger';
 import { ChatError } from '../chat/types';
 import toolRegistry from './registry';
-import type { ToolExecutionContext } from './types';
+import { ToolValidationError, type ToolExecutionContext } from './types';
 
 export async function resolvePendingToolAction(
   actionId: string,
@@ -71,11 +72,34 @@ export async function resolvePendingToolAction(
     userId: action.userId,
     conversationId: action.conversationId,
   };
-  const args = typeof action.toolArgs === 'string'
-    ? JSON.parse(action.toolArgs)
-    : action.toolArgs;
+  let args: any;
+  try {
+    args = typeof action.toolArgs === 'string'
+      ? JSON.parse(action.toolArgs)
+      : action.toolArgs;
+  } catch (parseErr: unknown) {
+    logger.error(
+      `Malformed pending tool action arguments for action ${actionId}: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+    );
+    throw new ChatError(400, 'Invalid tool arguments format', { cause: parseErr });
+  }
 
-  const result = await tool.execute(args, ctx);
+  let result: any;
+  try {
+    result = await tool.execute(args, ctx);
+  } catch (execErr: unknown) {
+    logger.error(
+      `Failed to execute approved tool "${action.toolName}": ${execErr instanceof Error ? execErr.message : String(execErr)}`
+    );
+    if (execErr instanceof ChatError || execErr instanceof ToolValidationError) {
+      throw execErr;
+    }
+    throw new ChatError(
+      500,
+      `Tool execution failed: ${execErr instanceof Error ? execErr.message : String(execErr)}`,
+      { cause: execErr }
+    );
+  }
   const resultSummary = typeof result === 'string' ? result : JSON.stringify(result);
 
   // Atomic update to prevent race conditions or double-execution
