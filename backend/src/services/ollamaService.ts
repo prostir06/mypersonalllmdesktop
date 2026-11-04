@@ -288,11 +288,51 @@ async function streamOllamaMessage(
                 for (const tc of rawToolCalls) {
                   const idx = tc.index ?? 0;
                   if (!toolCallsAcc[idx]) {
-                    toolCallsAcc[idx] = { id: tc.id || '', name: tc.function?.name || tc.name || '', argumentsJson: '' };
+                    toolCallsAcc[idx] = { id: '', name: '', argumentsJson: '' };
                   }
-                  if (tc.id) toolCallsAcc[idx].id = tc.id;
-                  if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
-                  if (tc.function?.arguments) toolCallsAcc[idx].argumentsJson += tc.function.arguments;
+                  const rawId = tc.id || (tc as any).call_id;
+                  if (rawId && typeof rawId === 'string') {
+                    toolCallsAcc[idx].id = rawId;
+                  } else if (!toolCallsAcc[idx].id) {
+                    toolCallsAcc[idx].id = `ollama_call_${Date.now()}_${idx}`;
+                  }
+
+                  const rawName = tc.function?.name || tc.name;
+                  if (rawName && typeof rawName === 'string') {
+                    if (!toolCallsAcc[idx].name) {
+                      toolCallsAcc[idx].name = rawName;
+                    } else if (toolCallsAcc[idx].name === rawName) {
+                      // Repeated identical name chunk from server; keep as-is
+                    } else if (rawName.startsWith(toolCallsAcc[idx].name)) {
+                      // Cumulative name update
+                      toolCallsAcc[idx].name = rawName;
+                    } else {
+                      // Delta chunk
+                      toolCallsAcc[idx].name += rawName;
+                    }
+                  }
+
+                  const rawArgs =
+                    tc.function?.arguments !== undefined
+                      ? tc.function.arguments
+                      : (tc as any).arguments;
+                  if (rawArgs !== undefined && rawArgs !== null) {
+                    if (typeof rawArgs === 'string') {
+                      if (!toolCallsAcc[idx].argumentsJson) {
+                        toolCallsAcc[idx].argumentsJson = rawArgs;
+                      } else if (toolCallsAcc[idx].argumentsJson === rawArgs) {
+                        // Repeated identical string from server
+                      } else if (rawArgs.startsWith(toolCallsAcc[idx].argumentsJson)) {
+                        // Cumulative string update
+                        toolCallsAcc[idx].argumentsJson = rawArgs;
+                      } else {
+                        // Delta chunk
+                        toolCallsAcc[idx].argumentsJson += rawArgs;
+                      }
+                    } else if (typeof rawArgs === 'object') {
+                      toolCallsAcc[idx].argumentsJson = JSON.stringify(rawArgs);
+                    }
+                  }
                 }
               }
             } catch (chunkErr: unknown) {

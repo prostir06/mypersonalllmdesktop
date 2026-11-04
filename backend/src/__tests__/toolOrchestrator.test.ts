@@ -78,6 +78,42 @@ describe('ToolOrchestrator', () => {
   });
 
   describe('constants', () => {
+    it('synthesizes calculation fallback when model returns empty content after successful calculate tool', async () => {
+      const mockRes = { write: jest.fn(), writeHead: jest.fn() };
+      mockProviderFactory.sendMessage
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [
+            {
+              id: 'call_calc_1',
+              name: 'calculate',
+              argumentsJson: JSON.stringify({ expression: '500 * (1 - 0.2)' }),
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          content: '',
+          toolCalls: [],
+        });
+
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'Обчислити 500 * (1 - 0.2)',
+        chatMessages: [{ role: 'user', content: 'Обчислити 500 * (1 - 0.2)' }],
+        provider: 'ollama',
+        model: 'gemma4:latest',
+        res: mockRes,
+      });
+
+      expect(result.content).toBe('Результат обчислення: **400**');
+      expect(result.toolTrace?.[0]).toMatchObject({
+        tool: 'calculate',
+        status: 'completed',
+        result: expect.objectContaining({ result: 400 }),
+      });
+    });
+
     it('defines expected orchestrator constants', () => {
       expect(MAX_TOOL_ITERATIONS).toBe(5);
       expect(TOOL_TIMEOUT_MS).toBe(15000);

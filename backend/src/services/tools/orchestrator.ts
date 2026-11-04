@@ -196,6 +196,7 @@ export async function runToolOrchestratedTurn(
         });
         continue;
       }
+      call.name = tool.name;
 
       if (tool.category === 'write') {
         if (!writeToolFound) {
@@ -334,15 +335,40 @@ export async function runToolOrchestratedTurn(
       };
     }
 
+    // Break early if model emitted tool calls but none could be executed
+    if (readToolCalls.length === 0 && !writeToolFound) {
+      logger.warn(`Iteration ${iteration}: tool calls emitted but none could be executed. Breaking tool loop.`);
+      break;
+    }
+
     // Stop if max iterations reached
     if (iteration === MAX_TOOL_ITERATIONS) {
       break;
     }
   }
 
-  const finalText = lastResponse?.content || '';
-  if (!options.onToken && finalText) {
-    // If not streaming, do nothing
+  let finalText = lastResponse?.content || '';
+  if (!finalText.trim() && toolTrace.length > 0) {
+    const successfulCalc = toolTrace.find(
+      (t) =>
+        t.tool === 'calculate' &&
+        t.status === 'completed' &&
+        t.result !== null &&
+        typeof t.result === 'object' &&
+        'result' in (t.result as Record<string, unknown>)
+    );
+    if (successfulCalc && typeof successfulCalc.result === 'object' && successfulCalc.result !== null) {
+      const calcResult = (successfulCalc.result as Record<string, unknown>).result;
+      finalText = `Результат обчислення: **${String(calcResult)}**`;
+    } else {
+      const completedTools = toolTrace.filter((t) => t.status === 'completed');
+      if (completedTools.length > 0) {
+        finalText = `Виконано інструменти: ${completedTools.map((t) => t.tool).join(', ')}.`;
+      }
+    }
+    if (options.onToken && finalText) {
+      options.onToken(finalText);
+    }
   }
 
   const assistant = await persistTurn(

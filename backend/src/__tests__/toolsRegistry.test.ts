@@ -134,6 +134,12 @@ describe('ToolRegistry', () => {
       }
     });
 
+    it('resolves doubled tool names via fallback (e.g. calculatecalculate -> calculate)', () => {
+      const tool = toolRegistry.get('calculatecalculate');
+      expect(tool).toBeDefined();
+      expect(tool?.name).toBe('calculate');
+    });
+
     it('allows registering and getting a custom tool in a new instance', () => {
       const customRegistry = new ToolRegistry(false);
       expect(customRegistry.getAll()).toHaveLength(0);

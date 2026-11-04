@@ -288,4 +288,24 @@ describe('ollamaService', () => {
       expect.stringContaining('Failed to parse Ollama SSE chunk')
     );
   });
+
+  it('streamOllamaMessage parses streaming tool_calls without duplicating function name or object arguments', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => {
+        const chunk1 = 'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'calculate', arguments: '' } }] } }] }) + '\n\n';
+        const chunk2 = 'data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { name: 'calculate', arguments: '{"expression":"500 * (1 - 0.2)"}' } }] } }] }) + '\n\n';
+        ee.emit('data', Buffer.from(chunk1));
+        ee.emit('data', Buffer.from(chunk2));
+        ee.emit('data', Buffer.from('data: [DONE]\n\n'));
+        ee.emit('end');
+      });
+      return Promise.resolve({ data: ee });
+    });
+
+    const result = await streamOllamaMessage([{ role: 'user', content: 'calc' }], 'gemma4:latest');
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls?.[0].name).toBe('calculate');
+    expect(result.toolCalls?.[0].argumentsJson).toBe('{"expression":"500 * (1 - 0.2)"}');
+  });
 });

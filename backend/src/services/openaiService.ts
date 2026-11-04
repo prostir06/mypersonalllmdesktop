@@ -191,11 +191,41 @@ async function streamOpenAIMessage(
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
           if (!toolCallsAcc[idx]) {
-            toolCallsAcc[idx] = { id: tc.id || '', name: tc.function?.name || '', argumentsJson: '' };
+            toolCallsAcc[idx] = { id: tc.id || '', name: '', argumentsJson: '' };
           }
           if (tc.id) toolCallsAcc[idx].id = tc.id;
-          if (tc.function?.name) toolCallsAcc[idx].name += tc.function.name;
-          if (tc.function?.arguments) toolCallsAcc[idx].argumentsJson += tc.function.arguments;
+          if (tc.function?.name) {
+            const rawName = tc.function.name;
+            if (!toolCallsAcc[idx].name) {
+              toolCallsAcc[idx].name = rawName;
+            } else if (toolCallsAcc[idx].name === rawName) {
+              // Repeated identical name chunk from server; keep as-is
+            } else if (rawName.startsWith(toolCallsAcc[idx].name)) {
+              // Cumulative name update
+              toolCallsAcc[idx].name = rawName;
+            } else {
+              // Delta chunk
+              toolCallsAcc[idx].name += rawName;
+            }
+          }
+          if (tc.function?.arguments) {
+            const rawArgs = tc.function.arguments;
+            if (typeof rawArgs === 'string') {
+              if (!toolCallsAcc[idx].argumentsJson) {
+                toolCallsAcc[idx].argumentsJson = rawArgs;
+              } else if (toolCallsAcc[idx].argumentsJson === rawArgs) {
+                // Repeated identical string from server
+              } else if (rawArgs.startsWith(toolCallsAcc[idx].argumentsJson)) {
+                // Cumulative string update
+                toolCallsAcc[idx].argumentsJson = rawArgs;
+              } else {
+                // Delta chunk
+                toolCallsAcc[idx].argumentsJson += rawArgs;
+              }
+            } else if (typeof rawArgs === 'object' && rawArgs !== null) {
+              toolCallsAcc[idx].argumentsJson = JSON.stringify(rawArgs);
+            }
+          }
         }
       }
     }

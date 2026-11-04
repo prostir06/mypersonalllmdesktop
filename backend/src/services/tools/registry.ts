@@ -24,7 +24,21 @@ export class ToolRegistry {
   }
 
   register(tool: RegisteredTool): void { this.tools.set(tool.name, tool); }
-  get(name: string): RegisteredTool | undefined { return this.tools.get(name); }
+  get(name: string): RegisteredTool | undefined {
+    if (!name || typeof name !== 'string') return undefined;
+    const trimmed = name.trim();
+    const exact = this.tools.get(trimmed);
+    if (exact) return exact;
+    // Resilient fallback for doubled names (e.g. calculatecalculate)
+    if (trimmed.length > 2 && trimmed.length % 2 === 0) {
+      const half = trimmed.slice(0, trimmed.length / 2);
+      if (half + half === trimmed) {
+        const fallback = this.tools.get(half);
+        if (fallback) return fallback;
+      }
+    }
+    return undefined;
+  }
   getAll(): RegisteredTool[] { return Array.from(this.tools.values()); }
   getDefinitions(): ToolDefinitionSpec[] {
     return this.getAll().map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
