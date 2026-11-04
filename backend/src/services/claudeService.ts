@@ -250,8 +250,10 @@ export async function streamClaudeMessage(
         } catch (cbError: unknown) {
           try {
             stream.controller.abort();
-          } catch {
-            // best-effort abort to prevent runaway streaming on broken callback
+          } catch (abortErr: unknown) {
+            // Best-effort abort to prevent runaway streaming on broken callback
+            const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
+            logger.warn(`Failed to abort Claude stream controller after callback error: ${message}`);
           }
           if (isAbortOrCallbackError(cbError)) {
             return;

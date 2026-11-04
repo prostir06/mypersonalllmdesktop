@@ -56,6 +56,25 @@ describe('consumeSseChunk', () => {
     expect(rest).toBe('');
   });
 
+  it('logs warning when data line contains malformed JSON and skips gracefully', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onToken = vi.fn();
+
+    const rest = consumeSseChunk(
+      '',
+      'data: {malformed json\ndata: {"type":"token","token":"ok"}\n',
+      { onToken }
+    );
+
+    expect(rest).toBe('');
+    expect(warn).toHaveBeenCalledWith(
+      'sseParse: failed to parse SSE data line as JSON:',
+      expect.objectContaining({ dataStr: '{malformed json' })
+    );
+    expect(onToken).toHaveBeenCalledWith('ok');
+    warn.mockRestore();
+  });
+
   it('normalizes CRLF and ignores comment lines', () => {
     const onToken = vi.fn();
     const rest = consumeSseChunk(

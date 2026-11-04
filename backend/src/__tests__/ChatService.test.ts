@@ -1070,6 +1070,26 @@ describe('ChatService', () => {
         'db search'
       );
     });
+
+    it('logs warning and returns message results when conversation title search fails', async () => {
+      mockedPrisma.$queryRaw.mockResolvedValue([
+        {
+          id: 1,
+          role: 'user',
+          content: 'hello',
+          created_at: new Date('2026-11-01T10:00:00Z'),
+          conversation_id: 10,
+          conversation_title: 'Test Conv',
+        },
+      ]);
+      (mockedPrisma.conversation as any).findMany = jest
+        .fn()
+        .mockRejectedValue(new Error('title query failed'));
+
+      const result = await ChatService.searchMessages(1, 'hello');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].content).toBe('hello');
+    });
   });
 
   describe('persistTurn', () => {
@@ -1218,6 +1238,25 @@ describe('ChatService', () => {
       expect(typeof firstMsg.content).toBe('string');
       expect(firstMsg.content).toContain('ПОТОЧНИЙ ЧАС ТА ДАТА');
       expect(firstMsg.content).toContain('Europe/Kyiv');
+    });
+
+    it('handles invalid timezone gracefully by falling back to UTC and logging warning', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const prepared = await ChatService.prepareMessages({
+        userId: 1,
+        conversationId: 10,
+        message: 'hello',
+        options: { timezone: 'Invalid/NonExistent_Zone' },
+      });
+
+      const firstMsg = prepared.chatMessages[0];
+      expect(firstMsg.role).toBe('system');
+      expect(firstMsg.content).toContain('ПОТОЧНИЙ ЧАС ТА ДАТА');
+      expect(firstMsg.content).toContain('Invalid/NonExistent_Zone');
     });
   });
 

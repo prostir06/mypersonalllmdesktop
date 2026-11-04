@@ -224,6 +224,29 @@ describe('ToolRegistry', () => {
           searchTool.execute({ query: 'test', limit: 2.5 }, ctx)
         ).rejects.toThrow(ToolValidationError);
       });
+
+      it('falls back to keyword search and logs warning when embedding generation rejects', async () => {
+        (EmbeddingService.generateEmbedding as jest.Mock).mockRejectedValueOnce(
+          new Error('OpenAI quota exceeded')
+        );
+        (EmbeddingService.findRelevantChunks as jest.Mock).mockResolvedValueOnce([
+          { content: 'Keyword fallback snippet', filename: 'doc.txt', similarity: 0.5 },
+        ]);
+
+        const result = await searchTool.execute({ query: 'budget' }, ctx);
+
+        expect(EmbeddingService.findRelevantChunks).toHaveBeenCalledWith(
+          null,
+          ctx.userId,
+          [],
+          5,
+          {},
+          null,
+          'budget'
+        );
+        expect(result.count).toBe(1);
+        expect(result.snippets).toContain('Keyword fallback snippet');
+      });
     });
 
     describe('list_documents', () => {

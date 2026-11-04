@@ -51,8 +51,9 @@ const SmartAdvisoryBar: React.FC<SmartAdvisoryBarProps> = ({
         `smart_advisory_dismissed:${activeTip.id}:${versionHash || 'v0'}`,
         'true'
       );
-    } catch {
-      // sessionStorage might be restricted in some environments
+    } catch (storageErr: unknown) {
+      // sessionStorage might be restricted in private browsing / sandboxed iframes
+      console.warn('SmartAdvisoryBar: sessionStorage access failed:', storageErr);
     }
     setDismissedId(activeTip.id);
   };

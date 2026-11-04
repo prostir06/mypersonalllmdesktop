@@ -26,8 +26,9 @@ export default function GeminiSettingsCard({
       try {
         await onSaveKey(trimmed);
         setKeyInput('');
-      } catch {
+      } catch (err: unknown) {
         // Keep key in input on failure so user does not have to re-enter it
+        console.warn('Failed to save Gemini API key:', err);
       }
     }
   };

@@ -46,8 +46,9 @@ export default function ClaudeSettingsCard({
       try {
         await handleSave(trimmed);
         setKeyInput('');
-      } catch {
+      } catch (err: unknown) {
         // Keep key in input on failure so user does not have to re-enter it
+        console.warn('Failed to save Claude API key:', err);
       }
     }
   };

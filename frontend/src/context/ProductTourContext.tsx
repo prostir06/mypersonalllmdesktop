@@ -37,8 +37,9 @@ export const ProductTourProvider: React.FC<{ children: React.ReactNode; steps?: 
     try {
       localStorage.setItem(TOUR_STORAGE_KEY, CURRENT_TOUR_VERSION);
       setSavedVersion(CURRENT_TOUR_VERSION);
-    } catch {
-      // Ignore storage errors
+    } catch (storageErr: unknown) {
+      // Storage might be restricted in private browsing / sandboxed iframes
+      console.warn('ProductTourContext: localStorage access failed:', storageErr);
     }
   }, []);
 

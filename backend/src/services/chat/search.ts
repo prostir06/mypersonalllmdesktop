@@ -82,8 +82,10 @@ export async function searchMessages(
             conversation_id: c.id,
             conversation_title: c.title,
           }));
-      } catch {
-        // Fall back gracefully if title search is unsupported in mock
+      } catch (err: unknown) {
+        // Fall back gracefully if title search is unsupported in mock or fails
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Conversation title search failed in searchMessages: ${message}`);
       }
     }
 

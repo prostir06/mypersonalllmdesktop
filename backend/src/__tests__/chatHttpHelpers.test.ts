@@ -25,6 +25,10 @@ jest.mock('../services/chat/systemContext', () => ({
     sources: [],
     ragStatus: 'skipped',
   }),
+  buildDateTimeMessage: jest.fn().mockReturnValue({
+    role: 'system',
+    content: 'TIME',
+  }),
 }));
 
 jest.mock('../config/prisma', () => ({

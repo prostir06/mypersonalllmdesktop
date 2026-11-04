@@ -1,4 +1,5 @@
 import prisma from '../../config/prisma';
+import logger from '../../logger';
 import EmbeddingService from '../EmbeddingService';
 import {
   buildIntrospectedKnowledgeCatalog,
@@ -51,7 +52,12 @@ export class ToolRegistry {
         }
         const queryText = args.query.trim();
         const embedCtx = await resolveEmbeddingContext(ctx.userId);
-        const queryEmbedding = await EmbeddingService.generateEmbedding(queryText, embedCtx).catch(() => null);
+        const queryEmbedding = await EmbeddingService.generateEmbedding(queryText, embedCtx).catch((err: unknown) => {
+          // Degrade to keyword search if provider/network fails
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(`search_documents tool: embedding generation failed, using keyword fallback: ${message}`);
+          return null;
+        });
         const provider = embedCtx.provider !== 'none' ? embedCtx.provider : null;
         const chunks = await EmbeddingService.findRelevantChunks(
           queryEmbedding,

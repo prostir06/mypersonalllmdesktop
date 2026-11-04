@@ -104,8 +104,12 @@ export function consumeSseChunk(
     let data: StreamEvent;
     try {
       data = JSON.parse(dataStr) as StreamEvent;
-    } catch {
-      // Incomplete / non-JSON SSE line — wait for more bytes.
+    } catch (parseErr: unknown) {
+      // Incomplete or non-JSON SSE data line
+      console.warn('sseParse: failed to parse SSE data line as JSON:', {
+        dataStr,
+        error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      });
       continue;
     }
 

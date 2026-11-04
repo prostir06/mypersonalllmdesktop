@@ -27,7 +27,10 @@ export function buildDateTimeMessage(
       timeStyle: 'long',
     });
     localized = formatter.format(now);
-  } catch {
+  } catch (err: unknown) {
+    // Fall back to UTC if client passed invalid or unsupported IANA timezone
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`buildDateTimeMessage: invalid timezone "${safeTimezone}", falling back to UTC: ${message}`);
     localized = now.toUTCString();
   }
 
