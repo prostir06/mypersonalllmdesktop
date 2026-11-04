@@ -357,9 +357,50 @@ export async function runToolOrchestratedTurn(
         typeof t.result === 'object' &&
         'result' in (t.result as Record<string, unknown>)
     );
+    const successfulTime = toolTrace.find(
+      (t) =>
+        t.tool === 'get_current_time' &&
+        t.status === 'completed' &&
+        t.result !== null &&
+        typeof t.result === 'object' &&
+        'local' in (t.result as Record<string, unknown>)
+    );
+    const successfulWeb = toolTrace.find(
+      (t) =>
+        t.tool === 'web_search' &&
+        t.status === 'completed' &&
+        t.result !== null &&
+        typeof t.result === 'object'
+    );
+    const successfulDocSearch = toolTrace.find(
+      (t) =>
+        t.tool === 'search_documents' &&
+        t.status === 'completed' &&
+        t.result !== null &&
+        typeof t.result === 'object' &&
+        'count' in (t.result as Record<string, unknown>)
+    );
+    const successfulDocList = toolTrace.find(
+      (t) =>
+        t.tool === 'list_documents' &&
+        t.status === 'completed' &&
+        Array.isArray(t.result)
+    );
+
     if (successfulCalc && typeof successfulCalc.result === 'object' && successfulCalc.result !== null) {
       const calcResult = (successfulCalc.result as Record<string, unknown>).result;
       finalText = `Результат обчислення: **${String(calcResult)}**`;
+    } else if (successfulTime && typeof successfulTime.result === 'object' && successfulTime.result !== null) {
+      const res = successfulTime.result as Record<string, unknown>;
+      finalText = `Поточний час (${res.timezone || 'Europe/Kyiv'}): **${String(res.local)}**`;
+    } else if (successfulWeb && typeof successfulWeb.result === 'object' && successfulWeb.result !== null) {
+      const res = successfulWeb.result as Record<string, unknown>;
+      finalText = `Знайдено результатів у вебі за запитом "${String(res.query || '')}": **${String(res.results_count ?? 0)}**`;
+    } else if (successfulDocSearch && typeof successfulDocSearch.result === 'object' && successfulDocSearch.result !== null) {
+      const res = successfulDocSearch.result as Record<string, unknown>;
+      finalText = `Знайдено фрагментів у документах: **${String(res.count ?? 0)}**`;
+    } else if (successfulDocList && Array.isArray(successfulDocList.result)) {
+      finalText = `Знайдено доступних документів: **${successfulDocList.result.length}**`;
     } else {
       const completedTools = toolTrace.filter((t) => t.status === 'completed');
       if (completedTools.length > 0) {
