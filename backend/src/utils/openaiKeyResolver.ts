@@ -14,7 +14,8 @@ export function isPlaceholderOpenAiKey(key: string): boolean {
   const trimmed = key.trim();
   if (trimmed.length === 0) return true;
   if (PLACEHOLDERS.has(trimmed.toLowerCase())) return true;
-  if (/^sk-(your[_-]?key|dummy|placeholder|xxx)/i.test(trimmed)) return true;
+  if (/placeholder/i.test(trimmed)) return true;
+  if (/^sk-(your[_-]?key|dummy|placeholder|xxx|test)/i.test(trimmed)) return true;
   return false;
 }
 

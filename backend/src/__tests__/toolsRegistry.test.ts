@@ -11,6 +11,11 @@ import prisma from '../config/prisma';
 import EmbeddingService from '../services/EmbeddingService';
 import WebSearchService from '../services/webSearch';
 
+jest.mock('../services/embeddings/resolveEmbeddingContext', () => ({
+  resolveEmbeddingContext: jest.fn().mockResolvedValue({ provider: 'none' }),
+  invalidateEmbeddingContextCache: jest.fn(),
+}));
+
 jest.mock('../config/prisma', () => ({
   __esModule: true,
   default: {

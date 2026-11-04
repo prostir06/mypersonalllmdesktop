@@ -63,6 +63,9 @@ describe('resolveOpenAiApiKey', () => {
     process.env.OPENAI_API_KEY = 'sk-your-key';
 
     await expect(resolveOpenAiApiKey(7)).resolves.toBeNull();
+
+    process.env.OPENAI_API_KEY = 'sk-test-ci-placeholder';
+    await expect(resolveOpenAiApiKey(7)).resolves.toBeNull();
   });
 
   it('ignores placeholder keys in decrypted user settings and falls back to valid env key', async () => {
