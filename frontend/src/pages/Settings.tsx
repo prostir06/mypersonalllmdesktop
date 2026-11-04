@@ -40,7 +40,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
   const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [ollamaHost, setOllamaHost] = useState('http://127.0.0.1:11434/v1/chat/completions');
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2000);
+  const [maxTokens, setMaxTokens] = useState(4096);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [toolsEnabled, setToolsEnabled] = useState(true);
   const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
@@ -70,7 +70,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
     setProvider(normalizeProvider(settingsData.default_provider));
     setModel(settingsData.default_model || '');
     setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
-    setMaxTokens(parseInt(String(settingsData.max_tokens ?? 2000), 10) || 2000);
+    setMaxTokens(parseInt(String(settingsData.max_tokens ?? 4096), 10) || 4096);
     setOllamaHost(
       settingsData.default_ollama_host ||
         'http://127.0.0.1:11434/v1/chat/completions'

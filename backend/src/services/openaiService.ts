@@ -69,7 +69,7 @@ function buildBaseParams(
     model,
     messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
     temperature: typeof rest.temperature === 'number' ? rest.temperature : 0.7,
-    max_tokens: typeof rest.max_tokens === 'number' ? rest.max_tokens : 2000,
+    max_tokens: typeof rest.max_tokens === 'number' ? rest.max_tokens : 4096,
     ...(typeof rest.top_p === 'number' ? { top_p: rest.top_p } : {}),
     ...(tools ? { tools } : {}),
   };

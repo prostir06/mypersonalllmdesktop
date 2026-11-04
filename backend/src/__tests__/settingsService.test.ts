@@ -52,7 +52,7 @@ describe('settingsService mappers and updates', () => {
     expect(d).toMatchObject({
       default_model: 'gpt-3.5-turbo',
       temperature: 0.7,
-      max_tokens: 2000,
+      max_tokens: 4096,
       default_provider: 'openai',
       system_prompt: '',
       has_openai_api_key: false,

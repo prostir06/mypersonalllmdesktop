@@ -91,14 +91,17 @@ export function parseArtifacts(markdown: string): Artifact[] {
   const artifacts: Artifact[] = [];
   const regex = new RegExp(CODE_BLOCK_REGEX.source, 'g');
   let match: RegExpExecArray | null;
+  let lastIndex = 0;
 
-  while ((match = regex.exec(markdown)) !== null) {
-    const rawLang = (match[1] || '').trim().toLowerCase();
-    const blockContent = match[2] || '';
+  const processBlock = (
+    rawLang: string,
+    blockContent: string,
+    beforeBlock: string
+  ) => {
     const trimmedContent = blockContent.trim();
 
     if (!trimmedContent) {
-      continue;
+      return;
     }
 
     const isHtmlLang = rawLang === 'html' || rawLang === 'htm' || rawLang === 'xhtml';
@@ -106,7 +109,7 @@ export function parseArtifacts(markdown: string): Artifact[] {
     const isXmlLang = rawLang === 'xml';
 
     if (!isHtmlLang && !isSvgLang && !isXmlLang) {
-      continue;
+      return;
     }
 
     const hasSvgTag = /<svg\b/i.test(trimmedContent);
@@ -118,19 +121,19 @@ export function parseArtifacts(markdown: string): Artifact[] {
 
     if (isXmlLang) {
       if (!hasSvgTag) {
-        continue;
+        return;
       }
       type = 'svg';
       language = 'svg';
     } else if (isSvgLang) {
       if (!hasSvgTag) {
-        continue;
+        return;
       }
       type = 'svg';
       language = 'svg';
     } else if (isHtmlLang) {
       if (!hasHtmlMarkup) {
-        continue;
+        return;
       }
       // If code block is purely an SVG element inside an html tag, treat as svg
       if (hasSvgTag && !/<(?:!doctype|html|body|div|button|canvas|form|section|main|h[1-6])\b/i.test(trimmedContent)) {
@@ -141,10 +144,9 @@ export function parseArtifacts(markdown: string): Artifact[] {
         language = 'html';
       }
     } else {
-      continue;
+      return;
     }
 
-    const beforeBlock = markdown.slice(0, match.index);
     const title = extractTitle(trimmedContent, beforeBlock, type);
     const id = `artifact-${artifacts.length + 1}`;
 
@@ -155,6 +157,24 @@ export function parseArtifacts(markdown: string): Artifact[] {
       language,
       content: trimmedContent,
     });
+  };
+
+  while ((match = regex.exec(markdown)) !== null) {
+    lastIndex = regex.lastIndex;
+    const rawLang = (match[1] || '').trim().toLowerCase();
+    const blockContent = match[2] || '';
+    const beforeBlock = markdown.slice(0, match.index);
+    processBlock(rawLang, blockContent, beforeBlock);
+  }
+
+  // Also check for trailing unclosed code block (e.g. truncated by token limit or in-flight stream)
+  const remaining = markdown.slice(lastIndex);
+  const unclosedMatch = remaining.match(/```(?:([a-zA-Z0-9_-]+))?[^\r\n]*\r?\n([\s\S]+)$/);
+  if (unclosedMatch) {
+    const rawLang = (unclosedMatch[1] || '').trim().toLowerCase();
+    const blockContent = unclosedMatch[2] || '';
+    const beforeBlock = markdown.slice(0, lastIndex + (unclosedMatch.index ?? 0));
+    processBlock(rawLang, blockContent, beforeBlock);
   }
 
   return artifacts;

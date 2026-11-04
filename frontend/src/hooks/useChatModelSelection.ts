@@ -25,7 +25,7 @@ export function useChatModelSelection({
   const [selectedModel, setSelectedModel] = useState('');
   const [remoteModels, setRemoteModels] = useState<ModelOption[]>([]);
   const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(2000);
+  const [maxTokens, setMaxTokens] = useState(4096);
   const [hydratedKey, setHydratedKey] = useState('');
 
   const catalogOptions = useMemo(

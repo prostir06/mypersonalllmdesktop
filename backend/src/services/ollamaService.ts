@@ -75,7 +75,7 @@ function buildOllamaPayload(
     model,
     messages,
     temperature: (sampling.temperature as number | undefined) ?? 0.7,
-    max_tokens: (sampling.max_tokens as number | undefined) ?? 2000,
+    max_tokens: (sampling.max_tokens as number | undefined) ?? 4096,
     top_p: (sampling.top_p as number | undefined) ?? 1,
   };
 

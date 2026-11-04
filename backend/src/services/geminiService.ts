@@ -121,7 +121,7 @@ export function buildGeminiPayload(
   const enableWebSearch = options.enableWebSearch === true;
   const config: Record<string, unknown> = {
     temperature: typeof options.temperature === 'number' ? options.temperature : 0.7,
-    maxOutputTokens: typeof options.max_tokens === 'number' ? options.max_tokens : 2000,
+    maxOutputTokens: typeof options.max_tokens === 'number' ? options.max_tokens : 4096,
   };
 
   if (options.signal instanceof AbortSignal) {

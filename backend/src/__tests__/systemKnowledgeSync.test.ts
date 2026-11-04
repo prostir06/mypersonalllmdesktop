@@ -50,7 +50,7 @@ describe('System Knowledge Sync & Drift Guard', () => {
     expect(metadata.maxTokensRange).toEqual({
       min: MIN_MAX_TOKENS,
       max: MAX_MAX_TOKENS,
-      default: 2000,
+      default: 4096,
     });
     expect(metadata.maxUploadMb).toBeGreaterThan(0);
     expect(metadata.conversationMemoryMaxNotes).toBe(20);

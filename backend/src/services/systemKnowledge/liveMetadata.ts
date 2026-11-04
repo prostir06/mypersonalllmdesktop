@@ -32,7 +32,7 @@ export function getLiveSystemMetadata(): LiveSystemMetadata {
   return {
     allowedProviders: [...ALLOWED_PROVIDERS],
     temperatureRange: { min: MIN_TEMPERATURE, max: MAX_TEMPERATURE, default: 0.7 },
-    maxTokensRange: { min: MIN_MAX_TOKENS, max: MAX_MAX_TOKENS, default: 2000 },
+    maxTokensRange: { min: MIN_MAX_TOKENS, max: MAX_MAX_TOKENS, default: 4096 },
     maxUploadMb,
     conversationMemoryMaxNotes: MAX_NOTES,
     conversationMemoryNoteMaxChars: MAX_NOTE_CHARS,

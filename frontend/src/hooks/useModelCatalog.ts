@@ -24,7 +24,7 @@ const emptyForm: CatalogForm = {
   provider: 'openai',
   description: '',
   temperature: 0.7,
-  maxTokens: 2000,
+  maxTokens: 4096,
 };
 
 export function useModelCatalog() {
@@ -63,7 +63,7 @@ export function useModelCatalog() {
       provider: m.provider || 'openai',
       description: m.description || '',
       temperature: Number(m.temperature) || 0.7,
-      maxTokens: Number(m.max_tokens) || 2000,
+      maxTokens: Number(m.max_tokens) || 4096,
     });
     setShowForm(true);
   };

@@ -336,7 +336,7 @@ export class ToolRegistry {
           diff.temperature = { from: current?.temperature ?? 0.7, to: args.temperature };
         }
         if (maxTokens !== undefined) {
-          diff.max_tokens = { from: current?.maxTokens ?? 2000, to: maxTokens };
+          diff.max_tokens = { from: current?.maxTokens ?? 4096, to: maxTokens };
         }
         if (defaultModel !== undefined) {
           diff.default_model = { from: current?.defaultModel ?? 'gpt-3.5-turbo', to: defaultModel };

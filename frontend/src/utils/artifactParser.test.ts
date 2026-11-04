@@ -251,4 +251,45 @@ def foo():
 
     expect(parseArtifacts(emptyBlocks)).toEqual([]);
   });
+
+  it('detects unclosed trailing HTML code block cut off at EOF by token limit', () => {
+    const truncatedMarkdown = `
+Ось код опитування:
+\`\`\`html
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <title>Опитування з валідацією</title>
+</head>
+<body>
+  <div class="form-container">
+    <h1>Опитування</h1>
+    <!-- Поле 5: Коментар (Необов'язкове, Текст)`;
+
+    const artifacts = parseArtifacts(truncatedMarkdown);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      id: 'artifact-1',
+      type: 'html',
+      language: 'html',
+      title: 'Опитування з валідацією',
+    });
+    expect(artifacts[0].content).toContain('<h1>Опитування</h1>');
+  });
+
+  it('detects unclosed trailing SVG code block cut off at EOF', () => {
+    const truncatedSvg = `
+\`\`\`svg
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="50" r="40" fill="purple" />`;
+
+    const artifacts = parseArtifacts(truncatedSvg);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      id: 'artifact-1',
+      type: 'svg',
+      language: 'svg',
+      title: 'Векторне зображення SVG',
+    });
+  });
 });

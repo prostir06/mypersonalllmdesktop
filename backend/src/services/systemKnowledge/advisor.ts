@@ -134,7 +134,7 @@ export async function buildUserSystemSnapshot(
     pinnedPromptsCount,
     userMemoryNotesCount,
     temperature: numTemp(userSettings?.temperature),
-    maxTokens: userSettings?.maxTokens || 2000,
+    maxTokens: userSettings?.maxTokens || 4096,
   };
 }
 

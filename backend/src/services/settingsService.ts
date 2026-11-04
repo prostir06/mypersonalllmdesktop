@@ -56,7 +56,7 @@ export function defaultSettings() {
   return {
     default_model: 'gpt-3.5-turbo',
     temperature: 0.7,
-    max_tokens: 2000,
+    max_tokens: 4096,
     default_provider: 'openai',
     default_ollama_host: FALLBACK_OLLAMA,
     system_prompt: '',
@@ -209,7 +209,7 @@ export async function updateSettingsForUser(
   } = {
     defaultModel: default_model || existing?.defaultModel || 'gpt-3.5-turbo',
     temperature: temperature ?? (existing ? numTemp(existing.temperature) : 0.7),
-    maxTokens: max_tokens ?? existing?.maxTokens ?? 2000,
+    maxTokens: max_tokens ?? existing?.maxTokens ?? 4096,
     defaultProvider: default_provider || existing?.defaultProvider || 'openai',
     defaultOllamaHost:
       default_ollama_host || existing?.defaultOllamaHost || FALLBACK_OLLAMA,
