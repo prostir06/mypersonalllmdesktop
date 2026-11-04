@@ -11,6 +11,32 @@ import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
 import { modelSupportsTools } from '../../utils/modelCapabilities';
 import WebSearchService from '../webSearch';
 
+export function buildDateTimeMessage(
+  timezone = 'Europe/Kyiv',
+  now = new Date()
+): ChatMessage {
+  const safeTimezone =
+    typeof timezone === 'string' && timezone.trim()
+      ? timezone.trim()
+      : 'Europe/Kyiv';
+  let localized = '';
+  try {
+    const formatter = new Intl.DateTimeFormat('uk-UA', {
+      timeZone: safeTimezone,
+      dateStyle: 'full',
+      timeStyle: 'long',
+    });
+    localized = formatter.format(now);
+  } catch {
+    localized = now.toUTCString();
+  }
+
+  return {
+    role: 'system',
+    content: `⏰ ПОТОЧНИЙ ЧАС ТА ДАТА:\n- Сьогодні: ${localized}\n- Часовий пояс: ${safeTimezone}\n- ISO 8601: ${now.toISOString()}\nВикористовуй ці актуальні дані як абсолютний факт для будь-яких запитань про сьогодні, поточний день тижня, число, місяць, рік чи події.`,
+  };
+}
+
 export async function buildSystemContext(
   userId: number,
   options: ChatOptions = {},
@@ -24,6 +50,14 @@ export async function buildSystemContext(
   const systemMessages: ChatMessage[] = [];
   const sources: RagSource[] = [];
   let ragStatus: RagStatus = 'skipped';
+
+  if (options.includeDateTime === true) {
+    systemMessages.push(
+      buildDateTimeMessage(
+        typeof options.timezone === 'string' ? options.timezone : undefined
+      )
+    );
+  }
 
   try {
     const knowledgeMessages = await buildSystemKnowledgeMessages(

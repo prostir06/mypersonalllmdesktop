@@ -68,6 +68,10 @@ export function buildChatRequestOptions(args: {
       (args.chatAttachments?.length ?? 0) > 0
         ? args.chatAttachments
         : undefined,
+    timezone:
+      typeof Intl !== 'undefined' && Intl.DateTimeFormat
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Kyiv'
+        : 'Europe/Kyiv',
     ...args.extra,
   };
 }

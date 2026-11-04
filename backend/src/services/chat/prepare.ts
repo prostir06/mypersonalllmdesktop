@@ -9,7 +9,7 @@ import {
 } from '../conversationHistory';
 import { loadAllRawMessages, loadRecentMessages } from './history';
 import { ensureConversationId } from './ownership';
-import { buildSystemContext } from './systemContext';
+import { buildSystemContext, buildDateTimeMessage } from './systemContext';
 import {
   ChatError,
   type ChatMessage,
@@ -161,14 +161,19 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     options.enableWebSearch = true;
   }
 
+  const dateTimeMessage = buildDateTimeMessage(
+    typeof options.timezone === 'string' ? options.timezone : undefined
+  );
+  const finalSystemMessages = [dateTimeMessage, ...systemMessages];
+
   return {
     convId,
     options,
     sources,
     ragStatus,
     chatMessages: isRegenerate
-      ? [...systemMessages, ...history]
-      : [...systemMessages, ...history, currentUserMessage],
+      ? [...finalSystemMessages, ...history]
+      : [...finalSystemMessages, ...history, currentUserMessage],
     isRegenerate,
     regenerateFromMessageId,
   };

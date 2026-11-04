@@ -1199,6 +1199,26 @@ describe('ChatService', () => {
         ],
       });
     });
+
+    it('injects current date and time preamble with requested timezone', async () => {
+      mockedPrisma.conversation.findFirst.mockResolvedValue({ id: 10 });
+      mockedPrisma.message.findMany.mockResolvedValue([]);
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const prepared = await ChatService.prepareMessages({
+        userId: 1,
+        conversationId: 10,
+        message: 'what date is it?',
+        options: { timezone: 'Europe/Kyiv' },
+      });
+
+      const firstMsg = prepared.chatMessages[0];
+      expect(firstMsg.role).toBe('system');
+      expect(typeof firstMsg.content).toBe('string');
+      expect(firstMsg.content).toContain('ПОТОЧНИЙ ЧАС ТА ДАТА');
+      expect(firstMsg.content).toContain('Europe/Kyiv');
+    });
   });
 
   describe('streamMessage', () => {

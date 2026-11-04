@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appendOrReplaceAssistant, mapChatError } from './chatStreamHelpers';
+import { appendOrReplaceAssistant, mapChatError, buildChatRequestOptions } from './chatStreamHelpers';
 import type { Message } from '../types/api';
 
 describe('appendOrReplaceAssistant', () => {
@@ -33,5 +33,18 @@ describe('mapChatError', () => {
 
   it('maps network failures to retry-friendly message', () => {
     expect(mapChatError('network timeout')).toContain('Спробуйте ще раз');
+  });
+});
+
+describe('buildChatRequestOptions', () => {
+  it('automatically populates client timezone', () => {
+    const opts = buildChatRequestOptions({
+      temperature: 0.7,
+      selectedDocIds: [],
+      attachedImage: null,
+      chatAttachments: [],
+    });
+    expect(opts.timezone).toBeTruthy();
+    expect(typeof opts.timezone).toBe('string');
   });
 });
