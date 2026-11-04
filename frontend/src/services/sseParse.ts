@@ -52,6 +52,7 @@ export type SseHandlers = {
     content?: string;
     sources?: RagSource[];
     ragStatus?: 'ok' | 'empty' | 'error' | 'skipped';
+    tokenUsage?: TokenUsage;
   }) => void;
   /** Called before SseStreamError is thrown (optional telemetry). */
   onTokenUsage?: (usage: TokenUsage) => void;
@@ -152,6 +153,7 @@ export function consumeSseChunk(
           content: data.content,
           sources: data.sources,
           ragStatus: data.ragStatus,
+          tokenUsage: (data as any).tokenUsage || (data as any).token_usage,
         });
       } else if (data.type === 'error') {
         const message =

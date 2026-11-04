@@ -84,7 +84,10 @@ function buildOllamaPayload(
     payload.num_predict = sampling.num_predict;
   }
   if (sampling.seed !== undefined) payload.seed = sampling.seed;
-  if (stream) payload.stream = true;
+  if (stream) {
+    payload.stream = true;
+    payload.stream_options = { include_usage: true };
+  }
 
   const rawTools = options.tools;
   if (Array.isArray(rawTools) && rawTools.length > 0) {
@@ -110,7 +113,8 @@ export function formatOllamaTokenUsage(
       completion_tokens?: number;
       total_tokens?: number;
     };
-  } | undefined
+  } | undefined,
+  model = 'ollama'
 ): TokenUsage | undefined {
   if (!data) return undefined;
   const hasUsage =
@@ -123,7 +127,7 @@ export function formatOllamaTokenUsage(
   const completionTokens = data.eval_count ?? data.usage?.completion_tokens ?? 0;
   const totalTokens = data.usage?.total_tokens;
 
-  return buildTokenUsage(promptTokens, completionTokens, 'ollama', totalTokens);
+  return buildTokenUsage(promptTokens, completionTokens, model, totalTokens);
 }
 
 async function sendOllamaMessage(
@@ -165,7 +169,7 @@ async function sendOllamaMessage(
         prompt_eval_count: response.data?.prompt_eval_count,
         eval_count: response.data?.eval_count,
         usage: response.data?.usage,
-      }),
+      }, model),
       model: response.data.model as string,
       ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
     };
@@ -260,7 +264,7 @@ async function streamOllamaMessage(
                   prompt_eval_count: parsed.prompt_eval_count,
                   eval_count: parsed.eval_count,
                   usage: parsed.usage,
-                });
+                }, model);
                 if (usage) {
                   tokenUsage = usage;
                 }
@@ -347,6 +351,11 @@ async function streamOllamaMessage(
       response.data.on('end', () => {
         if (signal) signal.removeEventListener('abort', onAbort);
         const toolCalls = Object.values(toolCallsAcc);
+        if (!tokenUsage && fullContent) {
+          const estPrompt = Math.max(1, Math.round(JSON.stringify(messages).length / 3.5));
+          const estComp = Math.max(1, Math.round(fullContent.length / 3.5));
+          tokenUsage = buildTokenUsage(estPrompt, estComp, model || 'ollama');
+        }
         resolve({
           content: fullContent,
           tokenUsage,

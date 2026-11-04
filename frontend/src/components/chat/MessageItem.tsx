@@ -255,7 +255,7 @@ const MessageItem = React.memo(function MessageItem({
             title={`Вхідні: ${usage.promptTokens} | Вихідні: ${usage.completionTokens}`}
           >
             <span>{usage.totalTokens.toLocaleString()} токенів</span>
-            {usage.estimatedCostUsd !== undefined && (
+            {usage.estimatedCostUsd !== undefined && usage.estimatedCostUsd > 0 && (
               <>
                 <span>•</span>
                 <span>

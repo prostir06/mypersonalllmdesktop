@@ -130,6 +130,7 @@ export async function streamMessage(
       messageId: result.messageId,
       content: result.content,
       sources: result.sources,
+      ...(result.tokenUsage ? { tokenUsage: result.tokenUsage, token_usage: result.tokenUsage } : {}),
       ...(result.ragStatus ? { ragStatus: result.ragStatus } : {}),
       ...((result as any).toolTrace ? { toolTrace: (result as any).toolTrace } : {}),
       ...((result as any).status ? { status: (result as any).status } : {}),

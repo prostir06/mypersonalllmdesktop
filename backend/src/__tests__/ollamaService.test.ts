@@ -257,6 +257,43 @@ describe('ollamaService', () => {
     });
   });
 
+  it('streamOllamaMessage captures tokenUsage from OpenAI-compatible usage chunk and sets stream_options', async () => {
+    mockedAxios.post = jest.fn().mockImplementation(() => {
+      const ee = new EventEmitter();
+      setImmediate(() => {
+        ee.emit(
+          'data',
+          Buffer.from('data: {"choices":[{"delta":{"content":"Hi"}}]}\n')
+        );
+        ee.emit(
+          'data',
+          Buffer.from(
+            'data: {"choices":[],"usage":{"prompt_tokens":17,"completion_tokens":10,"total_tokens":27}}\n'
+          )
+        );
+        ee.emit('data', Buffer.from('data: [DONE]\n'));
+        ee.emit('end');
+      });
+      return Promise.resolve({ data: ee });
+    });
+
+    const result = await streamOllamaMessage(
+      [{ role: 'user', content: 'Hi' }],
+      'gemma4:latest'
+    );
+
+    expect(result.content).toBe('Hi');
+    expect(result.tokenUsage).toEqual({
+      promptTokens: 17,
+      completionTokens: 10,
+      totalTokens: 27,
+      estimatedCostUsd: 0,
+    });
+    expect(mockedAxios.post.mock.calls[0][1].stream_options).toEqual({
+      include_usage: true,
+    });
+  });
+
   it('streamOllamaMessage preserves cause on network failure', async () => {
     const networkErr = new Error('network down');
     mockedAxios.post = jest.fn().mockRejectedValue(networkErr);
