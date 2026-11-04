@@ -21,6 +21,9 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
   - *Conversation Memory:* rolling auto-summary + pinned per-conversation notes.
   - *Global User Memory:* cross-conversation facts and preferences managed in Settings and injected into prompts.
 - **System Self-Knowledge & Live Advisor (`🧭 Гід`):** Built-in drift-proof knowledge registry (`GET /api/system/knowledge`) and two-tier contextual prompt injection. The assistant introspects its features, limits, and user readiness without leaking secrets, offering proactive Ukrainian advisory chips, searchable settings/feature documentation, and deep-linkable quick actions.
+- **Interactive Onboarding Tour:** Guided multi-step walkthrough featuring high-contrast SVG spotlight cutouts to orient new users through chat controls, tools, document uploads, and settings.
+- **Modernized Dual Themes:** High-contrast **Cyber Aura Nexus** dark theme (obsidian backdrop with cyan & violet aura) and crisp **Clean Minimalist** light theme.
+- **Real-Time Temporal Grounding:** Automatic dynamic injection of current date, time, and client IANA timezone into system prompts for accurate time-sensitive answers.
 - **Workspace Productivity:** Pinned conversations, reusable **Prompt Library**, message branching / regeneration, full-text message search, and Markdown / JSON / PDF export.
 - **Token & Cost Telemetry:** Optional per-message token usage (`prompt` / `completion` / `total`) and estimated USD cost badge.
 - **Security & Auth:** Short-lived JWT access tokens + `httpOnly` rotating refresh cookies, AES-256-GCM encrypted per-user API keys (`ENCRYPTION_KEY`), SSRF-guarded Ollama URL allowlist, magic-byte upload verification, and strict Nginx Content-Security-Policy.
@@ -44,7 +47,7 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 │   └── Dockerfile           # Multi-stage Node 24 Alpine image
 ├── frontend/                # React 18 + Vite 8 + TypeScript SPA
 │   ├── public/              # Static assets & isolated artifact-sandbox.html
-│   ├── src/                 # Components, hooks, typed API client, military theme
+│   ├── src/                 # Components, hooks, typed API client, Cyber & Minimalist themes
 │   ├── nginx.conf           # SPA routing, /api proxy, hardened CSP headers
 │   └── Dockerfile           # Node 24 builder → Nginx 1.25 Alpine
 ├── desktop/                 # Optional Electron desktop shell (Windows-first)

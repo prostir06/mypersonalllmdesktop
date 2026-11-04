@@ -4,8 +4,12 @@ describe('Theme Design Tokens in index.css', () => {
   it('defines dark and light theme tokens in index.css', async () => {
     const nodeFsMod = 'node:fs';
     const nodePathMod = 'node:path';
-    const fs = ((await import(/* @vite-ignore */ nodeFsMod)) as any).default;
-    const path = ((await import(/* @vite-ignore */ nodePathMod)) as any).default;
+    const fs = ((await import(/* @vite-ignore */ nodeFsMod)) as {
+      default: { readFileSync: (p: string, enc: string) => string };
+    }).default;
+    const path = ((await import(/* @vite-ignore */ nodePathMod)) as {
+      default: { resolve: (...args: string[]) => string };
+    }).default;
     const proc = (globalThis as unknown as { process: { cwd: () => string } }).process;
     const cssPath = path.resolve(proc.cwd(), 'src/index.css');
     const cssContent = String(fs.readFileSync(cssPath, 'utf-8'));

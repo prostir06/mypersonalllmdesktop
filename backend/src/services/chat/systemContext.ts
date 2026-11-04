@@ -19,7 +19,7 @@ export function buildDateTimeMessage(
     typeof timezone === 'string' && timezone.trim()
       ? timezone.trim()
       : 'Europe/Kyiv';
-  let localized = '';
+  let localized: string;
   try {
     const formatter = new Intl.DateTimeFormat('uk-UA', {
       timeZone: safeTimezone,
