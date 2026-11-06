@@ -59,6 +59,7 @@ export const chatAPI = {
       messageId?: string | number;
       content?: string;
       sources?: RagSource[];
+      tokenUsage?: TokenUsage;
     }) => void,
     onTokenUsage?: (usage: TokenUsage) => void,
     toolHandlers?: {
