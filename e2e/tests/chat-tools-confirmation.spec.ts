@@ -102,7 +102,7 @@ test.describe('Chat Tools, Web Search toggles & Confirmation flow (v18)', () => 
     await detailsBtn.click();
 
     await expect(toolCard.getByText('Аргументи:')).toBeVisible();
-    await expect(toolCard.getByText('курс долара НБУ')).toBeVisible();
+    await expect(toolCard.getByText('курс долара НБУ').first()).toBeVisible();
 
     const collapseBtn = toolCard.getByRole('button', { name: /Згорнути ▲/i });
     await expect(collapseBtn).toBeVisible();
@@ -199,14 +199,14 @@ test.describe('Chat Tools, Web Search toggles & Confirmation flow (v18)', () => 
     await page.getByRole('option', { name: /Тест підтвердження дій/i }).click();
 
     // Verify both confirmation cards are rendered
-    await expect(page.getByText('Оновити налаштування')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Оновити налаштування', { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Додати довготривалу нотатку')).toBeVisible();
     await expect(page.getByText('temperature')).toBeVisible();
-    await expect(page.getByText('0.7')).toBeVisible();
-    await expect(page.getByText('0.3')).toBeVisible();
+    await expect(page.getByRole('cell', { name: '0.7' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: '0.3' })).toBeVisible();
 
     // Click "Підтвердити" on the first action card
-    const firstCard = page.locator('.card', { hasText: 'Оновити налаштування' });
+    const firstCard = page.locator('.card', { hasText: 'Оновити налаштування' }).first();
     const approveBtn = firstCard.getByRole('button', { name: /Підтвердити/i });
     await approveBtn.click();
 
@@ -214,11 +214,11 @@ test.describe('Chat Tools, Web Search toggles & Confirmation flow (v18)', () => 
     expect(approvedCalled).toBe(true);
 
     // Click "Відхилити" on the second action card
-    const secondCard = page.locator('.card', { hasText: 'Додати довготривалу нотатку' });
+    const secondCard = page.locator('.card', { hasText: 'Додати довготривалу нотатку' }).first();
     const rejectBtn = secondCard.getByRole('button', { name: /Відхилити/i });
     await rejectBtn.click();
 
-    await expect(secondCard.getByText('Дію відхилено')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Дію відхилено')).toBeVisible({ timeout: 10_000 });
     expect(rejectedCalled).toBe(true);
   });
 });

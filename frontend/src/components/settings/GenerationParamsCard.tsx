@@ -56,7 +56,7 @@ export default function GenerationParamsCard({
               onChange={(e) => onMaxTokensChange(parseInt(e.target.value, 10))}
               min="100"
               max="32000"
-              step="100"
+              step="1"
               className="bg-dark text-light border-secondary shadow-none"
             />
           </Form.Group>

@@ -15,5 +15,19 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
     channel,
     trace: 'on-first-retry',
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: process.env.E2E_BASE_URL || 'http://localhost:3000',
+          localStorage: [
+            {
+              name: 'product_tour_completed_version',
+              value: 'v18.1',
+            },
+          ],
+        },
+      ],
+    },
   },
 });

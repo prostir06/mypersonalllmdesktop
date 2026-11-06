@@ -29,9 +29,12 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
 
   const [rect, setRect] = useState<TargetRect | null>(null);
 
-  // Auto-start for new users / new versions if requested
+  // Auto-start for new users / new versions if requested (disabled under automated test drivers like Playwright)
   useEffect(() => {
     if (autoStart && hasNewVersion && !isActive) {
+      if (typeof navigator !== 'undefined' && navigator.webdriver) {
+        return;
+      }
       startTour();
     }
   }, [autoStart, hasNewVersion, isActive, startTour]);

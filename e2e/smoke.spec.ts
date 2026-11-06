@@ -1,8 +1,14 @@
 import { test, expect } from '@playwright/test';
-import { uniqueUser } from './test-helpers';
+import { uniqueUser, dismissTourIfOpen } from './test-helpers';
 
 test('register and open dashboard chat', async ({ page }) => {
   const user = uniqueUser('smoke');
+
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('product_tour_completed_version', 'v18.1');
+    } catch {}
+  });
 
   await page.goto('/register');
   await page.getByPlaceholder('Олексій Коваленко').fill(user.name);
@@ -11,6 +17,7 @@ test('register and open dashboard chat', async ({ page }) => {
   await page.getByRole('button', { name: /Зареєструватися|Register/i }).click();
 
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+  await dismissTourIfOpen(page);
   const input = page.getByLabel('Введення повідомлення');
   await expect(input).toBeVisible();
 

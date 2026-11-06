@@ -34,13 +34,30 @@ export async function registerViaApi(
   return body.token!;
 }
 
+export async function dismissTourIfOpen(page: Page): Promise<void> {
+  try {
+    const dismissBtn = page.getByRole('button', { name: /Пропустити|Закрити тур/i });
+    if (await dismissBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await dismissBtn.click({ force: true }).catch(() => {});
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export async function loginViaUi(page: Page, user: TestUser): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('product_tour_completed_version', 'v18.1');
+    } catch {}
+  });
   await page.goto('/login');
   await page.getByTestId('login-email').fill(user.email);
   await page.getByTestId('login-password').fill(user.password);
   await page.getByTestId('login-submit').click();
   try {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+    await dismissTourIfOpen(page);
   } catch (err) {
     const alertText = await page
       .getByRole('alert')
