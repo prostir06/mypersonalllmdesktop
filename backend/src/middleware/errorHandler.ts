@@ -20,6 +20,21 @@ const errorHandler = (
     timestamp: new Date().toISOString(),
   });
 
+  const multerCode = (err as { code?: string; name?: string }).code;
+  const multerName = (err as { name?: string }).name;
+  if (multerName === 'MulterError' || multerCode?.startsWith('LIMIT_')) {
+    const statusCode = multerCode === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    res.status(statusCode).json({
+      error: err.message,
+      requestId,
+    });
+    return;
+  }
+  if (err.message.startsWith('Непідтримуваний формат')) {
+    res.status(400).json({ error: err.message, requestId });
+    return;
+  }
+
   const statusCode = err.statusCode || 500;
   const message =
     process.env.NODE_ENV === 'production'

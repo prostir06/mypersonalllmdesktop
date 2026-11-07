@@ -1,6 +1,16 @@
 import path from 'path';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 import { getMaxUploadBytes } from '../utils/fileMagic';
+
+const ALLOWED_EXT = new Set(['pdf', 'docx', 'xlsx', 'txt', 'md']);
+
+export function storedFilename(originalname: string): string {
+  const raw = originalname.split(/[/\\]/).pop() || '';
+  const ext = (raw.match(/\.([A-Za-z0-9]+)$/)?.[1] || '').toLowerCase();
+  const safeExt = ALLOWED_EXT.has(ext) ? ext : 'bin';
+  return `${randomUUID()}.${safeExt}`;
+}
 
 const multer = require('multer');
 
@@ -39,8 +49,7 @@ export function createUploadMiddleware(options: UploadMiddlewareOptions = {}) {
       file: { originalname: string },
       cb: (err: Error | null, name: string) => void
     ) => {
-      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `${unique}-${file.originalname}`);
+      cb(null, storedFilename(file.originalname));
     },
   });
 
