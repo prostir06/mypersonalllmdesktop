@@ -27,6 +27,10 @@ jest.mock('../config/prisma', () => ({
 import app from '../server';
 
 describe('API Integration & Health Tests', () => {
+  it('trusts one proxy hop so req.ip comes from X-Forwarded-For', () => {
+    expect(app.get('trust proxy')).toBe(1);
+  });
+
   it('GET /api/health should return health response with required fields', async () => {
     const res = await request(app).get('/api/health');
 
