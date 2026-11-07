@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build:ts": "tsc -p tsconfig.json",
-    "test": "npm run build:ts && node --test dist/backendUrl.test.js dist/uiPaths.test.js dist/security.test.js dist/deepLinks.test.js dist/ipc.test.js dist/asyncFire.test.js dist/externalLinks.test.js",
+    "test": "npm run build:ts && node --test dist/backendUrl.test.js dist/uiPaths.test.js dist/security.test.js dist/deepLinks.test.js dist/ipc.test.js dist/asyncFire.test.js dist/externalLinks.test.js dist/uiServer.test.js dist/updateFeed.test.js dist/startupError.test.js",
     "dev": "npm run build:ts && cross-env ELECTRON_DEV=1 electron .",
     "start": "npm run build:ts && electron .",
     "pack": "npm run build:ts && electron-builder --dir",
@@ -61,7 +61,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "cross-env": "^7.0.3",
-    "electron": "^35.0.0",
+    "electron": "^45.2.3",
     "electron-builder": "^25.1.8",
     "typescript": "^5.6.0"
   }

@@ -1,7 +1,7 @@
 /**
  * Electron main: secure window; prod serves UI + /api proxy; dev loads Vite.
  */
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, dialog, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { isAllowedAppOrigin } from './security';
@@ -28,6 +28,7 @@ import {
   type DeepLinkPayload,
 } from './deepLinks';
 import { fireAndForget } from './asyncFire';
+import { unavailableDialogMessage } from './startupError';
 
 const isDev = process.env.ELECTRON_DEV === '1';
 
@@ -64,6 +65,12 @@ function handleDeepLinkUrl(raw: string): void {
 
 function preloadPath(): string {
   return path.join(__dirname, 'preload.js');
+}
+
+function reportUiUnavailable(err: unknown): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error('Failed to start Electron UI:', detail);
+  dialog.showErrorBox('LLM Assistant Studio', unavailableDialogMessage(err));
 }
 
 function showMainWindow(): BrowserWindow | null {
@@ -148,24 +155,18 @@ async function createWindow(): Promise<void> {
     return;
   }
 
-  try {
-    const backendOrigin = resolveBackendOrigin();
-    setBackendOrigin(backendOrigin);
-    const port = uiPort();
-    const rawRoot = app.isPackaged
-      ? packagedUiRoot(process.resourcesPath)
-      : unpackagedUiRoot(__dirname);
-    const uiRoot = assertUiRootExists(rawRoot);
+  const backendOrigin = resolveBackendOrigin();
+  setBackendOrigin(backendOrigin);
+  const port = uiPort();
+  const rawRoot = app.isPackaged
+    ? packagedUiRoot(process.resourcesPath)
+    : unpackagedUiRoot(__dirname);
+  const uiRoot = assertUiRootExists(rawRoot);
 
-    uiServer = await startUiServer({ uiRoot, backendOrigin, port });
-    const uiOrigin = `http://127.0.0.1:${uiServer.port}`;
-    allowedOrigins.add(uiOrigin);
-    await mainWindow.loadURL(uiOrigin);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('Failed to bind static UI + /api proxy:', message);
-    throw err;
-  }
+  uiServer = await startUiServer({ uiRoot, backendOrigin, port });
+  const uiOrigin = `http://127.0.0.1:${uiServer.port}`;
+  allowedOrigins.add(uiOrigin);
+  await mainWindow.loadURL(uiOrigin);
 }
 
 if (process.defaultApp) {
@@ -228,7 +229,7 @@ if (!gotSingleInstanceLock) {
         }
       })
       .catch((err) => {
-        console.error('Failed to start Electron UI:', err);
+        reportUiUnavailable(err);
         app.quit();
       });
 
@@ -236,7 +237,7 @@ if (!gotSingleInstanceLock) {
       if (BrowserWindow.getAllWindows().length === 0) {
         // Same failure path as cold start — log; do not quit (user may reopen).
         fireAndForget(createWindow(), (err) => {
-          console.error('Failed to recreate Electron UI on activate:', err);
+          reportUiUnavailable(err);
         });
       } else {
         showMainWindow();

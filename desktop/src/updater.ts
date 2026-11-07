@@ -4,6 +4,7 @@
 import { app, Notification } from 'electron';
 import { autoUpdater, type UpdateInfo } from 'electron-updater';
 import type { BrowserWindow } from 'electron';
+import { hasUpdateFeed } from './updateFeed';
 
 export type UpdateStatus =
   | { state: 'idle' }
@@ -85,7 +86,7 @@ export function initUpdater(
 }
 
 export async function checkForUpdates(): Promise<UpdateStatus> {
-  if (!app.isPackaged) {
+  if (!app.isPackaged || !hasUpdateFeed(process.resourcesPath)) {
     const status: UpdateStatus = {
       state: 'not-available',
     };

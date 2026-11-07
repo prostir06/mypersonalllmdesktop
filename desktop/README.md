@@ -47,7 +47,7 @@ cd ../desktop && npm start
 Env:
 
 - `BACKEND_URL` — default `http://127.0.0.1:5000`
-- `ELECTRON_UI_PORT` — default `3911`
+- `ELECTRON_UI_PORT` — default `3911`. If that port is busy, the shell binds another loopback port.
 - `ELECTRON_BACKEND_ALLOWLIST` — comma-separated extra hostnames if backend is not loopback
 
 ## Windows installer
@@ -66,7 +66,7 @@ CI: `test-desktop` runs Linux pack smoke; `build-desktop-win` uploads Windows in
 1. Set `electron-builder` `publish.provider=github` with your GitHub `owner` and `repo`.
 2. Tag the release as `vX.Y.Z` and run `npm run dist`.
 3. Upload the generated installer artifacts and `latest.yml` to the matching GitHub Release.
-4. Packaged apps will query that GitHub Releases feed via `electron-updater`.
+4. Packaged apps query that GitHub Releases feed via `electron-updater`. Without `app-update.yml` the check is skipped.
 
 ## E2E smoke (optional)
 
