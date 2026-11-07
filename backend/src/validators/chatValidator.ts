@@ -17,6 +17,21 @@ export const validateChatSend = [
   body('conversationId').optional({ nullable: true }),
   body('options.regenerateFromMessageId').optional().isInt({ min: 1 }),
   body('options.attachments').optional().isArray({ max: 5 }),
+  body('options.attachments').custom((value: unknown) => {
+    if (value == null) return true;
+    if (!Array.isArray(value)) throw new Error('attachments must be an array');
+    let total = 0;
+    for (const item of value) {
+      const content = (item as { content?: unknown })?.content;
+      if (typeof content !== 'string') continue;
+      if (content.length > 12_000) {
+        throw new Error('Attachment content exceeds 12000 characters');
+      }
+      total += content.length;
+    }
+    if (total > 60_000) throw new Error('Attachments exceed 60000 characters in total');
+    return true;
+  }),
   handleValidationErrors,
 ];
 

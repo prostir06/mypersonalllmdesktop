@@ -10,6 +10,8 @@ import {
 import { loadAllRawMessages, loadRecentMessages } from './history';
 import { ensureConversationId } from './ownership';
 import { buildSystemContext, buildDateTimeMessage } from './systemContext';
+import { clampGeneration, pickAllowedOptions } from './generationOptions';
+import { getSettingsForUser } from '../settingsService';
 import {
   ChatError,
   type ChatMessage,
@@ -103,7 +105,17 @@ async function providerHistory(
 }
 
 export async function prepareMessages(input: SendInput): Promise<PreparedMessages> {
-  const options: ChatOptions = { ...(input.options || {}) };
+  const allowed = pickAllowedOptions({ ...(input.options || {}) } as Record<string, unknown>);
+  const settings = await getSettingsForUser(input.userId);
+  const generation = clampGeneration(
+    { temperature: settings.temperature, max_tokens: settings.max_tokens },
+    { temperature: allowed.temperature, max_tokens: allowed.max_tokens }
+  );
+  const options: ChatOptions = {
+    ...(allowed as ChatOptions),
+    temperature: generation.temperature,
+    max_tokens: generation.max_tokens,
+  };
   // Defense-in-depth: never honor client-enabled tools at the service layer.
   options.enableTools = false;
   if (input.options?.enableWebSearch === true) {
