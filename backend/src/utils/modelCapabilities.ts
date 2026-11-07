@@ -28,9 +28,48 @@ interface CacheEntry {
 }
 
 const runtimeCapabilitiesCache = new Map<string, CacheEntry>();
+const ollamaShowCache = new Map<string, CacheEntry>();
 
 export function clearRuntimeModelCapabilitiesCache(): void {
   runtimeCapabilitiesCache.clear();
+  ollamaShowCache.clear();
+}
+
+function storeExactCapabilities(modelId: string, flags: ModelCapabilityFlags): void {
+  const key = modelId.trim().toLowerCase();
+  if (!key) return;
+  const entry: CacheEntry = {
+    flags,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  };
+  runtimeCapabilitiesCache.set(key, entry);
+  if (key.endsWith(':latest')) {
+    runtimeCapabilitiesCache.set(key.slice(0, -7), entry);
+  } else if (!key.includes(':')) {
+    runtimeCapabilitiesCache.set(`${key}:latest`, entry);
+  }
+}
+
+export function peekOllamaShow(cacheKey: string): ModelCapabilityFlags | undefined {
+  const hit = ollamaShowCache.get(cacheKey);
+  if (!hit) return undefined;
+  if (Date.now() > hit.expiresAt) {
+    ollamaShowCache.delete(cacheKey);
+    return undefined;
+  }
+  return hit.flags;
+}
+
+export function rememberOllamaShow(
+  cacheKey: string,
+  modelId: string,
+  flags: ModelCapabilityFlags
+): void {
+  ollamaShowCache.set(cacheKey, {
+    flags,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+  storeExactCapabilities(modelId, flags);
 }
 
 function detectStaticVision(m: string, provider?: string | null): boolean {

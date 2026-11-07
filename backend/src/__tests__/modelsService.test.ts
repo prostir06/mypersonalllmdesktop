@@ -165,6 +165,7 @@ describe('modelsService', () => {
       };
 
       jest.spyOn(axios, 'get').mockResolvedValue(mockResponse);
+      jest.spyOn(axios, 'post').mockRejectedValue(new Error('show unavailable'));
 
       const discovered = await discoverRemoteOllamaModels('http://127.0.0.1:11434');
 
@@ -187,6 +188,34 @@ describe('modelsService', () => {
       expect(modelSupportsTools('deepseek-r1-custom:latest')).toBe(true);
       expect(modelSupportsVision('deepseek-r1-custom:latest')).toBe(false);
       expect(modelSupportsVision('custom-vl:latest')).toBe(true);
+    });
+
+    it('trusts POST /api/show over a vision-like name and caches it', async () => {
+      jest.spyOn(axios, 'get').mockResolvedValue({
+        status: 200,
+        data: { models: [{ name: 'plain-vision:latest' }] },
+      });
+      const post = jest.spyOn(axios, 'post').mockResolvedValue({
+        data: { capabilities: ['completion'] },
+      });
+
+      const discovered = await discoverRemoteOllamaModels('http://127.0.0.1:11434');
+
+      expect(post).toHaveBeenCalledWith(
+        'http://127.0.0.1:11434/api/show',
+        { name: 'plain-vision:latest' },
+        expect.objectContaining({ timeout: 3000, maxRedirects: 0 })
+      );
+      expect(discovered[0]).toMatchObject({
+        id: 'plain-vision:latest',
+        supports_vision: false,
+        supports_tools: false,
+      });
+
+      post.mockClear();
+      const again = await discoverRemoteOllamaModels('http://127.0.0.1:11434');
+      expect(post).not.toHaveBeenCalled();
+      expect(again[0].supports_vision).toBe(false);
     });
   });
 });

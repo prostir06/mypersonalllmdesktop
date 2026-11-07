@@ -13,6 +13,7 @@ import { buildSystemContext, buildDateTimeMessage } from './systemContext';
 import { clampGeneration, pickAllowedOptions } from './generationOptions';
 import { getSettingsForUser } from '../settingsService';
 import { defaultModelFor } from '../../config/models';
+import { loadOllamaShowCapabilities } from '../ollama/showCapabilities';
 import {
   ChatError,
   type ChatMessage,
@@ -117,6 +118,12 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
     temperature: generation.temperature,
     max_tokens: generation.max_tokens,
   };
+  if ((input.provider || '').toLowerCase() === 'ollama') {
+    await loadOllamaShowCapabilities(
+      input.model || defaultModelFor('ollama'),
+      settings.default_ollama_host
+    );
+  }
   // Defense-in-depth: never honor client-enabled tools at the service layer.
   options.enableTools = false;
   if (input.options?.enableWebSearch === true) {

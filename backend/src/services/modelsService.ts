@@ -10,6 +10,7 @@ import {
   modelSupportsTools,
   registerRuntimeModelCapabilities,
 } from '../utils/modelCapabilities';
+import { loadOllamaShowCapabilities } from './ollama/showCapabilities';
 import { numTemp } from '../utils/numTemp';
 
 type LlmModelRow = {
@@ -217,6 +218,26 @@ export class RemoteModelsError extends Error {
   }
 }
 
+async function enrichOllamaListing(
+  listed: Array<{ id: string; tagCapabilities?: string[] }>,
+  origin: string
+): Promise<void> {
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < listed.length) {
+      const item = listed[cursor];
+      cursor += 1;
+      if (!item?.id) continue;
+      const shown = await loadOllamaShowCapabilities(item.id, origin);
+      if (!shown && item.tagCapabilities) {
+        registerRuntimeModelCapabilities(item.id, item.tagCapabilities);
+      }
+    }
+  };
+  const workers = Math.min(4, listed.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+}
+
 export async function discoverRemoteOllamaModels(
   host?: string
 ): Promise<
@@ -262,15 +283,8 @@ export async function discoverRemoteOllamaModels(
       if (r.status === 200 && r.data) {
         const data = r.data.models || r.data.data || r.data.engines || r.data;
         if (Array.isArray(data)) {
-          models = data.map((m: unknown) => {
-            if (typeof m === 'string') {
-              return {
-                id: m,
-                name: m,
-                supports_vision: modelSupportsVision(m, 'ollama'),
-                supports_tools: modelSupportsTools(m, 'ollama'),
-              };
-            }
+          const listed = data.map((m: unknown) => {
+            if (typeof m === 'string') return { id: m, tagCapabilities: undefined as string[] | undefined };
             const obj = m as {
               name?: string;
               id?: string;
@@ -278,17 +292,18 @@ export async function discoverRemoteOllamaModels(
               engine?: string;
               capabilities?: string[];
             };
-            const val = obj.name || obj.id || obj.model || obj.engine || '';
-            if (Array.isArray(obj.capabilities) && val) {
-              registerRuntimeModelCapabilities(val, obj.capabilities);
-            }
             return {
-              id: val,
-              name: val,
-              supports_vision: modelSupportsVision(val, 'ollama'),
-              supports_tools: modelSupportsTools(val, 'ollama'),
+              id: obj.name || obj.id || obj.model || obj.engine || '',
+              tagCapabilities: Array.isArray(obj.capabilities) ? obj.capabilities : undefined,
             };
           });
+          await enrichOllamaListing(listed, origin);
+          models = listed.map((item) => ({
+            id: item.id,
+            name: item.id,
+            supports_vision: modelSupportsVision(item.id, 'ollama'),
+            supports_tools: modelSupportsTools(item.id, 'ollama'),
+          }));
           break;
         }
       }
