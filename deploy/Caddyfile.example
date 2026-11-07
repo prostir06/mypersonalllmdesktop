@@ -1,0 +1,13 @@
+# TLS reverse proxy in front of the Compose frontend.
+# DNS A/AAAA for this host must point here. Caddy obtains the certificate.
+# Set CORS_ORIGIN to the same public origin, for example:
+#   CORS_ORIGIN=https://assistant.example.com
+#
+# Bind the frontend to localhost in production so only Caddy is reachable:
+#   frontend.ports: ["127.0.0.1:3000:80"]
+# (docker-compose.prod.yml already does this.)
+
+assistant.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}

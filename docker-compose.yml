@@ -2,9 +2,15 @@
 # Production (fail-closed secrets, no DB host port, no bind-mount):
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
+x-logging: &json-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
-    image: pgvector/pgvector:pg15
+    image: pgvector/pgvector:0.8.7-pg15
     container_name: llm-assistant-db
     environment:
       POSTGRES_DB: ${DB_NAME:-llm_assistant}
@@ -21,6 +27,31 @@ services:
       retries: 5
     mem_limit: 512m
     cpus: 0.5
+    logging: *json-logs
+    networks:
+      - db-network
+
+  backup:
+    build:
+      context: ./deploy/backup
+    image: llm-assistant-backup
+    container_name: llm-assistant-backup
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${DB_USER:-postgres}
+      PGPASSWORD: ${DB_PASSWORD:-password}
+      PGDATABASE: ${DB_NAME:-llm_assistant}
+      BACKUP_DIR: /backups
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.25
+    logging: *json-logs
     networks:
       - db-network
 
@@ -55,6 +86,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      searxng:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://127.0.0.1:5000/api/health',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     volumes:
       # Dev only: live source. Production override resets this so image dist/ is used.
       # Anonymous /app/node_modules is cached separately — after adding npm deps:
@@ -67,13 +112,14 @@ services:
     entrypoint: ["/bin/sh", "/app/docker-entrypoint.sh"]
     mem_limit: 1g
     cpus: 1.0
+    logging: *json-logs
     networks:
       - db-network
       - llm-network
     restart: unless-stopped
 
   searxng:
-    image: searxng/searxng:latest
+    image: searxng/searxng:2026.11.6-ac11e14c5
     container_name: llm-assistant-searxng
     restart: unless-stopped
     volumes:
@@ -83,8 +129,15 @@ services:
       - SEARXNG_SECRET=${SEARXNG_SECRET:-dev-only-searxng-secret-not-for-prod}
     networks:
       - llm-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     mem_limit: 512m
     cpus: 0.5
+    logging: *json-logs
 
   frontend:
     build:
@@ -96,7 +149,8 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
       interval: 15s
@@ -104,12 +158,14 @@ services:
       retries: 3
     mem_limit: 256m
     cpus: 0.5
+    logging: *json-logs
     networks:
       - llm-network
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  backup_data:
   backend_logs:
   backend_uploads:
 

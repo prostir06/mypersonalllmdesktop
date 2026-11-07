@@ -182,6 +182,7 @@ model PendingToolAction {
 
   @@index([userId, status])
   @@index([conversationId])
+  @@index([expiresAt], map: "idx_pending_tool_actions_expires_at")
   @@map("pending_tool_actions")
 }
 
@@ -265,5 +266,6 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_refresh_tokens_user_id")
+  @@index([expiresAt], map: "idx_refresh_tokens_expires_at")
   @@map("refresh_tokens")
 }

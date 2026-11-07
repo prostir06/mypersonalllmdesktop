@@ -21,6 +21,10 @@ if [ "${NODE_ENV}" = "production" ]; then
       exit 1
       ;;
   esac
+  if [ -z "${CORS_ORIGIN}" ]; then
+    echo "FATAL: CORS_ORIGIN must be set in production" >&2
+    exit 1
+  fi
   if [ ! -f dist/server.js ]; then
     echo "FATAL: dist/server.js missing; production refuses ts-node bind-mount fallback" >&2
     exit 1
@@ -40,9 +44,9 @@ run_as_app() {
   exec "$@"
 }
 
+# Prisma Client is generated in the image build. Dev on the host runs prisma generate locally.
 echo "Waiting for database and applying Prisma migrations..."
 npx prisma migrate deploy --config prisma/prisma.config.ts
-npx prisma generate --config prisma/prisma.config.ts
 
 if [ "${NODE_ENV}" != "production" ] && [ -d src ] && [ -f dist/server.js ]; then
   if find src -name '*.ts' -type f -newer dist/server.js | grep -q .; then

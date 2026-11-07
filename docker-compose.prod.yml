@@ -3,7 +3,7 @@
 # Usage (from repo root, with a real .env — never commit secrets):
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
-# Requires: JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY (non-placeholder). Provider keys optional (or set in UI).
+# Requires: JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY, CORS_ORIGIN (non-placeholder). Provider keys optional (or set in UI).
 # Postgres is not published to the host. Backend uses image dist/ only (no bind-mount).
 
 services:
@@ -36,9 +36,17 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OLLAMA_API_URL: ${OLLAMA_API_URL:-http://host.docker.internal:11434/v1/chat/completions}
       OLLAMA_URL_ALLOWLIST: ${OLLAMA_URL_ALLOWLIST:-}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:?CORS_ORIGIN must be set for production}
     restart: unless-stopped
+
+  backup:
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set for production}
+      PGUSER: ${DB_USER:-postgres}
+      PGDATABASE: ${DB_NAME:-llm_assistant}
 
   frontend:
     environment: !reset {}
+    ports: !override
+      - "127.0.0.1:3000:80"
     restart: unless-stopped

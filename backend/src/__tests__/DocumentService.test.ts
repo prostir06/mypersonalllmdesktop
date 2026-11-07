@@ -522,7 +522,6 @@ describe('DocumentService (Prisma)', () => {
 
   describe('getByUser', () => {
     it('returns paginated snake_case rows with chunks_count', async () => {
-      mockedPrisma.document.updateMany.mockResolvedValue({ count: 0 });
       mockedPrisma.document.findMany.mockResolvedValue([
         {
           id: 1,
@@ -546,7 +545,7 @@ describe('DocumentService (Prisma)', () => {
         chunks_count: 5,
       });
       expect(page).toMatchObject({ total: 1, limit: 10, offset: 0 });
-      expect(mockedPrisma.document.updateMany).toHaveBeenCalled();
+      expect(mockedPrisma.document.updateMany).not.toHaveBeenCalled();
       expect(mockedPrisma.document.findMany).toHaveBeenCalledWith({
         where: { userId: 1 },
         orderBy: { createdAt: 'desc' },

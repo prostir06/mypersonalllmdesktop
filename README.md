@@ -77,7 +77,7 @@ docker compose up -d --build
 - **Web UI:** http://localhost:3000 (`/api` is proxied by Nginx to the backend container)
 - **API Healthcheck:** http://localhost:5000/api/health
 
-On startup, `backend/docker-entrypoint.sh` waits for `pgvector/pgvector:pg15`, applies `prisma migrate deploy`, and launches the server.
+On startup, `backend/docker-entrypoint.sh` waits for `pgvector/pgvector:0.8.7-pg15`, applies `prisma migrate deploy`, and launches the server. The image already contains the Prisma client.
 
 #### Production Compose Deployment
 
@@ -85,11 +85,14 @@ Production mode disables source bind-mounts, hides PostgreSQL from host ports, a
 
 ```bash
 cp .env.example .env
-# Required in .env: strong JWT_SECRET, DB_PASSWORD, and ENCRYPTION_KEY (openssl rand -base64 32)
+# Required in .env: strong JWT_SECRET, DB_PASSWORD, ENCRYPTION_KEY, and CORS_ORIGIN
+# CORS_ORIGIN is the public browser origin (https://assistant.example.com). See deploy/Caddyfile.example.
 # Recommended: ALLOW_REGISTRATION=false (default in production when unset)
 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+Take a database dump before an upgrade. Restore steps: [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
 
 ---
 
