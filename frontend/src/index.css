@@ -328,12 +328,11 @@ code, pre {
 
 /* ─── Chat Layout ────────────────────────────────────────────────────────── */
 .messages-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  padding: 1.5rem 1.5rem 0;
 }
 
 /* ─── Message Bubbles ────────────────────────────────────────────────────── */
@@ -344,6 +343,7 @@ code, pre {
   line-height: 1.6;
   font-size: 14px;
   position: relative;
+  margin-bottom: 1.25rem;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-fast);
 }
@@ -408,7 +408,16 @@ code, pre {
   color: #0047ff;
 }
 
+.streaming-tail {
+  white-space: pre-wrap;
+}
+
 /* ─── Sidebar ────────────────────────────────────────────────────────────── */
+.conversation-scroll {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .sidebar-wrapper {
   background: var(--sidebar-bg);
   border: 1px solid var(--card-border);

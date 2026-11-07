@@ -160,7 +160,7 @@ export function useChatStream({
             ...prev,
             {
               role: 'assistant',
-              content: currentStreamText,
+              content: '',
               tool_trace: currentTrace,
               toolTrace: currentTrace,
               created_at: new Date().toISOString(),
@@ -180,18 +180,6 @@ export function useChatStream({
             receivedStreamByte = true;
             currentStreamText += token;
             queueStreamToken(token);
-            if (inFlightAssistantIndex !== undefined) {
-              setMessages((prev) => {
-                const next = [...prev];
-                if (next[inFlightAssistantIndex!]) {
-                  next[inFlightAssistantIndex!] = {
-                    ...next[inFlightAssistantIndex!],
-                    content: currentStreamText,
-                  };
-                }
-                return next;
-              });
-            }
           },
           (newConvId, ragStatus) => {
             activeConversationId = newConvId;

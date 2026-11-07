@@ -87,7 +87,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastUserContentRef = useRef('');
   const updateSettings = useUpdateSettings();
   const {
@@ -194,20 +193,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     },
     [navigate, setShowDocModal, setShowPromptModal, setInputMessage]
   );
-
-  const scrollToBottom = useCallback(() => {
-    if (
-      messagesEndRef.current &&
-      typeof messagesEndRef.current.scrollIntoView === 'function'
-    ) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, []);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, streamedText, scrollToBottom]);
-
 
   const copyMessage = useCallback((text: string) => {
     copyTextWithToast(text, 'Скопійовано! 📋');
@@ -362,7 +347,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
             onRegenerate={handleRegenerate}
             onSwitchBranch={handleSwitchBranch}
             onOpenArtifact={setActiveArtifact}
-            messagesEndRef={messagesEndRef}
           />
 
           <SmartAdvisoryBar

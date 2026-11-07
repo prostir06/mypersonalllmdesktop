@@ -1,11 +1,13 @@
 /**
  * Chat message list with streaming bubble and typing indicator.
+ * Tokens stay in the streaming bubble until the turn commits them.
  */
-import React, { type RefObject } from 'react';
+import React from 'react';
 import { Spinner, Badge } from 'react-bootstrap';
-import ReactMarkdown from 'react-markdown';
 import type { Artifact } from '../../types/api';
-import MessageItem, { CodeBlock, type ChatMessageView } from './MessageItem';
+import VirtualFrame from '../VirtualFrame';
+import MessageItem, { type ChatMessageView } from './MessageItem';
+import StreamingMarkdown from './StreamingMarkdown';
 
 export type MessageListProps = {
   messages: ChatMessageView[];
@@ -18,8 +20,23 @@ export type MessageListProps = {
   onRegenerate?: (assistantIdx: number) => void;
   onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
   onOpenArtifact?: (artifact: Artifact) => void;
-  messagesEndRef: RefObject<HTMLDivElement>;
 };
+
+function StreamingBubble({ text }: { text: string }) {
+  return (
+    <div className="message-bubble assistant">
+      <div className="message-header">
+        <span>🤖 Assistant</span>
+        <Badge bg="primary" className="ms-2">
+          генерація...
+        </Badge>
+      </div>
+      <div className="markdown-content">
+        {text ? <StreamingMarkdown text={text} /> : <div className="typing-indicator" />}
+      </div>
+    </div>
+  );
+}
 
 const MessageList = React.memo(function MessageList({
   messages,
@@ -32,7 +49,6 @@ const MessageList = React.memo(function MessageList({
   onRegenerate,
   onSwitchBranch,
   onOpenArtifact,
-  messagesEndRef,
 }: MessageListProps) {
   if (loading && messages.length === 0) {
     return (
@@ -61,42 +77,28 @@ const MessageList = React.memo(function MessageList({
 
   return (
     <div className="messages-list flex-grow-1 mb-3">
-      {messages.map((msg, idx) => (
-        <MessageItem
-          key={`${msg.id || idx}-${msg.role}`}
-          msg={msg}
-          idx={idx}
-          speakingIdx={speakingIdx}
-          onSpeak={onSpeak}
-          onCopy={onCopy}
-          onRegenerate={onRegenerate}
-          onSwitchBranch={onSwitchBranch}
-          onOpenArtifact={onOpenArtifact}
-          streaming={streaming}
-        />
-      ))}
-
-      {streaming && (
-        <div className="message-bubble assistant">
-          <div className="message-header">
-            <span>🤖 Assistant</span>
-            <Badge bg="primary" className="ms-2">
-              генерація...
-            </Badge>
-          </div>
-          <div className="markdown-content">
-            {streamedText ? (
-              <ReactMarkdown components={{ code: CodeBlock }}>
-                {streamedText}
-              </ReactMarkdown>
-            ) : (
-              <div className="typing-indicator" />
-            )}
-          </div>
-        </div>
-      )}
-
-      <div ref={messagesEndRef} />
+      <VirtualFrame
+        data={messages}
+        alignToBottom
+        initialTopMostItemIndex={Math.max(0, messages.length - 1)}
+        followOutput={(atBottom) => (atBottom ? 'auto' : false)}
+        itemContent={(idx, msg) => (
+          <MessageItem
+            msg={msg}
+            idx={idx}
+            speakingIdx={speakingIdx}
+            onSpeak={onSpeak}
+            onCopy={onCopy}
+            onRegenerate={onRegenerate}
+            onSwitchBranch={onSwitchBranch}
+            onOpenArtifact={onOpenArtifact}
+            streaming={streaming}
+          />
+        )}
+        components={{
+          Footer: () => (streaming ? <StreamingBubble text={streamedText} /> : null),
+        }}
+      />
     </div>
   );
 });

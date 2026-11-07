@@ -1,7 +1,7 @@
 /**
  * React Query hooks for conversation list CRUD (paginated).
  */
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   useInfiniteQuery,
   useMutation,
@@ -33,12 +33,15 @@ export function useConversations() {
     () => query.data?.pages.flatMap((p) => p.items) ?? [],
     [query.data]
   );
+  const loadMore = useCallback(() => {
+    void query.fetchNextPage();
+  }, [query.fetchNextPage]);
 
   return {
     ...query,
     conversations,
     hasMore: Boolean(query.hasNextPage),
-    loadMore: () => query.fetchNextPage(),
+    loadMore,
   };
 }
 
@@ -108,8 +111,10 @@ export function useTogglePinConversation() {
 /** Invalidate conversation list after a chat turn that may create/update titles. */
 export function useInvalidateConversations() {
   const queryClient = useQueryClient();
-  return () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+    [queryClient]
+  );
 }
 
 /** Select first conversation when list loads and nothing is active. */

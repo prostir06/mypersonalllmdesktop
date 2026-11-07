@@ -42,15 +42,17 @@ const Dashboard: React.FC = () => {
 
   const selectConversation = useCallback(
     (id: string | number | null) => {
-      if (id == null) {
-        const next = new URLSearchParams(searchParams);
-        next.delete('conversation');
-        setSearchParams(next, { replace: true });
-        return;
-      }
-      setSearchParams({ conversation: String(id) }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          if (id == null) next.delete('conversation');
+          else next.set('conversation', String(id));
+          return next;
+        },
+        { replace: true }
+      );
     },
-    [searchParams, setSearchParams]
+    [setSearchParams]
   );
 
   const {
@@ -72,7 +74,7 @@ const Dashboard: React.FC = () => {
     selectConversation
   );
 
-  const handleNewConversation = async () => {
+  const handleNewConversation = useCallback(async () => {
     try {
       const created = await createConversation.mutateAsync(
         newConvTitle || 'Нова розмова'
@@ -84,15 +86,25 @@ const Dashboard: React.FC = () => {
       console.error('Failed to create conversation:', error);
       toast.error('Не вдалося створити розмову');
     }
-  };
+  }, [createConversation, newConvTitle, selectConversation]);
 
-  const handleDeleteConversation = (
-    convId: string | number,
-    e?: MouseEvent
-  ) => {
-    if (e) e.stopPropagation();
-    setDeleteTarget(convId);
-  };
+  const handleDeleteConversation = useCallback(
+    (convId: string | number, e?: MouseEvent) => {
+      if (e) e.stopPropagation();
+      setDeleteTarget(convId);
+    },
+    []
+  );
+
+  const openNewConversation = useCallback(() => setShowNewConvModal(true), []);
+
+  const onTogglePin = useCallback(
+    (id: string | number, e: MouseEvent) => {
+      e.stopPropagation();
+      togglePinMutation.mutate(id);
+    },
+    [togglePinMutation]
+  );
 
   const confirmDelete = async () => {
     if (deleteTarget == null) return;
@@ -110,19 +122,17 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const startRename = (
-    conv: { id: string | number; title?: string },
-    e: MouseEvent
-  ) => {
-    e.stopPropagation();
-    setRenamingId(conv.id);
-    setRenameTitle(conv.title || '');
-  };
+  const startRename = useCallback(
+    (conv: { id: string | number; title?: string }, e: MouseEvent) => {
+      e.stopPropagation();
+      setRenamingId(conv.id);
+      setRenameTitle(conv.title || '');
+    },
+    []
+  );
 
-  const saveRename = async (
-    convId: string | number,
-    e?: FormEvent | MouseEvent
-  ) => {
+  const saveRename = useCallback(
+    async (convId: string | number, e?: FormEvent | MouseEvent) => {
     e?.stopPropagation();
     const title = renameTitle.trim() || 'Новий чат';
     try {
@@ -133,7 +143,9 @@ const Dashboard: React.FC = () => {
       const ax = err as AxiosError<{ error?: string }>;
       toast.error(ax.response?.data?.error || 'Не вдалося перейменувати');
     }
-  };
+  },
+    [renameConversation, renameTitle]
+  );
 
   const onNewMessage = useCallback(
     (newId?: string | number) => {
@@ -161,11 +173,8 @@ const Dashboard: React.FC = () => {
           startRename={startRename}
           saveRename={saveRename}
           handleDeleteConversation={handleDeleteConversation}
-          onTogglePin={(id, e) => {
-            e.stopPropagation();
-            togglePinMutation.mutate(id);
-          }}
-          onNewConversation={() => setShowNewConvModal(true)}
+          onTogglePin={onTogglePin}
+          onNewConversation={openNewConversation}
         />
       </Col>
 

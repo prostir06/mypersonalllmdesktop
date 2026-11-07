@@ -1,8 +1,14 @@
 import React, { useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import MessageSearch from '../../components/MessageSearch';
+import VirtualFrame from '../../components/VirtualFrame';
 import { isSameConversation } from './isSameConversation';
 import type { Conversation } from '../../types/api';
+
+type SidebarRow =
+  | { key: string; kind: 'header'; label: string }
+  | { key: string; kind: 'conv'; conv: Conversation }
+  | { key: string; kind: 'more' };
 
 type Props = {
   conversations: Conversation[];
@@ -23,7 +29,7 @@ type Props = {
   onTogglePin?: (convId: string | number, e: MouseEvent) => void;
 };
 
-export default function DashboardSidebar({
+function DashboardSidebar({
   conversations,
   isLoading,
   hasMore,
@@ -53,6 +59,24 @@ export default function DashboardSidebar({
 
   const pinned = filteredConversations.filter((c) => Boolean(c.is_pinned));
   const others = filteredConversations.filter((c) => !c.is_pinned);
+
+  const rows = useMemo(() => {
+    const next: SidebarRow[] = [];
+    const pushConv = (conv: Conversation) =>
+      next.push({ key: `c-${conv.id}`, kind: 'conv', conv });
+    if (pinned.length > 0) {
+      next.push({ key: 'h-pinned', kind: 'header', label: '📌 Закріплені' });
+      pinned.forEach(pushConv);
+      if (others.length > 0) {
+        next.push({ key: 'h-recent', kind: 'header', label: '💬 Нещодавні' });
+        others.forEach(pushConv);
+      }
+    } else {
+      filteredConversations.forEach(pushConv);
+    }
+    if (hasMore && !searchTerm.trim()) next.push({ key: 'more', kind: 'more' });
+    return next;
+  }, [filteredConversations, hasMore, others, pinned, searchTerm]);
 
   const renderCard = (conv: Conversation) => {
     const isActive = isSameConversation(activeConversation, conv.id);
@@ -158,7 +182,7 @@ export default function DashboardSidebar({
       </div>
 
       <div
-        className="flex-grow-1 overflow-auto pr-1"
+        className="conversation-scroll flex-grow-1 pr-1"
         role="listbox"
         aria-label="Список розмов"
       >
@@ -175,41 +199,43 @@ export default function DashboardSidebar({
           <div className="text-center text-muted p-4">
             <small>Розмов не знайдено за запитом &quot;{searchTerm}&quot;</small>
           </div>
-        ) : pinned.length > 0 ? (
-          <>
-            <div className="small text-uppercase text-muted fw-bold px-2 py-1">
-              📌 Закріплені
-            </div>
-            {pinned.map(renderCard)}
-            {others.length > 0 && (
-              <>
-                <div className="small text-uppercase text-muted fw-bold px-2 py-1 mt-2">
-                  💬 Нещодавні
-                </div>
-                {others.map(renderCard)}
-              </>
-            )}
-          </>
         ) : (
-          filteredConversations.map(renderCard)
-        )}
-        {hasMore && !searchTerm.trim() && (
-          <div className="text-center py-2">
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              disabled={isFetchingNextPage}
-              onClick={() => loadMore()}
-            >
-              {isFetchingNextPage ? (
-                <Spinner animation="border" size="sm" />
-              ) : (
-                'Показати ще'
-              )}
-            </Button>
-          </div>
+          <VirtualFrame
+            data={rows}
+            computeItemKey={(_index, row) => row.key}
+            itemContent={(_index, row) => {
+              if (row.kind === 'header') {
+                return (
+                  <div className="small text-uppercase text-muted fw-bold px-2 py-1">
+                    {row.label}
+                  </div>
+                );
+              }
+              if (row.kind === 'more') {
+                return (
+                  <div className="text-center py-2">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      disabled={isFetchingNextPage}
+                      onClick={() => loadMore()}
+                    >
+                      {isFetchingNextPage ? (
+                        <Spinner animation="border" size="sm" />
+                      ) : (
+                        'Показати ще'
+                      )}
+                    </Button>
+                  </div>
+                );
+              }
+              return renderCard(row.conv);
+            }}
+          />
         )}
       </div>
     </div>
   );
 }
+
+export default React.memo(DashboardSidebar);
