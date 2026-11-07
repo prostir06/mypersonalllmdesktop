@@ -4,6 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
+| [2026-11-07-project-evolution-v20-optimization-and-docx-design.md](./2026-11-07-project-evolution-v20-optimization-and-docx-design.md) | Approved — W1 (Code optimization, 0 explicit `any`, module decomposition) & W2 (Full-cycle `.docx` artifacts: A4 preview, live editor, OOXML export, RAG open) |
 | [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | Implemented (W1–W5, tags v19.0–v19.4) — hot fixes, provider unification, multi-user, performance, dependencies/tests/CI |
 | [2026-11-04-theme-modernization-design.md](./2026-11-04-theme-modernization-design.md) | Implemented — Cyber Aura Nexus dark theme and Clean Minimalist light theme |
 | [2026-11-03-product-tour-design.md](./2026-11-03-product-tour-design.md) | Implemented — onboarding tour `v18.1` |
