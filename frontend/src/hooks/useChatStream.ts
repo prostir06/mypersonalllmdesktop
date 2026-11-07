@@ -3,6 +3,7 @@
  */
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type Dispatch,
@@ -65,6 +66,13 @@ export function useChatStream({
     [flushStreamText]
   );
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [conversationId]);
+
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -118,6 +126,7 @@ export function useChatStream({
 
       let sentOk = false;
       let currentStreamText = '';
+      let activeConversationId = conversationId;
       let inFlightAssistantIndex: number | undefined = opts.replaceAssistantIndex;
 
       const syncInFlightAssistant = () => {
@@ -183,6 +192,25 @@ export function useChatStream({
             }
           },
           (newConvId, ragStatus) => {
+            activeConversationId = newConvId;
+            if (!conversationId) {
+              queryClient.setQueryData<Message[]>(
+                queryKeys.history(newConvId),
+                (prev) => {
+                  const base = prev ?? [];
+                  const userMsg: Message = {
+                    role: 'user',
+                    content: userContent,
+                    created_at: new Date().toISOString(),
+                  };
+                  return base.some(
+                    (m) => m.role === 'user' && m.content === userContent
+                  )
+                    ? base
+                    : [...base, userMsg];
+                }
+              );
+            }
             if (!conversationId && onNewMessage) onNewMessage(newConvId);
             if (ragStatus === 'error') {
               toast.warn('Контекст RAG тимчасово недоступний');
@@ -304,20 +332,32 @@ export function useChatStream({
           rafRef.current = null;
         }
         setStreamedText('');
+        const assistantMsg: Message = {
+          role: 'assistant',
+          content: currentStreamText,
+          sources: doneSourcesRef.current,
+          tokenUsage: tokenUsageRef.current,
+          tool_trace:
+            toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
+          toolTrace:
+            toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
+          created_at: new Date().toISOString(),
+        };
+        if (!conversationId && activeConversationId != null) {
+          queryClient.setQueryData<Message[]>(
+            queryKeys.history(activeConversationId),
+            (prev) =>
+              appendOrReplaceAssistant(
+                prev ?? [],
+                assistantMsg,
+                inFlightAssistantIndex ?? opts.replaceAssistantIndex
+              )
+          );
+        }
         setMessages((prev) =>
           appendOrReplaceAssistant(
             prev,
-            {
-              role: 'assistant',
-              content: currentStreamText,
-              sources: doneSourcesRef.current,
-              tokenUsage: tokenUsageRef.current,
-              tool_trace:
-                toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-              toolTrace:
-                toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-              created_at: new Date().toISOString(),
-            },
+            assistantMsg,
             inFlightAssistantIndex ?? opts.replaceAssistantIndex
           )
         );
@@ -326,9 +366,10 @@ export function useChatStream({
         void queryClient.invalidateQueries({
           queryKey: queryKeys.conversations,
         });
-        if (conversationId) {
+        const historyId = activeConversationId ?? conversationId;
+        if (historyId != null && historyId !== '') {
           void queryClient.invalidateQueries({
-            queryKey: queryKeys.history(conversationId),
+            queryKey: queryKeys.history(historyId),
           });
         }
       } catch (err: unknown) {
