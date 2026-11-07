@@ -79,14 +79,27 @@ describe('Auth API (Prisma)', () => {
       .send({ email: 'a@b.com', password: 'Password1', name: 'Ada' });
 
     expect(res.status).toBe(201);
-    expect(res.body.userId).toBe(42);
-    expect(typeof res.body.token).toBe('string');
+    expect(res.body).toEqual({ ok: true });
+    expect(res.body.userId).toBeUndefined();
     expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
     expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
     expect(mockedPrisma.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ email: 'a@b.com', role: 'admin' }),
       select: { id: true },
     });
+  });
+
+  it('POST /register returns the same body when the email is already taken', async () => {
+    mockedPrisma.user.findUnique.mockResolvedValue({ id: 1, email: 'a@b.com' });
+
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'a@b.com', password: 'Password1', name: 'Ada' });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ ok: true });
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(mockedPrisma.user.create).not.toHaveBeenCalled();
   });
 
   it('POST /register stores a member when an admin email is configured', async () => {

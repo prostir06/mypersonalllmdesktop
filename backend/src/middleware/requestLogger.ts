@@ -13,7 +13,7 @@ function requestLogger(req: Request, res: Response, next: NextFunction): void {
     if (logged) return;
     logged = true;
     const elapsedMs = Math.max(0, Math.round(Number(process.hrtime.bigint() - started) / 1_000_000));
-    const url = req.originalUrl || req.url;
+    const url = req.path || '/';
     logger.child({ requestId }).info(`${req.method} ${url} ${res.statusCode} ${elapsedMs}ms`);
   };
 

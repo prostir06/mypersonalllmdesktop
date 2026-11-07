@@ -14,6 +14,10 @@ export const usersAPI = {
   getMe: (): Promise<AxiosResponse<UserProfile>> => api.get('/users/me'),
   updateMe: (data: UserUpdatePayload): Promise<AxiosResponse<UserProfile>> =>
     api.put('/users/me', data),
+  changePassword: (data: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<AxiosResponse<{ ok: boolean }>> => api.post('/users/me/password', data),
   listMemoryNotes: (): Promise<AxiosResponse<{ notes: UserMemoryNote[] }>> =>
     api.get('/users/me/memory-notes'),
   createMemoryNote: (

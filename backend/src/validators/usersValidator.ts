@@ -10,7 +10,9 @@ export const validateUserUpdate = [
     .isLength({ max: 255 }),
   body('email')
     .isEmail()
+    .normalizeEmail()
     .withMessage('Valid email is required')
     .isLength({ max: 255 }),
+  body('currentPassword').optional().isString(),
   handleValidationErrors,
 ];

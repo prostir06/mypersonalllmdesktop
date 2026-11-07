@@ -42,7 +42,7 @@ const mockedPrisma = prisma as unknown as {
 };
 
 function tokenFor(userId: number) {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
 }
 
 const sampleRow = {

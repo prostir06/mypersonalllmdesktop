@@ -16,7 +16,9 @@ import { isRegistrationAllowed } from '../utils/registrationGate';
 import { resolveRegistrationRole } from '../auth/roles';
 import { claimInvite, releaseInvite } from '../services/admin/invites';
 import { jsonError, jsonValidationErrors } from '../utils/httpJson';
+import { hashPii } from '../utils/pii';
 import type { AuthRequest } from '../types/express';
+import { jwtSignOptions } from '../auth/jwtClaims';
 
 class JwtSecretMissingError extends Error {
   constructor() {
@@ -38,7 +40,7 @@ function signAccessToken(userId: number): string {
   const expiresIn = (process.env.JWT_ACCESS_EXPIRE ||
     process.env.JWT_EXPIRE ||
     '15m') as SignOptions['expiresIn'];
-  return jwt.sign({ userId }, secret, { algorithm: 'HS256', expiresIn });
+  return jwt.sign({ userId }, secret, jwtSignOptions(expiresIn));
 }
 
 async function attachSession(res: Response, userId: number): Promise<string> {
@@ -87,7 +89,9 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      jsonError(res, req, 400, 'Користувач з таким email вже існує');
+      await bcrypt.hash(password, 12);
+      logger.info(`Registration ignored for existing email=${hashPii(email)}`);
+      res.status(201).json({ ok: true });
       return;
     }
 
@@ -116,9 +120,9 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
       throw error;
     }
 
-    const token = await attachSession(res, user.id);
-    logger.info(`New user registered: ${email} (id=${user.id})`);
-    res.status(201).json({ token, userId: user.id });
+    await attachSession(res, user.id);
+    logger.info(`New user registered: email=${hashPii(email)} id=${user.id}`);
+    res.status(201).json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /auth/register error: ${message}`);
@@ -154,7 +158,7 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
     }
 
     const token = await attachSession(res, user.id);
-    logger.info(`User logged in: ${email} (id=${user.id})`);
+    logger.info(`User logged in: email=${hashPii(email)} id=${user.id}`);
     res.json({ token, userId: user.id });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

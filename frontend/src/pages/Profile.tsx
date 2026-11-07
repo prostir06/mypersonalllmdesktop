@@ -10,9 +10,12 @@ import { useAuth } from '../context/AuthContext';
 import { gravatarUrl } from '../utils/gravatar';
 
 const Profile: React.FC = () => {
-  const { setUser } = useAuth();
+  const { setUser, logout } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [savedEmail, setSavedEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -27,6 +30,7 @@ const Profile: React.FC = () => {
         const data = response.data;
         setName(data.name || '');
         setEmail(data.email || '');
+        setSavedEmail(data.email || '');
         setUser(data);
       } catch (err) {
         if (cancelled) return;
@@ -47,12 +51,40 @@ const Profile: React.FC = () => {
     setSaving(true);
 
     try {
-      const response = await usersAPI.updateMe({ name, email });
+      const emailChanged = email.trim().toLowerCase() !== savedEmail.trim().toLowerCase();
+      const response = await usersAPI.updateMe({
+        name,
+        email,
+        ...(emailChanged ? { currentPassword } : {}),
+      });
       setUser(response.data);
+      setSavedEmail(response.data.email || email);
+      setCurrentPassword('');
       toast.success('Профіль оновлено! 👤');
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;
       const msg = ax.response?.data?.error || 'Помилка при збереженні';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePassword = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSaving(true);
+    try {
+      await usersAPI.changePassword({
+        currentPassword,
+        newPassword: nextPassword,
+      });
+      toast.success('Пароль змінено. Увійдіть знову.');
+      await logout();
+    } catch (err: unknown) {
+      const ax = err as AxiosError<{ error?: string }>;
+      const msg = ax.response?.data?.error || 'Не вдалося змінити пароль';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -141,6 +173,22 @@ const Profile: React.FC = () => {
               </Form.Group>
             </Col>
           </Row>
+          {email.trim().toLowerCase() !== savedEmail.trim().toLowerCase() && (
+            <Form.Group>
+              <Form.Label htmlFor="profile-current-password" className="small fw-semibold">
+                Поточний пароль
+              </Form.Label>
+              <Form.Control
+                id="profile-current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="bg-dark text-light border-secondary shadow-none"
+              />
+            </Form.Group>
+          )}
 
           <div className="d-flex gap-2">
             <Button
@@ -157,6 +205,35 @@ const Profile: React.FC = () => {
               )}
             </Button>
           </div>
+        </Form>
+      </div>
+
+      <div className="glass-panel p-4 mt-3">
+        <h6 className="fw-semibold mb-3">Зміна пароля</h6>
+        <Form onSubmit={handlePassword} className="d-flex flex-column gap-3">
+          <Form.Control
+            type="password"
+            aria-label="Поточний пароль для зміни"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Поточний пароль"
+            autoComplete="current-password"
+            className="bg-dark text-light border-secondary shadow-none"
+            required
+          />
+          <Form.Control
+            type="password"
+            aria-label="Новий пароль"
+            value={nextPassword}
+            onChange={(e) => setNextPassword(e.target.value)}
+            placeholder="Новий пароль"
+            autoComplete="new-password"
+            className="bg-dark text-light border-secondary shadow-none"
+            required
+          />
+          <Button type="submit" variant="outline-light" disabled={saving}>
+            Змінити пароль
+          </Button>
         </Form>
       </div>
     </Container>

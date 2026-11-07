@@ -9,6 +9,8 @@ import errorHandler from './middleware/errorHandler';
 import requestId from './middleware/requestId';
 import requestLogger from './middleware/requestLogger';
 import authRoutes from './routes/auth';
+import auth from './middleware/auth';
+import { chatRateKey, loginRateKey } from './middleware/rateKeys';
 import chatRoutes from './routes/chat';
 import modelsRoutes from './routes/models';
 import settingsRoutes from './routes/settings';
@@ -64,11 +66,22 @@ const authLimiter = rateLimit({
 const chatLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 30,
+  keyGenerator: (req) => chatRateKey(req),
   message: { error: 'Chat rate limit reached. Please slow down.' }
+});
+
+const loginEmailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 10 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => loginRateKey(req),
+  message: { error: 'Забагато спроб входу для цієї адреси. Спробуйте пізніше.' }
 });
 
 app.use('/api/', globalLimiter);
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/login', loginEmailLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
 app.use('/api/chat/send', chatLimiter);
@@ -85,28 +98,40 @@ app.use('/api/prompts', promptsRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/admin', adminRoutes);
 
-app.get('/api/health', async (_req: Request, res: Response) => {
-  const startTime = process.hrtime.bigint();
-
-  let dbStatus = 'ok';
-  let dbLatencyMs: number | null = null;
-
+async function pingDatabase(): Promise<'ok' | 'error'> {
   try {
-    const dbStart = Date.now();
     await prisma.$queryRaw`SELECT 1`;
-    dbLatencyMs = Date.now() - dbStart;
+    return 'ok';
   } catch (err) {
-    dbStatus = 'error';
     const message = err instanceof Error ? err.message : String(err);
     logger.warn(`Health check DB ping failed: ${message}`);
+    return 'error';
+  }
+}
+
+app.get('/api/health', async (_req: Request, res: Response) => {
+  const dbStatus = await pingDatabase();
+  res.status(dbStatus === 'ok' ? 200 : 503).json({
+    status: dbStatus === 'ok' ? 'OK' : 'DEGRADED',
+    db: dbStatus,
+  });
+});
+
+app.get('/api/health/details', auth, async (_req: Request, res: Response) => {
+  const startTime = process.hrtime.bigint();
+  const dbStatus = await pingDatabase();
+  let dbLatencyMs: number | null = null;
+  if (dbStatus === 'ok') {
+    dbLatencyMs = Number(process.hrtime.bigint() - startTime) / 1e6;
   }
 
   const memoryMb = process.memoryUsage();
   const uptimeSeconds = process.uptime();
   const responseTimeMs = Number(process.hrtime.bigint() - startTime) / 1e6;
 
-  const health = {
+  res.status(dbStatus === 'ok' ? 200 : 503).json({
     status: dbStatus === 'ok' ? 'OK' : 'DEGRADED',
+    db: dbStatus,
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
     uptime: {
@@ -115,7 +140,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
     },
     database: {
       status: dbStatus,
-      latencyMs: dbLatencyMs
+      latencyMs: dbLatencyMs === null ? null : Math.round(dbLatencyMs),
     },
     memory: {
       heapUsedMb: Math.round(memoryMb.heapUsed / 1024 / 1024),
@@ -123,9 +148,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
       rssMb: Math.round(memoryMb.rss / 1024 / 1024)
     },
     responseTimeMs: Math.round(responseTimeMs * 100) / 100
-  };
-
-  res.status(dbStatus === 'ok' ? 200 : 503).json(health);
+  });
 });
 
 app.use((req: Request, res: Response) => {

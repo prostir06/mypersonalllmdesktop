@@ -6,13 +6,14 @@ import Profile from './Profile';
 const setUserFn = vi.fn();
 
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ setUser: setUserFn }),
+  useAuth: () => ({ setUser: setUserFn, logout: vi.fn() }),
 }));
 
 vi.mock('../services/api', () => ({
   usersAPI: {
     getMe: vi.fn(),
     updateMe: vi.fn(),
+    changePassword: vi.fn(),
   },
 }));
 

@@ -20,6 +20,7 @@ export interface UserProfile {
 export interface UserUpdatePayload {
   name?: string;
   email?: string;
+  currentPassword?: string;
 }
 
 export interface Conversation {

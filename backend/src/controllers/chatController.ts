@@ -17,6 +17,7 @@ import {
   publicStreamErrorText,
 } from '../services/chat/httpHelpers';
 import { assertSharedKeyQuota } from '../services/usage/quota';
+import { hashPii } from '../utils/pii';
 import type { AuthRequest } from '../types/express';
 
 function respondChatError(
@@ -203,6 +204,7 @@ export async function searchMessages(
     return;
   }
   try {
+    logger.info(`GET /chat/search q=${hashPii(String(q))} requestId=${req.id || '-'}`);
     res.json(
       await ChatService.searchMessages(
         req.userId!,

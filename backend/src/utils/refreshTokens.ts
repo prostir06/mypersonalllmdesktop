@@ -102,3 +102,10 @@ export async function revokeRefreshToken(rawToken: string): Promise<void> {
     data: { revokedAt: new Date() },
   });
 }
+
+export async function revokeAllRefreshTokens(userId: number): Promise<void> {
+  await prisma.refreshToken.updateMany({
+    where: { userId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+}

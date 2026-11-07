@@ -42,6 +42,6 @@ describe('requestLogger', () => {
     expect(res.status).toBe(201);
     expect(seen).toBe(res.headers['x-request-id']);
     expect(child).toHaveBeenCalledWith({ requestId: seen });
-    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^GET \/ping\?x=1 201 \d+ms$/));
+    expect(info).toHaveBeenCalledWith(expect.stringMatching(/^GET \/ping 201 \d+ms$/));
   });
 });

@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import type { AuthRequest } from '../types/express';
 import { jsonError } from '../utils/httpJson';
 import logger from '../logger';
+import { jwtVerifyOptions } from '../auth/jwtClaims';
 
 const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
   try {
@@ -13,9 +14,9 @@ const auth = (req: AuthRequest, res: Response, next: NextFunction): void => {
       return;
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string, {
-      algorithms: ['HS256'],
-    }) as { userId: number };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string, jwtVerifyOptions()) as {
+      userId: number;
+    };
     req.userId = decoded.userId;
     next();
   } catch (err: unknown) {

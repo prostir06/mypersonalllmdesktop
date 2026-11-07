@@ -28,10 +28,16 @@ const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, name, invite || undefined);
-      login(response.data.token);
-      toast.success('Акаунт створено успішно! ✨');
-      navigate('/dashboard');
+      await authAPI.register(email, password, name, invite || undefined);
+      try {
+        const session = await authAPI.refresh();
+        login(session.data.token);
+        toast.success('Акаунт створено успішно! ✨');
+        navigate('/dashboard');
+      } catch {
+        toast.success('Якщо адреса вільна, акаунт створено. Увійдіть.');
+        navigate('/login');
+      }
     } catch (err: unknown) {
       const ax = err as AxiosError<{
         error?: string;

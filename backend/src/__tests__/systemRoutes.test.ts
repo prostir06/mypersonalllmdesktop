@@ -29,7 +29,7 @@ const mockGetSystemKnowledgeForUser = getSystemKnowledgeForUser as jest.MockedFu
 function createValidToken(userId = 42): string {
   return jwt.sign({ userId }, process.env.JWT_SECRET as string, {
     algorithm: 'HS256',
-    expiresIn: '1h',
+    expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api',
   });
 }
 

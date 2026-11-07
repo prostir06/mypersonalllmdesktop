@@ -36,13 +36,28 @@ describe('API Integration & Health Tests', () => {
 
     expect([200, 503]).toContain(res.statusCode);
 
-    expect(res.body).toHaveProperty('status');
-    expect(res.body).toHaveProperty('environment');
-    expect(res.body).toHaveProperty('timestamp');
-    expect(res.body).toHaveProperty('database');
+    expect(res.body).toEqual({
+      status: 'OK',
+      db: 'ok',
+    });
+    expect(res.body).not.toHaveProperty('memory');
+  });
+
+  it('GET /api/health/details requires a token and returns the full payload', async () => {
+    const jwt = require('jsonwebtoken');
+    const token = jwt.sign({ userId: 1 }, process.env.JWT_SECRET, {
+      expiresIn: '1h',
+      issuer: 'llm-assistant',
+      audience: 'llm-assistant-api',
+    });
+    const res = await request(app)
+      .get('/api/health/details')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty('memory');
-    expect(res.body).toHaveProperty('uptime');
-    expect(['OK', 'DEGRADED']).toContain(res.body.status);
+    expect(res.body).toHaveProperty('database');
+    expect(res.body.db).toBe('ok');
   });
 
   it('GET /api/unknown-endpoint should return 404', async () => {

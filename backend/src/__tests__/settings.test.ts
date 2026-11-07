@@ -73,7 +73,7 @@ describe('Settings API (Prisma)', () => {
   });
 
   it('GET with valid token and row returns snake_case including system_prompt', async () => {
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue({
       id: 1,
       userId: 9,
@@ -111,7 +111,7 @@ describe('Settings API (Prisma)', () => {
   });
 
   it('PUT upserts partial update and returns full snake_case row', async () => {
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue({
       id: 1,
       userId: 9,
@@ -153,7 +153,7 @@ describe('Settings API (Prisma)', () => {
   });
 
   it('PUT returns 400 for invalid temperature', async () => {
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
 
     const res = await request(app)
       .put('/api/settings')
@@ -167,7 +167,7 @@ describe('Settings API (Prisma)', () => {
 
   it('PUT encrypts openai_api_key and GET reports has_openai_api_key', async () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
     mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
       id: 2,
@@ -192,7 +192,7 @@ describe('Settings API (Prisma)', () => {
 
   it('PUT returns 400 when gemini_api_key is placeholder', async () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
 
     const res = await request(app)
       .put('/api/settings')
@@ -206,7 +206,7 @@ describe('Settings API (Prisma)', () => {
 
   it('PUT encrypts gemini_api_key and clear_gemini_api_key unsets it', async () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
     mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
       id: 2,
@@ -247,7 +247,7 @@ describe('Settings API (Prisma)', () => {
 
   it('PUT returns 400 when anthropic_api_key is placeholder', async () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
 
     const res = await request(app)
       .put('/api/settings')
@@ -261,7 +261,7 @@ describe('Settings API (Prisma)', () => {
 
   it('PUT encrypts anthropic_api_key and clear_anthropic_api_key unsets it', async () => {
     process.env.ENCRYPTION_KEY = Buffer.alloc(32, 9).toString('base64');
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
     mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
       id: 2,
@@ -301,7 +301,7 @@ describe('Settings API (Prisma)', () => {
   });
 
   it.each(['gemini', 'anthropic'])('PUT accepts %s as default_provider with 4096 max_tokens', async (provider) => {
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
     mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
       id: 2,
@@ -322,7 +322,7 @@ describe('Settings API (Prisma)', () => {
   });
 
   it('PUT updates tools_enabled flag and validates boolean type', async () => {
-    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: 9 }, process.env.JWT_SECRET, { expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api' });
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
     mockedPrisma.userSettings.upsert.mockImplementation(async (args: any) => ({
       id: 2,

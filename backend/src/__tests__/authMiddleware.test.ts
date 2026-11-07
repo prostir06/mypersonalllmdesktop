@@ -18,7 +18,7 @@ describe('auth middleware JWT algorithms', () => {
   it('accepts HS256 tokens', () => {
     const token = jwt.sign({ userId: 7 }, process.env.JWT_SECRET as string, {
       algorithm: 'HS256',
-      expiresIn: '1h',
+      expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api',
     });
     const req = {
       header: (name: string) =>
@@ -119,7 +119,7 @@ describe('optionalAuth middleware', () => {
   it('sets userId and calls next when token is valid', () => {
     const token = jwt.sign({ userId: 42 }, process.env.JWT_SECRET as string, {
       algorithm: 'HS256',
-      expiresIn: '1h',
+      expiresIn: '1h', issuer: 'llm-assistant', audience: 'llm-assistant-api',
     });
     const req = {
       header: (name: string) =>
