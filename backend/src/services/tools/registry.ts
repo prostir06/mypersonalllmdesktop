@@ -12,6 +12,7 @@ import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import userMemoryService from '../userMemoryService';
 import conversationMemoryService from '../conversationMemoryService';
 import WebSearchService from '../webSearch';
+import { wrapUntrustedDocument } from '../chat/untrusted';
 
 import { evaluateSafeMathExpression } from './safeMath';
 export { evaluateSafeMathExpression } from './safeMath';
@@ -86,12 +87,17 @@ export class ToolRegistry {
         return {
           query: queryText,
           count: safeChunks.length,
-          snippets: safeChunks.map((c) => `[${c.filename}] ${c.content}`).join('\n\n'),
+          snippets: safeChunks
+            .map((c) => wrapUntrustedDocument(String(c.filename), String(c.content)))
+            .join('\n\n'),
           sources: safeChunks.map((c) => ({
             filename: c.filename,
             similarity: typeof c.similarity === 'number' ? c.similarity : undefined,
           })),
-          results: safeChunks,
+          results: safeChunks.map((c) => ({
+            filename: c.filename,
+            similarity: typeof c.similarity === 'number' ? c.similarity : undefined,
+          })),
         };
       },
     });
@@ -145,7 +151,14 @@ export class ToolRegistry {
             });
           }
         }
-        return { userNotes, conversationNotes };
+        const wrapNote = (note: { content?: unknown }) => ({
+          ...note,
+          content: wrapUntrustedDocument('memory', String(note.content ?? '')),
+        });
+        return {
+          userNotes: userNotes.map(wrapNote),
+          conversationNotes: conversationNotes.map(wrapNote),
+        };
       },
     });
 

@@ -191,8 +191,14 @@ describe('ToolRegistry', () => {
           'financial report'
         );
         expect(result.count).toBe(2);
-        expect(result.snippets).toContain('[report.pdf] Chunk text 1');
-        expect(result.snippets).toContain('[notes.txt] Chunk text 2');
+        expect(result.snippets).toContain('<untrusted_document source="report.pdf">');
+        expect(result.snippets).toContain('Chunk text 1');
+        expect(result.snippets).toContain('<untrusted_document source="notes.txt">');
+        expect(result.snippets).toContain('Chunk text 2');
+        expect(result.results).toEqual([
+          { filename: 'report.pdf', similarity: 0.88 },
+          { filename: 'notes.txt', similarity: 0.75 },
+        ]);
         expect(result.sources).toEqual([
           { filename: 'report.pdf', similarity: 0.88 },
           { filename: 'notes.txt', similarity: 0.75 },
@@ -347,7 +353,10 @@ describe('ToolRegistry', () => {
           where: { conversationId: ctx.conversationId },
           orderBy: { createdAt: 'asc' },
         });
-        expect(result).toEqual({ userNotes, conversationNotes: convNotes });
+        expect(result.userNotes[0].content).toContain('User prefers concise answers');
+        expect(result.userNotes[0].content).toContain('<untrusted_document');
+        expect(result.conversationNotes[0].content).toContain('Discussing project evolution');
+        expect(result.conversationNotes[0].content).toContain('<untrusted_document');
       });
 
       it('omits conversation notes if include_conversation is false', async () => {

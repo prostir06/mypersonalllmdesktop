@@ -1178,8 +1178,8 @@ describe('ChatService', () => {
       const pinIdx = contents.findIndex((c) => c.includes('PIN'));
       const noteIdx = contents.findIndex((c) => c.includes('MEM_NOTE'));
       const summaryIdx = contents.findIndex((c) => c.includes('MEM_SUMMARY'));
-      const attachmentIdx = contents.findIndex((c) =>
-        c.includes('КОНТЕКСТ З ВКЛАДЕНЬ')
+      const attachmentIdx = contents.findIndex(
+        (c) => c.includes('<untrusted_document') && c.includes('hello file')
       );
       expect(pinIdx).toBeGreaterThanOrEqual(0);
       expect(noteIdx).toBeGreaterThan(pinIdx);

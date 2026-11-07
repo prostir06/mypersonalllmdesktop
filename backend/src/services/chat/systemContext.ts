@@ -10,6 +10,7 @@ import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
 import { modelSupportsTools } from '../../utils/modelCapabilities';
 import WebSearchService from '../webSearch';
+import { UNTRUSTED_DOCUMENT_DISCLAIMER, wrapUntrustedDocument } from './untrusted';
 
 export function buildDateTimeMessage(
   timezone = 'Europe/Kyiv',
@@ -150,11 +151,11 @@ export async function buildSystemContext(
     : [];
   if (attachments.length > 0) {
     const attachmentBlock = attachments
-      .map((a) => `--- [Вкладення: ${a.filename}] ---\n${a.content.trim()}`)
+      .map((a) => wrapUntrustedDocument(a.filename, a.content.trim()))
       .join('\n\n');
     systemMessages.push({
       role: 'system',
-      content: `📎 КОНТЕКСТ З ВКЛАДЕНЬ (лише для цього запиту):\n\n${attachmentBlock}`,
+      content: `${UNTRUSTED_DOCUMENT_DISCLAIMER}\n\n${attachmentBlock}`,
     });
   }
 
@@ -199,6 +200,7 @@ export async function buildSystemContext(
                 ? 'keyword (FTS)'
                 : 'fallback';
         const ragContextText = [
+          UNTRUSTED_DOCUMENT_DISCLAIMER,
           `📄 КОНТЕКСТ З ЗАВАНТАЖЕНИХ ДОКУМЕНТІВ (${searchMethod}):`,
           ...relevantChunks.map((c) => {
             const sheet = parseSheetName(c.content);
@@ -209,12 +211,7 @@ export async function buildSystemContext(
               ...(sheet ? { sheet } : {}),
             });
 
-            const similarityInfo =
-              c.similarity && c.similarity < 1
-                ? ` [relevance: ${(c.similarity * 100).toFixed(0)}%]`
-                : '';
-            const sheetInfo = sheet ? ` · ${sheet}` : '';
-            return `--- [Файл: ${c.filename}${sheetInfo}${similarityInfo}] ---\n${c.content}`;
+            return wrapUntrustedDocument(c.filename, c.content);
           }),
         ].join('\n\n');
 
