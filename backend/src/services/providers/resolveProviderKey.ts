@@ -3,8 +3,11 @@ import { decryptSecret, EncryptionConfigError } from '../../utils/secretCrypto';
 import { envClaudeKey } from '../../utils/claudeKeyResolver';
 import { envGeminiKey } from '../../utils/geminiKeyResolver';
 import { envOpenAiKey, isPlaceholderOpenAiKey } from '../../utils/openaiKeyResolver';
+import { sharedKeysAllowed } from '../usage/sharedKeys';
 
 type KeyedProvider = 'openai' | 'gemini' | 'anthropic';
+
+export type ProviderKeyDetail = { key: string | null; shared: boolean };
 
 const ENCRYPTED_FIELD = {
   openai: 'openaiApiKeyEnc',
@@ -43,16 +46,18 @@ async function loadPrisma() {
 }
 
 /**
- * User key for a chat provider, then the process env key.
- * Ollama has no key. Shared-key policy for W3 belongs here.
+ * User key for a chat provider, then the process env key when sharing is allowed.
+ * Ollama has no key. A user's own key is never marked shared.
  */
-export async function resolveProviderKey(
+export async function resolveProviderKeyDetail(
   userId: number,
   provider?: string | null
-): Promise<string | null> {
+): Promise<ProviderKeyDetail> {
   const name = normalizeProvider(provider);
-  if (name === 'ollama') return null;
-  if (name !== 'openai' && name !== 'gemini' && name !== 'anthropic') return null;
+  if (name === 'ollama') return { key: null, shared: false };
+  if (name !== 'openai' && name !== 'gemini' && name !== 'anthropic') {
+    return { key: null, shared: false };
+  }
   const keyed = name as KeyedProvider;
   const label = resolverLabel(keyed);
 
@@ -70,7 +75,9 @@ export async function resolveProviderKey(
     if (typeof encrypted === 'string' && encrypted.trim()) {
       try {
         const plain = decryptSecret(encrypted, userId);
-        if (plain && isUsableUserKey(keyed, plain)) return plain.trim();
+        if (plain && isUsableUserKey(keyed, plain)) {
+          return { key: plain.trim(), shared: false };
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         if (err instanceof EncryptionConfigError) {
@@ -85,5 +92,14 @@ export async function resolveProviderKey(
     logger.warn(`${label} settings load failed: ${message}`);
   }
 
-  return envKey(keyed);
+  if (!sharedKeysAllowed()) return { key: null, shared: false };
+  const key = envKey(keyed);
+  return { key, shared: Boolean(key) };
+}
+
+export async function resolveProviderKey(
+  userId: number,
+  provider?: string | null
+): Promise<string | null> {
+  return (await resolveProviderKeyDetail(userId, provider)).key;
 }

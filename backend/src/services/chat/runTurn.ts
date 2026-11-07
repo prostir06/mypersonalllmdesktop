@@ -3,6 +3,7 @@ import { defaultModelFor } from '../../config/models';
 import { writeSseEvent } from '../../utils/sse';
 import type { Response } from 'express';
 import { maybeRefreshSummary } from '../conversationMemoryService';
+import { assertSharedKeyQuota, recordUsage } from '../usage/quota';
 import { runToolOrchestratedTurn } from '../tools/orchestrator';
 import { prepareMessages } from './prepare';
 import { runPlainTurn } from './plainTurn';
@@ -24,6 +25,13 @@ export async function runTurn(
   const model = input.model || defaultModelFor(provider);
   const responseStream = mode.res || input.res;
   const toolsEnabled = prepared.options.toolsEnabled === true;
+  const sharedKey = prepared.options.sharedKey === true;
+
+  await assertSharedKeyQuota({
+    userId: input.userId,
+    provider,
+    sharedKey,
+  });
 
   const result = toolsEnabled
     ? await runToolOrchestratedTurn({
@@ -64,6 +72,19 @@ export async function runTurn(
   if (toolsEnabled && mode.stream && responseStream && result.tokenUsage) {
     writeSseEvent(responseStream as Response, 'token_usage', result.tokenUsage);
   }
+
+  await recordUsage({
+    userId: input.userId,
+    provider,
+    model,
+    promptTokens: result.tokenUsage?.promptTokens ?? 0,
+    completionTokens: result.tokenUsage?.completionTokens ?? 0,
+    costUsd:
+      typeof result.tokenUsage?.estimatedCostUsd === 'number'
+        ? result.tokenUsage.estimatedCostUsd
+        : 0,
+    sharedKey,
+  });
 
   void maybeRefreshSummary(input.userId, prepared.convId).catch((err) => {
     logger.warn(

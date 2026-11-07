@@ -11,8 +11,17 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+jest.mock('../utils/secretCrypto', () => ({
+  decryptSecret: jest.fn(),
+  EncryptionConfigError: class EncryptionConfigError extends Error {},
+}));
+
 import prisma from '../config/prisma';
-import { resolveProviderKey } from '../services/providers/resolveProviderKey';
+import { decryptSecret } from '../utils/secretCrypto';
+import {
+  resolveProviderKey,
+  resolveProviderKeyDetail,
+} from '../services/providers/resolveProviderKey';
 
 const findUnique = (prisma as unknown as {
   userSettings: { findUnique: jest.Mock };
@@ -65,5 +74,46 @@ describe('resolveProviderKey', () => {
     expect(findUnique).toHaveBeenCalledTimes(1);
 
     delete process.env.ANTHROPIC_API_KEY;
+  });
+
+  it('keeps a user key when shared env keys are disabled', async () => {
+    const previousNode = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_SHARED_PROVIDER_KEYS;
+    process.env.OPENAI_API_KEY = 'sk-from-env';
+    findUnique.mockResolvedValue({ openaiApiKeyEnc: 'enc' });
+    (decryptSecret as jest.Mock).mockReturnValue('sk-user-key');
+
+    try {
+      await expect(resolveProviderKeyDetail(3, 'openai')).resolves.toEqual({
+        key: 'sk-user-key',
+        shared: false,
+      });
+    } finally {
+      if (previousNode === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNode;
+    }
+  });
+
+  it('does not fall back to the env key in production unless sharing is enabled', async () => {
+    const previousNode = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    delete process.env.ALLOW_SHARED_PROVIDER_KEYS;
+    process.env.OPENAI_API_KEY = 'sk-from-env';
+    findUnique.mockResolvedValue(null);
+
+    try {
+      await expect(resolveProviderKey(3, 'openai')).resolves.toBeNull();
+
+      process.env.ALLOW_SHARED_PROVIDER_KEYS = 'true';
+      await expect(resolveProviderKeyDetail(3, 'openai')).resolves.toEqual({
+        key: 'sk-from-env',
+        shared: true,
+      });
+    } finally {
+      if (previousNode === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNode;
+      delete process.env.ALLOW_SHARED_PROVIDER_KEYS;
+    }
   });
 });

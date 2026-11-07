@@ -19,6 +19,7 @@ model User {
   email     String   @unique @db.VarChar(255)
   password  String   @db.VarChar(255)
   role      UserRole @default(member)
+  sharedKeyDailyLimitUsd Decimal? @map("shared_key_daily_limit_usd") @db.Decimal(12, 6)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -30,8 +31,27 @@ model User {
   userPrompts      UserPrompt[]
   userMemoryNotes  UserMemoryNote[]
   pendingToolActions PendingToolAction[]
+  usageLedger      UsageLedger[]
 
   @@map("users")
+}
+
+model UsageLedger {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  date             DateTime @db.Date
+  provider         String   @db.VarChar(50)
+  model            String   @db.VarChar(255)
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  costUsd          Decimal  @map("cost_usd") @db.Decimal(12, 6)
+  sharedKey        Boolean  @map("shared_key")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date, sharedKey], map: "idx_usage_ledger_user_day_shared")
+  @@map("usage_ledger")
 }
 
 model UserSettings {

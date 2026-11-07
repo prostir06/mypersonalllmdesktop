@@ -1,10 +1,11 @@
 import { Response } from 'express';
 import { jsonError } from '../../utils/httpJson';
+import { QUOTA_EXCEEDED_MESSAGE } from '../usage/sharedKeys';
 import type { AuthRequest } from '../../types/express';
 
 export function isChatError(
   error: unknown
-): error is Error & { statusCode: number } {
+): error is Error & { statusCode: number; code?: string } {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -48,5 +49,6 @@ export function publicErrorJson(
 }
 
 export function publicStreamErrorText(details: string): string {
+  if (details === QUOTA_EXCEEDED_MESSAGE) return details;
   return isProduction() ? 'Stream failed' : details;
 }

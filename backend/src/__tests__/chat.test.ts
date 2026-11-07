@@ -15,12 +15,19 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
+jest.mock('../services/usage/quota', () => ({
+  assertSharedKeyQuota: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../middleware/auth', () => (req: any, _res: any, next: any) => {
   req.userId = 1;
   next();
 });
 
 import ChatService from '../services/ChatService';
+import { assertSharedKeyQuota } from '../services/usage/quota';
+import { ChatError } from '../services/chat/types';
+import { QUOTA_EXCEEDED_CODE, QUOTA_EXCEEDED_MESSAGE } from '../services/usage/sharedKeys';
 import chatRouter from '../routes/chat';
 
 const mockedChat = ChatService as any;
@@ -30,7 +37,10 @@ app.use(express.json());
 app.use('/api/chat', chatRouter);
 
 describe('chat routes', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (assertSharedKeyQuota as jest.Mock).mockResolvedValue(undefined);
+  });
 
   it('POST /send 400 when message empty', async () => {
     const res = await request(app).post('/api/chat/send').send({ message: '' });
@@ -321,5 +331,23 @@ describe('chat routes', () => {
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/text\/event-stream/);
     expect(res.text).toContain('No provider configured');
+  });
+
+  it('POST /stream returns 429 JSON before SSE when the shared quota is spent', async () => {
+    (assertSharedKeyQuota as jest.Mock).mockRejectedValue(
+      new ChatError(429, QUOTA_EXCEEDED_MESSAGE, { code: QUOTA_EXCEEDED_CODE })
+    );
+
+    const res = await request(app)
+      .post('/api/chat/stream')
+      .send({ message: 'hi', provider: 'openai' });
+
+    expect(res.status).toBe(429);
+    expect(res.headers['content-type']).not.toMatch(/text\/event-stream/);
+    expect(res.body).toMatchObject({
+      error: QUOTA_EXCEEDED_MESSAGE,
+      code: QUOTA_EXCEEDED_CODE,
+    });
+    expect(mockedChat.streamMessage).not.toHaveBeenCalled();
   });
 });

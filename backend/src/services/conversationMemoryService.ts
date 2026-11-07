@@ -2,7 +2,8 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from './providerFactory';
 import { defaultModelFor } from '../config/models';
-import { resolveProviderKey } from './providers/resolveProviderKey';
+import { resolveProviderKeyDetail } from './providers/resolveProviderKey';
+import { assertSharedKeyQuota, recordUsage } from './usage/quota';
 import type { ChatMessage } from './chat/types';
 
 const summaryInFlight = new Set<number>();
@@ -228,13 +229,28 @@ export async function maybeRefreshSummary(
       },
     ];
 
-    const apiKey = await resolveProviderKey(userId, provider);
+    const detail = await resolveProviderKeyDetail(userId, provider);
+    if (detail.shared) {
+      await assertSharedKeyQuota({ userId, provider, sharedKey: true });
+    }
     const result = await ProviderFactory.sendMessage(
       provider,
       summarizeMessages,
       model,
-      apiKey ? { apiKey } : {}
+      detail.key ? { apiKey: detail.key } : {}
     );
+    await recordUsage({
+      userId,
+      provider,
+      model,
+      promptTokens: result?.tokenUsage?.promptTokens ?? 0,
+      completionTokens: result?.tokenUsage?.completionTokens ?? 0,
+      costUsd:
+        typeof result?.tokenUsage?.estimatedCostUsd === 'number'
+          ? result.tokenUsage.estimatedCostUsd
+          : 0,
+      sharedKey: detail.shared,
+    });
     const summary = truncate((result?.content || '').trim(), MAX_SUMMARY_CHARS);
     if (!summary) return { refreshed: false };
 

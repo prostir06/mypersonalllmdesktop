@@ -20,6 +20,13 @@ jest.mock('../config/prisma', () => ({
     userSettings: {
       findUnique: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    usageLedger: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { costUsd: 0 } }),
+      create: jest.fn().mockResolvedValue({ id: 1 }),
+    },
   },
 }));
 
@@ -207,7 +214,10 @@ describe('conversationMemoryService', () => {
   });
 
   it('sends the user Gemini key and ignores a second refresh while one is running', async () => {
-    jest.spyOn(providerKeys, 'resolveProviderKey').mockResolvedValue('gem-user');
+    jest.spyOn(providerKeys, 'resolveProviderKeyDetail').mockResolvedValue({
+      key: 'gem-user',
+      shared: false,
+    });
     mockedPrisma.message.findMany.mockResolvedValue([{ role: 'user', content: 'факт' }]);
     mockedPrisma.userSettings.findUnique.mockResolvedValue({
       defaultProvider: 'gemini',

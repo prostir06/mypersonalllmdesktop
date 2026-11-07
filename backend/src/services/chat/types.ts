@@ -1,9 +1,15 @@
 export class ChatError extends Error {
   statusCode: number;
+  code?: string;
 
-  constructor(statusCode: number, message: string, options?: ErrorOptions) {
+  constructor(
+    statusCode: number,
+    message: string,
+    options?: ErrorOptions & { code?: string }
+  ) {
     super(message, options);
     this.statusCode = statusCode;
+    this.code = options?.code;
     this.name = 'ChatError';
   }
 }
@@ -16,6 +22,7 @@ export type ChatOptions = {
   activeBranchIds?: Record<number, number>;
   attachments?: Array<{ filename: string; content: string }>;
   apiKey?: string;
+  sharedKey?: boolean;
   enableWebSearch?: boolean;
   activeProvider?: string;
   activeModel?: string;

@@ -77,28 +77,33 @@ export function buildChatRequestOptions(args: {
 }
 
 export function mapChatError(rawMessage: string | undefined | null): string {
-  const source = (rawMessage || '').toLowerCase();
+  const source = rawMessage || '';
+  if (source.includes('Ліміт на сьогодні вичерпано')) {
+    return 'Ліміт на сьогодні вичерпано — додайте власний ключ';
+  }
+
+  const lowered = source.toLowerCase();
 
   if (
-    source.includes('api key') ||
-    source.includes('unauthorized') ||
-    source.includes('401')
+    lowered.includes('api key') ||
+    lowered.includes('unauthorized') ||
+    lowered.includes('401')
   ) {
     return 'Невірний або відсутній API ключ. Перевірте Налаштування AI.';
   }
 
   if (
-    source.includes('network') ||
-    source.includes('timeout') ||
-    source.includes('econn') ||
-    source.includes('fetch failed')
+    lowered.includes('network') ||
+    lowered.includes('timeout') ||
+    lowered.includes('econn') ||
+    lowered.includes('fetch failed')
   ) {
     return 'Проблема з мережею або таймаутом. Спробуйте ще раз.';
   }
 
   if (
-    source.includes('model') &&
-    (source.includes('not found') || source.includes('unavailable'))
+    lowered.includes('model') &&
+    (lowered.includes('not found') || lowered.includes('unavailable'))
   ) {
     return 'Обрана модель недоступна. Змініть модель у Налаштуваннях AI.';
   }

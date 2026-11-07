@@ -1,5 +1,6 @@
 jest.mock('../services/providers/resolveProviderKey', () => ({
   resolveProviderKey: jest.fn(),
+  resolveProviderKeyDetail: jest.fn(),
 }));
 
 jest.mock('../services/ollama/showCapabilities', () => ({
@@ -41,7 +42,7 @@ import {
   publicErrorJson,
 } from '../services/chat/httpHelpers';
 import { prepareMessages } from '../services/chat/prepare';
-import { resolveProviderKey } from '../services/providers/resolveProviderKey';
+import { resolveProviderKey, resolveProviderKeyDetail } from '../services/providers/resolveProviderKey';
 import { sendMessage, streamMessage } from '../controllers/chatController';
 import ChatService from '../services/ChatService';
 import type { AuthRequest } from '../types/express';
@@ -81,6 +82,12 @@ describe('chat httpHelpers', () => {
 describe('prepareMessages Gemini integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (resolveProviderKeyDetail as jest.Mock).mockImplementation(
+      async (userId: number, provider?: string) => ({
+        key: await (resolveProviderKey as jest.Mock)(userId, provider),
+        shared: false,
+      })
+    );
     (resolveProviderKey as jest.Mock).mockResolvedValue(null);
   });
 

@@ -1,6 +1,6 @@
 import prisma from '../../config/prisma';
 import { assertChatImage } from '../../utils/chatImage';
-import { resolveProviderKey } from '../providers/resolveProviderKey';
+import { resolveProviderKeyDetail } from '../providers/resolveProviderKey';
 import {
   linearHistoryUpTo,
   toProviderMessages,
@@ -165,8 +165,9 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
 
   if (options.image) delete options.image;
 
-  const apiKey = await resolveProviderKey(input.userId, input.provider);
-  if (apiKey) options.apiKey = apiKey;
+  const resolvedKey = await resolveProviderKeyDetail(input.userId, input.provider);
+  if (resolvedKey.key) options.apiKey = resolvedKey.key;
+  options.sharedKey = resolvedKey.shared;
 
   const dateTimeMessage = buildDateTimeMessage(
     typeof options.timezone === 'string' ? options.timezone : undefined

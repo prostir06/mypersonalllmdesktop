@@ -31,6 +31,12 @@ describe('mapChatError', () => {
     );
   });
 
+  it('keeps the shared-key quota message', () => {
+    expect(mapChatError('Ліміт на сьогодні вичерпано — додайте власний ключ')).toBe(
+      'Ліміт на сьогодні вичерпано — додайте власний ключ'
+    );
+  });
+
   it('maps network failures to retry-friendly message', () => {
     expect(mapChatError('network timeout')).toContain('Спробуйте ще раз');
   });

@@ -15,6 +15,13 @@ jest.mock('../config/prisma', () => ({
     userSettings: {
       findUnique: jest.fn(),
     },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    usageLedger: {
+      aggregate: jest.fn().mockResolvedValue({ _sum: { costUsd: 0 } }),
+      create: jest.fn().mockResolvedValue({ id: 1 }),
+    },
     userPrompt: {
       findMany: jest.fn(),
     },

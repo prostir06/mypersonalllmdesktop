@@ -16,6 +16,7 @@ import {
   publicErrorJson,
   publicStreamErrorText,
 } from '../services/chat/httpHelpers';
+import { assertSharedKeyQuota } from '../services/usage/quota';
 import type { AuthRequest } from '../types/express';
 
 function respondChatError(
@@ -25,7 +26,13 @@ function respondChatError(
   public500: string
 ): void {
   if (isChatError(error)) {
-    jsonError(res, req, error.statusCode, error.message);
+    jsonError(
+      res,
+      req,
+      error.statusCode,
+      error.message,
+      error.code ? { code: error.code } : {}
+    );
     return;
   }
   const message = error instanceof Error ? error.message : String(error);
@@ -41,6 +48,7 @@ export async function sendMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
     if (!validateChatMessage(message, req, res)) return;
+    await assertSharedKeyQuota({ userId: req.userId!, provider });
     const enableWebSearch =
       req.body.enableWebSearch !== undefined
         ? req.body.enableWebSearch
@@ -78,6 +86,7 @@ export async function streamMessage(
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
     if (!validateChatMessage(message, req, res)) return;
+    await assertSharedKeyQuota({ userId: req.userId!, provider });
     stopPing = beginSseStream(res);
     const enableWebSearch =
       req.body.enableWebSearch !== undefined
@@ -145,7 +154,13 @@ export async function streamMessage(
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`Error in streamMessage: ${message} requestId=${req.id || '-'}`);
     if (isChatError(error) && !res.headersSent) {
-      jsonError(res, req, error.statusCode, error.message);
+      jsonError(
+        res,
+        req,
+        error.statusCode,
+        error.message,
+        error.code ? { code: error.code } : {}
+      );
       return;
     }
     if (!res.headersSent) {
