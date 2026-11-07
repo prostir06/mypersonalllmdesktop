@@ -125,6 +125,7 @@ export function useChatStream({
       setStreaming(true);
 
       let sentOk = false;
+      let receivedStreamByte = false;
       let currentStreamText = '';
       let activeConversationId = conversationId;
       let inFlightAssistantIndex: number | undefined = opts.replaceAssistantIndex;
@@ -176,6 +177,7 @@ export function useChatStream({
           selectedProvider,
           requestOptions,
           (token) => {
+            receivedStreamByte = true;
             currentStreamText += token;
             queueStreamToken(token);
             if (inFlightAssistantIndex !== undefined) {
@@ -231,6 +233,7 @@ export function useChatStream({
           },
           {
             onToolCall: (payload) => {
+              receivedStreamByte = true;
               const toolName = payload.name || payload.tool || 'tool';
               const args = payload.args || {};
               const existingIdx = payload.id
@@ -258,6 +261,7 @@ export function useChatStream({
               syncInFlightAssistant();
             },
             onToolResult: (payload) => {
+              receivedStreamByte = true;
               const toolName = payload.name || payload.tool;
               const existingIdx = payload.id
                 ? toolTraceRef.current.findIndex(
@@ -295,6 +299,7 @@ export function useChatStream({
               syncInFlightAssistant();
             },
             onToolConfirmationRequired: (payload) => {
+              receivedStreamByte = true;
               const newEntry: ToolTraceEntry = {
                 tool: payload.toolName,
                 args: (payload as any).toolArgs || (payload as any).args || {},
@@ -414,7 +419,12 @@ export function useChatStream({
           return;
         }
 
-        console.warn('Stream failed, falling back to /send:', err);
+        if (receivedStreamByte) {
+          setError(mapChatError(err instanceof Error ? err.message : String(err)));
+          return;
+        }
+
+        console.warn('Stream failed before any byte, falling back to /send:', err);
         try {
           const response = await chatAPI.sendMessage(
             conversationId,

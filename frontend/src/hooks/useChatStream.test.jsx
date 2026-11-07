@@ -233,7 +233,7 @@ describe('useChatStream', () => {
       sources: [{ filename: 'b.md', similarity: 0.77 }],
     });
     expect(warn).toHaveBeenCalledWith(
-      'Stream failed, falling back to /send:',
+      'Stream failed before any byte, falling back to /send:',
       expect.any(Error)
     );
     warn.mockRestore();
