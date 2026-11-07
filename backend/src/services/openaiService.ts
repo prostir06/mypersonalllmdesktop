@@ -34,6 +34,12 @@ type ProviderOptions = {
   [key: string]: unknown;
 };
 
+type RawOpenAiToolCall = {
+  id: string;
+  type?: string;
+  function?: { name: string; arguments: string };
+};
+
 function clientFor(options: ProviderOptions): OpenAI {
   const apiKey =
     typeof options.apiKey === 'string' &&
@@ -127,12 +133,12 @@ async function sendOpenAIMessage(
     const rawToolCalls = choice?.message?.tool_calls;
     let toolCalls: NormalizedToolCall[] | undefined;
     if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
-      toolCalls = rawToolCalls
-        .filter((tc: any) => tc.type === 'function' && tc.function)
-        .map((tc: any) => ({
+      toolCalls = (rawToolCalls as RawOpenAiToolCall[])
+        .filter((tc: RawOpenAiToolCall) => tc.type === 'function' && tc.function)
+        .map((tc: RawOpenAiToolCall) => ({
           id: tc.id,
-          name: tc.function.name,
-          argumentsJson: tc.function.arguments,
+          name: tc.function!.name,
+          argumentsJson: tc.function!.arguments,
         }));
     }
 

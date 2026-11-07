@@ -93,13 +93,17 @@ export async function searchTavily(
     if (axios.isAxiosError(err)) {
       const status = err.response?.status;
       const data = err.response?.data as Record<string, unknown> | undefined;
+      const detailObj =
+        data?.detail && typeof data.detail === 'object'
+          ? (data.detail as Record<string, unknown>)
+          : undefined;
       const detail =
         (data &&
           typeof data === 'object' &&
           (typeof data.error === 'string'
             ? data.error
-            : typeof (data.detail as any)?.error === 'string'
-              ? (data.detail as any).error
+            : typeof detailObj?.error === 'string'
+              ? detailObj.error
               : typeof data.detail === 'string'
                 ? data.detail
                 : typeof data.message === 'string'

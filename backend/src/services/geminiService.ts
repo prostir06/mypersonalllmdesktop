@@ -71,32 +71,53 @@ function isInvalidGeminiKey(error: { status?: number; message?: string }): boole
   );
 }
 
-function mapGeminiError(error: any, logLabel: string, fallbackPrefix: string): never {
+type GroundingChunk = { web?: { uri?: string; title?: string } };
+
+type GeminiCandidateWithGrounding = {
+  finishReason?: string;
+  content?: {
+    parts?: Array<{
+      functionCall?: { id?: string; name?: string; args?: unknown };
+    }>;
+  };
+  groundingMetadata?: {
+    groundingChunks?: GroundingChunk[];
+  };
+};
+
+type GeminiResponseWithCandidates = {
+  functionCalls?: () => Array<{ id?: string; name?: string; args?: unknown }> | undefined;
+  candidates?: GeminiCandidateWithGrounding[];
+};
+
+function mapGeminiError(error: unknown, logLabel: string, fallbackPrefix: string): never {
+  const errObj = (error && typeof error === 'object' ? error : {}) as {
+    code?: string;
+    status?: number;
+    message?: string;
+  };
   if (
     isAbortOrCallbackError(error) ||
     isAbortError(error) ||
-    error?.code === 'ERR_CANCELED' ||
+    errObj.code === 'ERR_CANCELED' ||
     error instanceof ChatError
   ) {
     throw error;
   }
-  logger.error(`${logLabel}: ${error?.message || error}`);
-  if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+  logger.error(`${logLabel}: ${errObj.message || String(error)}`);
+  if (errObj.status === 429 || errObj.message?.includes('RESOURCE_EXHAUSTED')) {
     throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.', { cause: error });
   }
-  if (isInvalidGeminiKey(error)) {
+  if (isInvalidGeminiKey(errObj)) {
     throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.', { cause: error });
   }
-  if (error?.status === 400) {
-    throw new ChatError(400, `Некоректний запит до Gemini: ${error?.message || 'невідома причина'}`, { cause: error });
+  if (errObj.status === 400) {
+    throw new ChatError(400, `Некоректний запит до Gemini: ${errObj.message || 'невідома причина'}`, { cause: error });
   }
-  throw new ChatError(500, `${fallbackPrefix}: ${error?.message || 'Невідома помилка'}`, { cause: error });
+  throw new ChatError(500, `${fallbackPrefix}: ${errObj.message || 'Невідома помилка'}`, { cause: error });
 }
 
-function collectResponseToolCalls(response: {
-  functionCalls?: () => Array<{ id?: string; name?: string; args?: unknown }> | undefined;
-  candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { id?: string; name?: string; args?: unknown } }> } }>;
-}): NormalizedToolCall[] {
+function collectResponseToolCalls(response: GeminiResponseWithCandidates): NormalizedToolCall[] {
   const toolCalls: NormalizedToolCall[] = [];
   const parts = response.candidates?.[0]?.content?.parts;
   if (Array.isArray(parts)) {
@@ -137,21 +158,22 @@ async function sendGeminiMessage(
   const { contents, config } = buildGeminiPayload(messages, options);
 
   try {
-    const response = await ai.models.generateContent({
+    const requestParams = {
       model,
-      contents: contents as any,
-      config: config as any,
-    });
+      contents,
+      config,
+    } as unknown as Parameters<typeof ai.models.generateContent>[0];
+    const response = await ai.models.generateContent(requestParams);
 
-    const candidate = response.candidates?.[0];
+    const candidate = response.candidates?.[0] as unknown as GeminiCandidateWithGrounding | undefined;
     let text = response.text || '';
     if (candidate?.finishReason === 'SAFETY') {
       text = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
     }
 
-    const toolCalls = collectResponseToolCalls(response as any);
+    const toolCalls = collectResponseToolCalls(response as unknown as GeminiResponseWithCandidates);
 
-    const groundingChunks = (candidate as any)?.groundingMetadata?.groundingChunks;
+    const groundingChunks = candidate?.groundingMetadata?.groundingChunks;
     const sources = formatGroundingSources(groundingChunks);
 
     const tokenUsage = formatGeminiTokenUsage(response.usageMetadata, model);
@@ -163,7 +185,7 @@ async function sendGeminiMessage(
       model,
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     mapGeminiError(error, 'Gemini send error', 'Помилка Gemini API');
   }
 }
@@ -193,16 +215,17 @@ async function streamGeminiMessage(
   const { contents, config } = buildGeminiPayload(messages, options);
 
   try {
-    const responseStream = await ai.models.generateContentStream({
+    const requestStreamParams = {
       model,
-      contents: contents as any,
-      config: config as any,
-    });
+      contents,
+      config,
+    } as unknown as Parameters<typeof ai.models.generateContentStream>[0];
+    const responseStream = await ai.models.generateContentStream(requestStreamParams);
 
     let fullText = '';
-    let finalGroundingChunks: any[] = [];
+    let finalGroundingChunks: GroundingChunk[] = [];
     let isSafetyBlocked = false;
-    let finalUsageMetadata: any = undefined;
+    let finalUsageMetadata: Parameters<typeof formatGeminiTokenUsage>[0] = undefined;
     const toolCalls: NormalizedToolCall[] = [];
 
     for await (const chunk of responseStream) {
@@ -216,13 +239,13 @@ async function streamGeminiMessage(
         finalUsageMetadata = chunk.usageMetadata;
       }
 
-      const candidate = chunk.candidates?.[0];
+      const candidate = chunk.candidates?.[0] as unknown as GeminiCandidateWithGrounding | undefined;
       if (candidate?.finishReason === 'SAFETY') {
         isSafetyBlocked = true;
       }
 
       if (candidate?.content?.parts) {
-        for (const part of candidate.content.parts as any[]) {
+        for (const part of candidate.content.parts) {
           if (part.functionCall) pushGeminiToolCall(toolCalls, part.functionCall);
         }
       }
@@ -234,7 +257,7 @@ async function streamGeminiMessage(
           logger.error(`Помилка в onChunk коллбеку: ${msg}`);
         });
       }
-      const chunks = (candidate as any)?.groundingMetadata?.groundingChunks;
+      const chunks = candidate?.groundingMetadata?.groundingChunks;
       if (Array.isArray(chunks) && chunks.length > 0) {
         finalGroundingChunks = chunks;
       }
@@ -259,7 +282,7 @@ async function streamGeminiMessage(
       model,
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     mapGeminiError(error, 'Gemini stream error', 'Помилка стрімінгу Gemini');
   }
 }

@@ -20,12 +20,19 @@ import {
   formatClaudeMessages,
 } from './claude/formatters';
 
-function handleClaudeError(error: any, signal?: AbortSignal): never {
+function handleClaudeError(error: unknown, signal?: AbortSignal): never {
+  const errObj = (error && typeof error === 'object' ? error : {}) as {
+    name?: string;
+    code?: string;
+    status?: number;
+    statusCode?: number;
+    message?: string;
+  };
   if (
     isAbortOrCallbackError(error) ||
     isAbortError(error) ||
-    error?.name === 'APIUserAbortError' ||
-    error?.code === 'ERR_CANCELED' ||
+    errObj.name === 'APIUserAbortError' ||
+    errObj.code === 'ERR_CANCELED' ||
     signal?.aborted
   ) {
     const err = new Error('Generation stopped by user');
@@ -37,10 +44,10 @@ function handleClaudeError(error: any, signal?: AbortSignal): never {
     throw error;
   }
 
-  logger.error(`Claude error: ${error?.message || error}`);
+  logger.error(`Claude error: ${errObj.message || String(error)}`);
 
-  const status = error?.status || error?.statusCode;
-  const message = error?.message || '';
+  const status = errObj.status || errObj.statusCode;
+  const message = errObj.message || '';
 
   if (
     status === 401 ||
@@ -141,14 +148,15 @@ export async function sendClaudeMessage(
   }
 
   try {
-    const response = await client.messages.create({
+    const createParams: Anthropic.Messages.MessageCreateParamsNonStreaming & { temperature?: number } = {
       model,
       max_tokens: maxTokens,
       temperature,
       messages: formattedMessages,
       ...(system ? { system } : {}),
       ...(claudeTools ? { tools: claudeTools } : {}),
-    } as any);
+    };
+    const response = await client.messages.create(createParams);
 
     let text = '';
     const toolCalls: NormalizedToolCall[] = [];
@@ -175,7 +183,7 @@ export async function sendClaudeMessage(
       model: response.model || model,
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleClaudeError(error, signal);
   }
 }
@@ -215,23 +223,24 @@ export async function streamClaudeMessage(
     }));
   }
 
-  let stream: any;
+  let stream: ReturnType<typeof client.messages.stream> | undefined;
   let abortHandler: (() => void) | undefined;
 
   try {
-    stream = client.messages.stream({
+    const streamParams: Anthropic.Messages.MessageStreamParams & { temperature?: number } = {
       model,
       max_tokens: maxTokens,
       temperature,
       messages: formattedMessages,
       ...(system ? { system } : {}),
       ...(claudeTools ? { tools: claudeTools } : {}),
-    } as any);
+    };
+    stream = client.messages.stream(streamParams);
 
     if (signal) {
       abortHandler = () => {
         try {
-          stream.controller.abort();
+          stream?.controller.abort();
         } catch (abortErr: unknown) {
           const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
           logger.warn(`Failed to abort Claude stream: ${message}`);
@@ -250,7 +259,7 @@ export async function streamClaudeMessage(
           });
         } catch (cbError: unknown) {
           try {
-            stream.controller.abort();
+            stream?.controller.abort();
           } catch (abortErr: unknown) {
             // Best-effort abort to prevent runaway streaming on broken callback
             const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
@@ -289,7 +298,7 @@ export async function streamClaudeMessage(
       model: finalMessage.model || model,
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return handleClaudeError(error, signal);
   } finally {
     if (signal && abortHandler) {

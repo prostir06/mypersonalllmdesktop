@@ -143,8 +143,8 @@ export async function streamMessage(
       sources: result.sources,
       ...(result.tokenUsage ? { tokenUsage: result.tokenUsage, token_usage: result.tokenUsage } : {}),
       ...(result.ragStatus ? { ragStatus: result.ragStatus } : {}),
-      ...((result as any).toolTrace ? { toolTrace: (result as any).toolTrace } : {}),
-      ...((result as any).status ? { status: (result as any).status } : {}),
+      ...(result.toolTrace ? { toolTrace: result.toolTrace } : {}),
+      ...(result.status ? { status: result.status } : {}),
     });
     res.end();
   } catch (error: unknown) {
@@ -229,7 +229,7 @@ export async function approveToolAction(
   _next?: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.userId ?? (req as any).user?.id;
+    const userId = req.userId ?? (req as AuthRequest & { user?: { id?: number } }).user?.id;
     if (!userId) {
       jsonError(res, req, 401, 'Unauthorized');
       return;
@@ -254,7 +254,7 @@ export async function rejectToolAction(
   _next?: NextFunction
 ): Promise<void> {
   try {
-    const userId = req.userId ?? (req as any).user?.id;
+    const userId = req.userId ?? (req as AuthRequest & { user?: { id?: number } }).user?.id;
     if (!userId) {
       jsonError(res, req, 401, 'Unauthorized');
       return;

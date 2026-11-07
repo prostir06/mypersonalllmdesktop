@@ -34,8 +34,21 @@ export function formatClaudeTokenUsage(
   );
 }
 
+export type ClaudeMessageInput = {
+  role: string;
+  content?: unknown;
+  tool_call_id?: string;
+  id?: string;
+  tool_calls?: Array<{
+    id?: string;
+    name?: string;
+    argumentsJson?: string | Record<string, unknown>;
+    function?: { name?: string; arguments?: string | Record<string, unknown> };
+  }>;
+};
+
 export function formatClaudeMessages(
-  messages: Array<{ role: string; content?: unknown }>,
+  messages: ClaudeMessageInput[],
   options: Record<string, unknown> = {}
 ): {
   messages: Anthropic.Messages.MessageParam[];
@@ -54,7 +67,7 @@ export function formatClaudeMessages(
     }
 
     if (msg.role === 'tool') {
-      const toolUseId = (msg as any).tool_call_id || (msg as any).id || 'tool_call';
+      const toolUseId = msg.tool_call_id || msg.id || 'tool_call';
       const rawContent = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content ?? {});
       const toolResultBlock: Anthropic.Messages.ToolResultBlockParam = {
         type: 'tool_result',
@@ -64,7 +77,7 @@ export function formatClaudeMessages(
       if (formatted.length > 0 && formatted[formatted.length - 1].role === 'user') {
         const prev = formatted[formatted.length - 1];
         if (Array.isArray(prev.content)) {
-          (prev.content as any[]).push(toolResultBlock);
+          (prev.content as Anthropic.Messages.ContentBlockParam[]).push(toolResultBlock);
         } else {
           prev.content = [{ type: 'text', text: String(prev.content) }, toolResultBlock];
         }
@@ -106,8 +119,8 @@ export function formatClaudeMessages(
       }
     }
 
-    if (msg.role === 'assistant' && (msg as any).tool_calls && Array.isArray((msg as any).tool_calls)) {
-      for (const tc of (msg as any).tool_calls) {
+    if (msg.role === 'assistant' && msg.tool_calls && Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
         let input: Record<string, unknown>;
         try {
           input = typeof tc.function?.arguments === 'string'
@@ -122,7 +135,7 @@ export function formatClaudeMessages(
         contentBlocks.push({
           type: 'tool_use',
           id: tc.id || tc.function?.name || 'tool_use',
-          name: tc.function?.name || tc.name,
+          name: tc.function?.name || tc.name || '',
           input,
         });
       }

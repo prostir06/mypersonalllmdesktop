@@ -44,6 +44,13 @@ type ProviderOptions = {
   [key: string]: unknown;
 };
 
+type RawOllamaToolCall = {
+  id?: string;
+  name?: string;
+  type?: string;
+  function?: { name?: string; arguments?: unknown };
+};
+
 async function resolveOllamaUrl(ollama_host?: string): Promise<string> {
   const raw = ollama_host || DEFAULT_OLLAMA_API_URL;
   return (await assertAllowedHttpUrlWithDns(raw)).href;
@@ -165,11 +172,11 @@ async function sendOllamaMessage(
     const rawToolCalls = choice?.message?.tool_calls;
     let toolCalls: NormalizedToolCall[] | undefined;
     if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
-      toolCalls = rawToolCalls
-        .filter((tc: any) => tc.function || tc.type === 'function')
-        .map((tc: any) => ({
+      toolCalls = (rawToolCalls as RawOllamaToolCall[])
+        .filter((tc: RawOllamaToolCall) => tc.function || tc.type === 'function')
+        .map((tc: RawOllamaToolCall) => ({
           id: tc.id || `ollama_call_${Date.now()}`,
-          name: tc.function?.name || tc.name,
+          name: tc.function?.name || tc.name || '',
           argumentsJson: typeof tc.function?.arguments === 'string'
             ? tc.function.arguments
             : JSON.stringify(tc.function?.arguments ?? {}),

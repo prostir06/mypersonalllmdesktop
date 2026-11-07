@@ -56,7 +56,7 @@ export async function searchMessages(
       conversation_title: string | null;
     }> = [];
 
-    if (cid == null && typeof (prisma.conversation as any)?.findMany === 'function') {
+    if (cid == null && typeof (prisma.conversation as { findMany?: unknown } | undefined)?.findMany === 'function') {
       try {
         const matchingConvs = await prisma.conversation.findMany({
           where: {
