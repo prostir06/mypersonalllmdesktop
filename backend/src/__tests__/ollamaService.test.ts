@@ -153,7 +153,9 @@ describe('ollamaService', () => {
     await streamOllamaMessage([{ role: 'user', content: 'Hi' }], 'llama2', {
       signal: ac.signal,
     } as any);
-    expect(mockedAxios.post.mock.calls[0][2].signal).toBe(ac.signal);
+    expect(mockedAxios.post.mock.calls[0][2].signal).toBeInstanceOf(AbortSignal);
+    ac.abort();
+    expect(mockedAxios.post.mock.calls[0][2].signal.aborted).toBe(true);
   });
 
   it('streamOllamaMessage emits tokens', async () => {

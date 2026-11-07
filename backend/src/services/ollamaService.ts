@@ -4,10 +4,20 @@ import logger from '../logger';
 import {
   buildTokenUsage,
   invokeStreamTokenCallback,
-  isAbortOrCallbackError,
 } from './providers/shared';
 import type { TokenUsage } from './chat/types';
-import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
+import type { NormalizedToolCall, ProviderMessage, ToolDefinitionSpec } from './providers/types';
+import {
+  REQUEST_TIMEOUT_MS,
+  accumulateToolCalls,
+  createIdleWatchdog,
+  finishToolCalls,
+  linkAbortSignals,
+  mapProviderError,
+  normalizeOptions,
+  ProviderTimeoutError,
+  withTimeout,
+} from './providers/request';
 
 const DEFAULT_OLLAMA_API_URL =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -22,7 +32,6 @@ const OLLAMA_SAMPLING_KEYS = [
   'seed',
 ] as const;
 
-type ChatMessage = { role: string; content: unknown };
 type ProviderOptions = {
   ollama_host?: string;
   tools?: ToolDefinitionSpec[];
@@ -65,18 +74,18 @@ function pickOllamaSamplingOptions(
 
 /** Build request body with reserved fields owned by the service. */
 function buildOllamaPayload(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model: string,
   options: ProviderOptions,
   stream = false
 ): Record<string, unknown> {
   const sampling = pickOllamaSamplingOptions(options);
+  const normalized = normalizeOptions(model, sampling);
   const payload: Record<string, unknown> = {
     model,
     messages,
-    temperature: (sampling.temperature as number | undefined) ?? 0.7,
-    max_tokens: (sampling.max_tokens as number | undefined) ?? 4096,
-    top_p: (sampling.top_p as number | undefined) ?? 1,
+    ...normalized,
+    top_p: normalized.top_p ?? 1,
   };
 
   if (sampling.stop !== undefined) payload.stop = sampling.stop;
@@ -131,7 +140,7 @@ export function formatOllamaTokenUsage(
 }
 
 async function sendOllamaMessage(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model = 'llama2',
   options: ProviderOptions = {}
 ) {
@@ -140,12 +149,17 @@ async function sendOllamaMessage(
     const payload = buildOllamaPayload(messages, model, options, false);
 
     const apiUrl = await resolveOllamaUrl(ollama_host);
-    // maxRedirects: 0 — after URL allowlist, axios must not follow redirects
-    // to a disallowed host (SSRF bypass).
-    const response = await axios.post(apiUrl, payload, {
-      headers: { 'Content-Type': 'application/json' },
-      maxRedirects: 0,
-    });
+    const signal = options.signal instanceof AbortSignal ? options.signal : undefined;
+    const response = await withTimeout(
+      (requestSignal) =>
+        axios.post(apiUrl, payload, {
+          headers: { 'Content-Type': 'application/json' },
+          maxRedirects: 0,
+          timeout: REQUEST_TIMEOUT_MS,
+          signal: requestSignal,
+        }),
+      { signal }
+    );
 
     const choice = response.data.choices?.[0];
     const rawToolCalls = choice?.message?.tool_calls;
@@ -180,45 +194,56 @@ async function sendOllamaMessage(
       err.response?.data !== undefined
         ? JSON.stringify(err.response.data)
         : err.message;
-    logger.error(`Ollama API error: ${detail}`);
-    throw new Error('Failed to communicate with Ollama API', { cause: error });
+    mapProviderError(error, 'Failed to communicate with Ollama API', () => {
+      logger.error(`Ollama API error: ${detail}`);
+    });
   }
 }
 
 async function streamOllamaMessage(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model = 'llama2',
   options: ProviderOptions = {},
   onChunk?: (token: string) => void
 ) {
+  const parent = options.signal instanceof AbortSignal ? options.signal : undefined;
+  const idleController = new AbortController();
+  const linked = linkAbortSignals(parent, idleController.signal);
+  const idle = createIdleWatchdog(() => {
+    idleController.abort(new ProviderTimeoutError('Немає токенів від моделі вже 60 с'));
+  });
   try {
     const { ollama_host } = options;
     const payload = buildOllamaPayload(messages, model, options, true);
 
     const apiUrl = await resolveOllamaUrl(ollama_host);
-    const signal =
-      options.signal instanceof AbortSignal ? options.signal : undefined;
     const response = await axios.post(apiUrl, payload, {
       headers: { 'Content-Type': 'application/json' },
       responseType: 'stream',
-      // Same SSRF guard as sendOllamaMessage: never follow redirects.
       maxRedirects: 0,
-      ...(signal ? { signal } : {}),
+      signal: linked.signal,
     });
 
     let fullContent = '';
     let tokenUsage: TokenUsage | undefined;
-    const toolCallsAcc: Record<number, { id: string; name: string; argumentsJson: string }> = {};
+    const toolCallsAcc: Record<number, NormalizedToolCall> = {};
 
-    return new Promise<{
+    return await new Promise<{
       content: string;
       tokenUsage?: TokenUsage;
       model: string;
       toolCalls?: NormalizedToolCall[];
     }>((resolve, reject) => {
       let buffer = '';
-
+      let settled = false;
+      const finish = () => {
+        idle.stop();
+        linked.signal.removeEventListener('abort', onAbort);
+      };
       const onAbort = () => {
+        if (settled) return;
+        settled = true;
+        finish();
         try {
           response.data.destroy?.();
         } catch (destroyErr: unknown) {
@@ -226,20 +251,26 @@ async function streamOllamaMessage(
             destroyErr instanceof Error ? destroyErr.message : String(destroyErr);
           logger.warn(`Failed to destroy Ollama stream on abort: ${message}`);
         }
+        if (
+          idleController.signal.reason instanceof ProviderTimeoutError &&
+          !parent?.aborted
+        ) {
+          reject(idleController.signal.reason);
+          return;
+        }
         const err = new Error('Generation stopped by user');
         err.name = 'AbortError';
         reject(err);
       };
 
-      if (signal) {
-        if (signal.aborted) {
-          onAbort();
-          return;
-        }
-        signal.addEventListener('abort', onAbort, { once: true });
+      if (linked.signal.aborted) {
+        onAbort();
+        return;
       }
+      linked.signal.addEventListener('abort', onAbort, { once: true });
 
       response.data.on('data', (chunk: Buffer) => {
+        idle.touch();
         buffer += chunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
@@ -281,64 +312,22 @@ async function streamOllamaMessage(
                       logger.error(`Ollama onChunk callback error: ${msg}`);
                     });
                   } catch (cbError: unknown) {
-                    reject(cbError);
+                    if (!settled) {
+                      settled = true;
+                      finish();
+                      reject(cbError);
+                    }
                     return;
                   }
                 }
               }
 
               const rawToolCalls = parsed.choices?.[0]?.delta?.tool_calls || parsed.message?.tool_calls;
-              if (Array.isArray(rawToolCalls)) {
-                for (const tc of rawToolCalls) {
-                  const idx = tc.index ?? 0;
-                  if (!toolCallsAcc[idx]) {
-                    toolCallsAcc[idx] = { id: '', name: '', argumentsJson: '' };
-                  }
-                  const rawId = tc.id || (tc as any).call_id;
-                  if (rawId && typeof rawId === 'string') {
-                    toolCallsAcc[idx].id = rawId;
-                  } else if (!toolCallsAcc[idx].id) {
-                    toolCallsAcc[idx].id = `ollama_call_${Date.now()}_${idx}`;
-                  }
-
-                  const rawName = tc.function?.name || tc.name;
-                  if (rawName && typeof rawName === 'string') {
-                    if (!toolCallsAcc[idx].name) {
-                      toolCallsAcc[idx].name = rawName;
-                    } else if (toolCallsAcc[idx].name === rawName) {
-                      // Repeated identical name chunk from server; keep as-is
-                    } else if (rawName.startsWith(toolCallsAcc[idx].name)) {
-                      // Cumulative name update
-                      toolCallsAcc[idx].name = rawName;
-                    } else {
-                      // Delta chunk
-                      toolCallsAcc[idx].name += rawName;
-                    }
-                  }
-
-                  const rawArgs =
-                    tc.function?.arguments !== undefined
-                      ? tc.function.arguments
-                      : (tc as any).arguments;
-                  if (rawArgs !== undefined && rawArgs !== null) {
-                    if (typeof rawArgs === 'string') {
-                      if (!toolCallsAcc[idx].argumentsJson) {
-                        toolCallsAcc[idx].argumentsJson = rawArgs;
-                      } else if (toolCallsAcc[idx].argumentsJson === rawArgs) {
-                        // Repeated identical string from server
-                      } else if (rawArgs.startsWith(toolCallsAcc[idx].argumentsJson)) {
-                        // Cumulative string update
-                        toolCallsAcc[idx].argumentsJson = rawArgs;
-                      } else {
-                        // Delta chunk
-                        toolCallsAcc[idx].argumentsJson += rawArgs;
-                      }
-                    } else if (typeof rawArgs === 'object') {
-                      toolCallsAcc[idx].argumentsJson = JSON.stringify(rawArgs);
-                    }
-                  }
-                }
-              }
+              accumulateToolCalls(
+                toolCallsAcc,
+                rawToolCalls,
+                (index) => `ollama_call_${Date.now()}_${index}`
+              );
             } catch (chunkErr: unknown) {
               logger.warn(
                 `Failed to parse Ollama SSE chunk: ${chunkErr instanceof Error ? chunkErr.message : String(chunkErr)}`
@@ -349,8 +338,10 @@ async function streamOllamaMessage(
       });
 
       response.data.on('end', () => {
-        if (signal) signal.removeEventListener('abort', onAbort);
-        const toolCalls = Object.values(toolCallsAcc);
+        if (settled) return;
+        settled = true;
+        finish();
+        const toolCalls = finishToolCalls(toolCallsAcc);
         if (!tokenUsage && fullContent) {
           const estPrompt = Math.max(1, Math.round(JSON.stringify(messages).length / 3.5));
           const estComp = Math.max(1, Math.round(fullContent.length / 3.5));
@@ -365,21 +356,22 @@ async function streamOllamaMessage(
       });
 
       response.data.on('error', (err: Error) => {
-        if (signal) signal.removeEventListener('abort', onAbort);
+        if (settled) return;
+        settled = true;
+        finish();
         reject(err);
       });
     });
   } catch (error: unknown) {
-    if (isAbortOrCallbackError(error)) {
-      throw error;
-    }
+    idle.stop();
     if (isAllowlistError(error)) throw error;
-    logger.error(
-      `Ollama Stream API error: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw new Error('Failed to stream from Ollama API', { cause: error });
+    const timeout =
+      idleController.signal.reason instanceof ProviderTimeoutError && !parent?.aborted
+        ? idleController.signal.reason
+        : error;
+    mapProviderError(timeout, 'Failed to stream from Ollama API', (detail) => {
+      logger.error(`Ollama Stream API error: ${detail}`);
+    });
   }
 }
 

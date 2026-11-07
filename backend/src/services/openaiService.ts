@@ -4,13 +4,23 @@ import { envOpenAiKey, isPlaceholderOpenAiKey } from '../utils/openaiKeyResolver
 import {
   buildTokenUsage,
   invokeStreamTokenCallback,
-  isAbortOrCallbackError,
 } from './providers/shared';
 import type { TokenUsage } from './chat/types';
-import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
+import type { NormalizedToolCall, ProviderMessage, ToolDefinitionSpec } from './providers/types';
+import {
+  REQUEST_MAX_RETRIES,
+  REQUEST_TIMEOUT_MS,
+  accumulateToolCalls,
+  createIdleWatchdog,
+  finishToolCalls,
+  linkAbortSignals,
+  mapProviderError,
+  normalizeOptions,
+  ProviderTimeoutError,
+  withTimeout,
+} from './providers/request';
 import { defaultOpenAiModel } from '../config/models';
 
-type ChatMessage = { role: string; content?: unknown; [key: string]: unknown };
 type ProviderOptions = {
   enableTools?: boolean;
   tools?: ToolDefinitionSpec[];
@@ -38,7 +48,7 @@ function clientFor(options: ProviderOptions): OpenAI {
 }
 
 function buildBaseParams(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model: string,
   options: ProviderOptions
 ) {
@@ -69,9 +79,7 @@ function buildBaseParams(
   return {
     model,
     messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
-    temperature: typeof rest.temperature === 'number' ? rest.temperature : 0.7,
-    max_tokens: typeof rest.max_tokens === 'number' ? rest.max_tokens : 4096,
-    ...(typeof rest.top_p === 'number' ? { top_p: rest.top_p } : {}),
+    ...normalizeOptions(model, rest),
     ...(tools ? { tools } : {}),
   };
 }
@@ -96,15 +104,24 @@ function toTokenUsage(
 }
 
 async function sendOpenAIMessage(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model = defaultOpenAiModel(),
   options: ProviderOptions = {}
 ) {
   const openai = clientFor(options);
   const base = buildBaseParams(messages, model, options);
+  const signal = options.signal instanceof AbortSignal ? options.signal : undefined;
 
   try {
-    const response = await openai.chat.completions.create(base);
+    const response = await withTimeout(
+      (requestSignal) =>
+        openai.chat.completions.create(base, {
+          signal: requestSignal,
+          timeout: REQUEST_TIMEOUT_MS,
+          maxRetries: REQUEST_MAX_RETRIES,
+        }),
+      { signal }
+    );
     const choice = response.choices[0];
     const rawToolCalls = choice?.message?.tool_calls;
     let toolCalls: NormalizedToolCall[] | undefined;
@@ -126,35 +143,26 @@ async function sendOpenAIMessage(
       ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (err: unknown) {
-    if (isAbortOrCallbackError(err)) {
-      throw err;
-    }
-    const status =
-      err && typeof err === 'object' && 'status' in err
-        ? String((err as { status: unknown }).status)
-        : '';
-    const code =
-      err && typeof err === 'object' && 'code' in err
-        ? String((err as { code: unknown }).code)
-        : '';
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error(
-      `OpenAI API error in sendOpenAIMessage${status ? ` status=${status}` : ''}${code ? ` code=${code}` : ''}: ${message}`
-    );
-    throw new Error('Failed to communicate with OpenAI API', { cause: err });
+    mapProviderError(err, 'Failed to communicate with OpenAI API', (detail) => {
+      logger.error(`OpenAI API error in sendOpenAIMessage: ${detail}`);
+    });
   }
 }
 
 async function streamOpenAIMessage(
-  messages: ChatMessage[],
+  messages: ProviderMessage[],
   model = defaultOpenAiModel(),
   options: ProviderOptions = {},
   onChunk?: (token: string) => void
 ) {
   const openai = clientFor(options);
   const base = buildBaseParams(messages, model, options);
-  const signal =
-    options.signal instanceof AbortSignal ? options.signal : undefined;
+  const parent = options.signal instanceof AbortSignal ? options.signal : undefined;
+  const idleController = new AbortController();
+  const linked = linkAbortSignals(parent, idleController.signal);
+  const idle = createIdleWatchdog(() => {
+    idleController.abort(new ProviderTimeoutError('Немає токенів від моделі вже 60 с'));
+  });
 
   try {
     const stream = await openai.chat.completions.create(
@@ -163,15 +171,19 @@ async function streamOpenAIMessage(
         stream: true,
         stream_options: { include_usage: true },
       },
-      signal ? { signal } : undefined
+      { signal: linked.signal, maxRetries: REQUEST_MAX_RETRIES }
     );
 
     let fullContent = '';
     let tokenUsage: TokenUsage | undefined;
-    const toolCallsAcc: Record<number, { id: string; name: string; argumentsJson: string }> = {};
+    const toolCallsAcc: Record<number, NormalizedToolCall> = {};
 
     for await (const chunk of stream) {
-      if (signal?.aborted) {
+      idle.touch();
+      if (linked.signal.aborted || idleController.signal.aborted) {
+        if (idleController.signal.reason instanceof ProviderTimeoutError) {
+          throw idleController.signal.reason;
+        }
         const err = new Error('Aborted');
         err.name = 'AbortError';
         throw err;
@@ -188,50 +200,10 @@ async function streamOpenAIMessage(
           logger.error(`Помилка в onChunk коллбеку: ${msg}`);
         });
       }
-      if (delta?.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const idx = tc.index ?? 0;
-          if (!toolCallsAcc[idx]) {
-            toolCallsAcc[idx] = { id: tc.id || '', name: '', argumentsJson: '' };
-          }
-          if (tc.id) toolCallsAcc[idx].id = tc.id;
-          if (tc.function?.name) {
-            const rawName = tc.function.name;
-            if (!toolCallsAcc[idx].name) {
-              toolCallsAcc[idx].name = rawName;
-            } else if (toolCallsAcc[idx].name === rawName) {
-              // Repeated identical name chunk from server; keep as-is
-            } else if (rawName.startsWith(toolCallsAcc[idx].name)) {
-              // Cumulative name update
-              toolCallsAcc[idx].name = rawName;
-            } else {
-              // Delta chunk
-              toolCallsAcc[idx].name += rawName;
-            }
-          }
-          if (tc.function?.arguments) {
-            const rawArgs = tc.function.arguments;
-            if (typeof rawArgs === 'string') {
-              if (!toolCallsAcc[idx].argumentsJson) {
-                toolCallsAcc[idx].argumentsJson = rawArgs;
-              } else if (toolCallsAcc[idx].argumentsJson === rawArgs) {
-                // Repeated identical string from server
-              } else if (rawArgs.startsWith(toolCallsAcc[idx].argumentsJson)) {
-                // Cumulative string update
-                toolCallsAcc[idx].argumentsJson = rawArgs;
-              } else {
-                // Delta chunk
-                toolCallsAcc[idx].argumentsJson += rawArgs;
-              }
-            } else if (typeof rawArgs === 'object' && rawArgs !== null) {
-              toolCallsAcc[idx].argumentsJson = JSON.stringify(rawArgs);
-            }
-          }
-        }
-      }
+      if (delta?.tool_calls) accumulateToolCalls(toolCallsAcc, delta.tool_calls);
     }
 
-    const toolCalls = Object.values(toolCallsAcc);
+    const toolCalls = finishToolCalls(toolCallsAcc);
 
     return {
       content: fullContent,
@@ -240,15 +212,16 @@ async function streamOpenAIMessage(
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: unknown) {
-    if (isAbortOrCallbackError(error)) {
-      throw error;
-    }
-    logger.error(
-      `OpenAI Stream API error in streamOpenAIMessage: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    );
-    throw new Error('Failed to stream from OpenAI API', { cause: error });
+    const timeout =
+      idleController.signal.reason instanceof ProviderTimeoutError
+        ? idleController.signal.reason
+        : error;
+    mapProviderError(timeout, 'Failed to stream from OpenAI API', (detail) => {
+      logger.error(`OpenAI Stream API error in streamOpenAIMessage: ${detail}`);
+    });
+  } finally {
+    idle.stop();
+    linked.dispose();
   }
 }
 

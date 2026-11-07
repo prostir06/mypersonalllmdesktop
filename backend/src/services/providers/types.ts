@@ -2,6 +2,11 @@ import type { RagSource, TokenUsage } from '../chat/types';
 
 export type ProviderId = 'openai' | 'anthropic' | 'gemini' | 'ollama';
 
+export type ProviderMessage = {
+  role: string;
+  content?: unknown;
+};
+
 export interface NormalizedToolCall {
   id: string;
   name: string;

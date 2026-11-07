@@ -4,55 +4,40 @@ import geminiService from './geminiService';
 import claudeService from './claudeService';
 import logger from '../logger';
 import { ChatError } from './chat/types';
-import type { TokenUsage } from './chat/types';
-import type { NormalizedToolCall } from './providers/types';
+import type { ProviderMessage, ProviderSendResult } from './providers/types';
 
 type SendFn = (
-  messages: unknown[],
-  model: string,
+  messages: ProviderMessage[],
+  model?: string,
   options?: Record<string, unknown>
-) => Promise<{
-  content: string;
-  usage?: unknown;
-  tokenUsage?: TokenUsage;
-  model?: string;
-  sources?: unknown[];
-  toolCalls?: NormalizedToolCall[];
-}>;
+) => Promise<ProviderSendResult>;
 
 type StreamFn = (
-  messages: unknown[],
-  model: string,
+  messages: ProviderMessage[],
+  model?: string,
   options?: Record<string, unknown>,
   onChunk?: (token: string) => void
-) => Promise<{
-  content: string;
-  tokenUsage?: TokenUsage;
-  model: string;
-  sources?: unknown[];
-  toolCalls?: NormalizedToolCall[];
-}>;
+) => Promise<ProviderSendResult>;
 
 type ProviderHandlers = { send: SendFn; stream: StreamFn };
 
-/** Honest public providers only. Unknown names fall back to OpenAI with a warn. */
 class ProviderFactory {
   static providers: Record<string, ProviderHandlers> = {
     openai: {
-      send: openaiService.sendOpenAIMessage as SendFn,
-      stream: openaiService.streamOpenAIMessage as StreamFn,
+      send: openaiService.sendOpenAIMessage,
+      stream: openaiService.streamOpenAIMessage,
     },
     ollama: {
-      send: ollamaService.sendOllamaMessage as SendFn,
-      stream: ollamaService.streamOllamaMessage as StreamFn,
+      send: ollamaService.sendOllamaMessage,
+      stream: ollamaService.streamOllamaMessage,
     },
     gemini: {
-      send: geminiService.sendGeminiMessage as SendFn,
-      stream: geminiService.streamGeminiMessage as StreamFn,
+      send: geminiService.sendGeminiMessage,
+      stream: geminiService.streamGeminiMessage,
     },
     anthropic: {
-      send: claudeService.sendClaudeMessage as SendFn,
-      stream: claudeService.streamClaudeMessage as StreamFn,
+      send: claudeService.sendClaudeMessage,
+      stream: claudeService.streamClaudeMessage,
     },
   };
 
@@ -66,7 +51,7 @@ class ProviderFactory {
 
   static async sendMessage(
     provider: string,
-    messages: unknown[],
+    messages: ProviderMessage[],
     model: string,
     options: Record<string, unknown> = {}
   ) {
@@ -83,7 +68,7 @@ class ProviderFactory {
 
   static async streamMessage(
     provider: string,
-    messages: unknown[],
+    messages: ProviderMessage[],
     model: string,
     options: Record<string, unknown> = {},
     onChunk?: (token: string) => void

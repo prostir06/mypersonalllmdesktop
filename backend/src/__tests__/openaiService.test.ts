@@ -14,6 +14,7 @@ jest.mock('../logger', () => ({
 
 import openaiService from '../services/openaiService';
 import logger from '../logger';
+import { ChatError } from '../services/chat/types';
 
 const { sendOpenAIMessage, streamOpenAIMessage } = openaiService;
 
@@ -80,7 +81,31 @@ describe('openaiService (SDK)', () => {
       expect(arg.tools).toBeUndefined();
       expect(arg.tool_choice).toBeUndefined();
       expect(arg.temperature).toBe(0.2);
+      expect(arg.max_tokens).toBe(4096);
       expect(arg.ollama_host).toBeUndefined();
+      expect(mockCreate.mock.calls[0][1]).toMatchObject({
+        timeout: 60_000,
+        maxRetries: 2,
+      });
+      expect(mockCreate.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('drops temperature and uses max_completion_tokens for reasoning models', async () => {
+      mockCreate.mockResolvedValueOnce({
+        choices: [{ message: { content: 'ok', role: 'assistant' } }],
+        usage: { total_tokens: 1 },
+        model: 'o3',
+      });
+
+      await sendOpenAIMessage([{ role: 'user', content: 'x' }], 'o3', {
+        temperature: 0.4,
+        max_tokens: 800,
+      });
+
+      const arg = mockCreate.mock.calls[0][0];
+      expect(arg.temperature).toBeUndefined();
+      expect(arg.max_tokens).toBeUndefined();
+      expect(arg.max_completion_tokens).toBe(800);
     });
 
     it('preserves underlying cause when OpenAI API fails', async () => {
@@ -94,8 +119,9 @@ describe('openaiService (SDK)', () => {
       } catch (err) {
         caught = err;
       }
-      expect(caught).toBeInstanceOf(Error);
-      expect(caught.message).toBe('Failed to communicate with OpenAI API');
+      expect(caught).toBeInstanceOf(ChatError);
+      expect(caught.statusCode).toBe(429);
+      expect(caught.message).toBe('Перевищено ліміт запитів. Зачекайте або спробуйте іншу модель.');
       expect(caught.cause).toBe(originalErr);
     });
 
@@ -163,7 +189,11 @@ describe('openaiService (SDK)', () => {
         { signal: ac.signal },
         jest.fn()
       );
-      expect(mockCreate.mock.calls[0][1]).toEqual({ signal: ac.signal });
+      const passed = mockCreate.mock.calls[0][1].signal as AbortSignal;
+      expect(passed.aborted).toBe(false);
+      ac.abort();
+      expect(passed.aborted).toBe(true);
+      expect(mockCreate.mock.calls[0][1].maxRetries).toBe(2);
     });
 
     it('rethrows AbortError from onChunk callback', async () => {
