@@ -10,6 +10,7 @@ import ConfirmActionCard from './ConfirmActionCard';
 import { parseArtifacts } from '../../utils/artifactParser';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { MessageSources } from './MessageSources';
+import { markdownComponents } from './markdownComponents';
 
 const LazyHighlighter = lazy(() => import('./CodeHighlighter'));
 
@@ -112,7 +113,10 @@ const MessageItem = React.memo(function MessageItem({
   onOpenArtifact,
   streaming = false,
 }: MessageItemProps) {
-  const components = useMemo(() => ({ code: CodeBlock }), []);
+  const components = useMemo(
+    () => ({ ...markdownComponents, code: CodeBlock }),
+    []
+  );
   const artifacts = useMemo(() => (msg.role === 'assistant' ? parseArtifacts(msg.content) : []), [msg.role, msg.content]);
   const branchCount = msg.branches?.length ?? 0;
   const branchIndex = msg.branch_index ?? 0;

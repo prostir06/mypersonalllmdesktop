@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Button } from 'react-bootstrap';
 import type { Artifact } from '../../types/api';
+import { toast } from 'react-toastify';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { downloadTextFile } from '../../hooks/useChatExport';
+import { injectArtifactGuard } from './artifactGuard';
 
 export interface ArtifactPanelProps {
   artifact: Artifact;
@@ -11,7 +13,7 @@ export interface ArtifactPanelProps {
 
 export function buildSafeSrcDoc(artifact: Artifact): string {
   if (artifact.type === 'svg') {
-    return `<!DOCTYPE html>
+    return injectArtifactGuard(`<!DOCTYPE html>
 <html lang="uk">
 <head>
   <meta charset="utf-8">
@@ -39,17 +41,17 @@ export function buildSafeSrcDoc(artifact: Artifact): string {
 <body>
   ${artifact.content}
 </body>
-</html>`;
+</html>`);
   }
 
   const isFullDocument =
     /<html\b/i.test(artifact.content) || /<!doctype\b/i.test(artifact.content);
 
   if (isFullDocument) {
-    return artifact.content;
+    return injectArtifactGuard(artifact.content);
   }
 
-  return `<!DOCTYPE html>
+  return injectArtifactGuard(`<!DOCTYPE html>
 <html lang="uk">
 <head>
   <meta charset="utf-8">
@@ -69,7 +71,7 @@ export function buildSafeSrcDoc(artifact: Artifact): string {
 <body>
   ${artifact.content}
 </body>
-</html>`;
+</html>`);
 }
 
 export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
@@ -89,11 +91,12 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
   useEffect(() => {
     if (activeTab !== 'preview') return;
     const handleMessage = (event: MessageEvent) => {
-      if (
-        event.source === iframeRef.current?.contentWindow &&
-        event.data?.type === 'ARTIFACT_SANDBOX_READY'
-      ) {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (event.data?.type === 'ARTIFACT_SANDBOX_READY') {
         sendArtifactToSandbox();
+      }
+      if (event.data?.type === 'ARTIFACT_NAV_BLOCKED') {
+        toast.info('Перехід з артефакта заблоковано');
       }
     };
     window.addEventListener('message', handleMessage);

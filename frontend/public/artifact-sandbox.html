@@ -8,6 +8,7 @@
   window.addEventListener(
     'message',
     function (event) {
+      if (event.source !== window.parent) return;
       if (
         !event.data ||
         event.data.type !== 'ARTIFACT_RENDER' ||
