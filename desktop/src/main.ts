@@ -5,6 +5,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { resolveBackendOrigin, uiPort } from './backendUrl';
 import { isAllowedAppOrigin } from './security';
+import { openExternalIfSafe } from './externalLinks';
 import {
   emitCheckForUpdatesRequested,
   emitNavigate,
@@ -109,19 +110,35 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    fireAndForget(shell.openExternal(url), (err) => {
-      console.warn('openExternal failed:', err);
-    });
+    fireAndForget(
+      openExternalIfSafe(url, (safe) => shell.openExternal(safe)),
+      (err) => {
+        console.warn('openExternal failed:', err);
+      }
+    );
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (isAllowedAppOrigin(url, allowedOrigins)) return;
     event.preventDefault();
-    fireAndForget(shell.openExternal(url), (err) => {
-      console.warn('openExternal failed:', err);
-    });
+    fireAndForget(
+      openExternalIfSafe(url, (safe) => shell.openExternal(safe)),
+      (err) => {
+        console.warn('openExternal failed:', err);
+      }
+    );
   });
+
+  mainWindow.webContents.on('will-attach-webview', (event) => {
+    event.preventDefault();
+  });
+
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_webContents, permission, callback) => {
+      callback(permission === 'media');
+    }
+  );
 
   if (isDev) {
     const viteUrl = process.env.VITE_DEV_SERVER || 'http://localhost:3000';

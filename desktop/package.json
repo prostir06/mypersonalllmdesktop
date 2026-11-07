@@ -6,7 +6,7 @@
   "main": "dist/main.js",
   "scripts": {
     "build:ts": "tsc -p tsconfig.json",
-    "test": "npm run build:ts && node --test dist/backendUrl.test.js dist/uiPaths.test.js dist/security.test.js dist/deepLinks.test.js dist/ipc.test.js dist/asyncFire.test.js",
+    "test": "npm run build:ts && node --test dist/backendUrl.test.js dist/uiPaths.test.js dist/security.test.js dist/deepLinks.test.js dist/ipc.test.js dist/asyncFire.test.js dist/externalLinks.test.js",
     "dev": "npm run build:ts && cross-env ELECTRON_DEV=1 electron .",
     "start": "npm run build:ts && electron .",
     "pack": "npm run build:ts && electron-builder --dir",
