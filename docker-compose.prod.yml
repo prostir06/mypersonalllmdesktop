@@ -15,8 +15,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set for production}
 
   backend:
+    ports: !reset []
     volumes: !reset []
     environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?SEARXNG_SECRET must be set for production}
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       NODE_ENV: production
       DB_HOST: postgres
       DB_PORT: 5432

@@ -60,6 +60,9 @@ jobs:
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
+      - name: Check compose hardening
+        run: node scripts/check-compose-hardening.mjs
+
       - name: Install backend dependencies
         run: npm ci
         working-directory: backend
