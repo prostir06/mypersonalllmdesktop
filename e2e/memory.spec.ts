@@ -43,6 +43,7 @@ test('conversation memory notes persist and summary refreshes', async ({
   const conversationMatch = conversationUrl.match(/[?&]conversation=(\d+)/);
   if (!conversationMatch) {
     test.skip(true, 'RAG/LLM unavailable: conversation id not created after seed message');
+    return;
   }
   const conversationId = conversationMatch[1];
 

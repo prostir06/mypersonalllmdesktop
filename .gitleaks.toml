@@ -1,0 +1,21 @@
+title = "llm-assistant"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented CI and example placeholders, plus test fixtures"
+paths = [
+  '''(^|/)__tests__/''',
+  '''\.test\.(ts|tsx|js|mjs|cjs)$''',
+  '''\.spec\.ts$''',
+  '''(^|/)e2e/''',
+  '''\.env\.example$''',
+]
+regexes = [
+  '''sk-test-ci-placeholder''',
+  '''sk-e2e-mock-key''',
+  '''test_jwt_secret_for_ci_at_least_32_chars''',
+  '''change_this_secret_in_production''',
+  '''0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef''',
+]

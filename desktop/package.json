@@ -11,7 +11,8 @@
     "start": "npm run build:ts && electron .",
     "pack": "npm run build:ts && electron-builder --dir",
     "pack:ci": "npm run build:ts && electron-builder --dir --linux",
-    "dist": "npm run build:ts && electron-builder --win"
+    "dist": "npm run build:ts && electron-builder --win",
+    "audit:ci": "node ../scripts/npm-audit-allowlist.mjs . ../scripts/audit-allowlists/desktop.json"
   },
   "build": {
     "appId": "com.mypersonalllmdesktop.app",

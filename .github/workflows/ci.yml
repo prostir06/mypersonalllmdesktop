@@ -1,6 +1,8 @@
 # ============================================================
 # GitHub Actions CI
 # On push/PR: backend tests > frontend build > desktop smoke > docker build
+# Pull requests also run Playwright against the mock LLM.
+# Windows installers are built only on main, master, and v* tags.
 # ============================================================
 
 name: CI
@@ -11,6 +13,9 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -19,6 +24,9 @@ jobs:
   test-backend:
     name: Backend Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
 
     services:
       postgres:
@@ -51,10 +59,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -99,9 +107,8 @@ jobs:
         working-directory: backend
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
-        continue-on-error: true
         with:
           name: backend-coverage
           path: backend/coverage/
@@ -114,10 +121,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -143,9 +150,8 @@ jobs:
         working-directory: frontend
 
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm run audit:ci
         working-directory: frontend
-        continue-on-error: true
 
       - name: Production build
         run: npm run build
@@ -162,10 +168,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -192,9 +198,8 @@ jobs:
         working-directory: desktop
 
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm run audit:ci
         working-directory: desktop
-        continue-on-error: true
 
       - name: Electron pack smoke (--dir, no GUI)
         run: npm run pack:ci
@@ -207,14 +212,18 @@ jobs:
   build-desktop-win:
     name: Desktop Windows Artifact
     runs-on: windows-latest
-    needs: [build-frontend]
+    needs: [test-desktop]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: '24'
           cache: 'npm'
@@ -245,40 +254,178 @@ jobs:
         working-directory: desktop
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: desktop-windows
           path: desktop/release/
+          if-no-files-found: error
+          retention-days: 3
+
+  typecheck-e2e:
+    name: E2E typecheck
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        run: npm ci
+        working-directory: e2e
+
+      - name: Typecheck
+        run: npm run typecheck
+        working-directory: e2e
+
+  e2e-mock:
+    name: E2E with mock LLM
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Start mock stack
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5000/api/health; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Backend health check failed"
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs backend
+          exit 1
+
+      - name: Wait for frontend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Frontend not ready"
+          docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs frontend
+          exit 1
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        working-directory: e2e
+        env:
+          CI: true
+          E2E_BASE_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:5000
+        run: npm test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-pr-artifacts
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
           if-no-files-found: ignore
           retention-days: 3
+
+      - name: Docker logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.e2e.yml down -v
 
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: [test-backend, build-frontend, test-desktop]
+    permissions:
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Validate production compose
+        env:
+          JWT_SECRET: ci-jwt-secret-at-least-32-characters
+          DB_PASSWORD: ci-db-password
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          CORS_ORIGIN: http://localhost:3000
+          SEARXNG_SECRET: ci-searxng-secret
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ./backend
+          target: production
+          load: true
           push: false
           tags: llm-assistant-backend:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
       - name: Build frontend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ./frontend
+          target: production
+          load: true
           push: false
           tags: llm-assistant-frontend:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: llm-assistant-backend:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: llm-assistant-frontend:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
