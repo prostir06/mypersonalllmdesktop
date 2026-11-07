@@ -16,17 +16,19 @@ export class ToolRegistry {
     this.tools.set(tool.name, tool);
   }
 
-  get(name: string): RegisteredTool | undefined {
+  get<TArgs = Record<string, unknown>, TResult = Record<string, unknown>>(
+    name: string
+  ): RegisteredTool<TArgs, TResult> | undefined {
     if (!name || typeof name !== 'string') return undefined;
     const trimmed = name.trim();
     const exact = this.tools.get(trimmed);
-    if (exact) return exact;
+    if (exact) return exact as unknown as RegisteredTool<TArgs, TResult>;
     // Resilient fallback for doubled names (e.g. calculatecalculate)
     if (trimmed.length > 2 && trimmed.length % 2 === 0) {
       const half = trimmed.slice(0, trimmed.length / 2);
       if (half + half === trimmed) {
         const fallback = this.tools.get(half);
-        if (fallback) return fallback;
+        if (fallback) return fallback as unknown as RegisteredTool<TArgs, TResult>;
       }
     }
     return undefined;

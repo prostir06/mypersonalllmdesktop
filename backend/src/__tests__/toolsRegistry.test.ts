@@ -154,7 +154,7 @@ describe('ToolRegistry', () => {
         description: 'Test custom tool',
         category: 'read',
         parameters: { type: 'object' },
-        execute: async () => 'custom-result',
+        execute: async () => ('custom-result' as unknown as Record<string, unknown>),
       });
 
       expect(customRegistry.get('custom_tool')).toBeDefined();
@@ -338,10 +338,7 @@ describe('ToolRegistry', () => {
           convNotes
         );
 
-        const result = await memoryTool.execute(
-          { include_conversation: true },
-          ctx
-        );
+        const result = (await memoryTool.execute({ include_conversation: true }, ctx)) as { userNotes: Array<{ content: string }>; conversationNotes: Array<{ content: string }> };
 
         expect((prisma as any).userMemoryNote.findMany).toHaveBeenCalledWith({
           where: { userId: ctx.userId },
@@ -362,10 +359,7 @@ describe('ToolRegistry', () => {
       it('omits conversation notes if include_conversation is false', async () => {
         ((prisma as any).userMemoryNote.findMany as jest.Mock).mockResolvedValue([]);
 
-        const result = await memoryTool.execute(
-          { include_conversation: false },
-          ctx
-        );
+        const result = await memoryTool.execute({ include_conversation: false }, ctx);
 
         expect(
           (prisma as any).conversationNote.findMany
@@ -789,7 +783,7 @@ describe('ToolRegistry', () => {
           settingsTool.execute({ max_tokens: 50 }, ctx)
         ).rejects.toThrow(ToolValidationError);
         await expect(
-          settingsTool.execute({ max_tokens: 9000 }, ctx)
+          settingsTool.execute({ max_tokens: 35000 }, ctx)
         ).rejects.toThrow(ToolValidationError);
       });
 

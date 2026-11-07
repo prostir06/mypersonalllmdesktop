@@ -24,12 +24,15 @@ export interface ToolProposal {
   diff?: Record<string, { from: unknown; to: unknown }>;
 }
 
-export interface RegisteredTool<TArgs = Record<string, unknown>> {
+export interface RegisteredTool<
+  TArgs = Record<string, unknown>,
+  TResult = unknown
+> {
   name: string;
   description: string;
   category: 'read' | 'write';
   parameters: Record<string, unknown>;
-  execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<unknown>;
+  execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<TResult>;
   describeProposal?: (
     args: TArgs,
     ctx?: ToolExecutionContext
