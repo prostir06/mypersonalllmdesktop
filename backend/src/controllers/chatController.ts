@@ -9,7 +9,7 @@ import {
   isAbortError,
 } from '../utils/requestAbort';
 import { jsonError } from '../utils/httpJson';
-import { writeSse, writeSseEvent } from '../utils/sse';
+import { beginSseStream, writeSse, writeSseEvent } from '../utils/sse';
 import {
   isChatError,
   validateChatMessage,
@@ -74,9 +74,11 @@ export async function streamMessage(
   _next: NextFunction
 ): Promise<void> {
   const signal = bindClientAbortSignal(req, res);
+  let stopPing: (() => void) | undefined;
   try {
     const { conversationId, message, model, provider, options = {} } = req.body;
     if (!validateChatMessage(message, req, res)) return;
+    stopPing = beginSseStream(res);
     const enableWebSearch =
       req.body.enableWebSearch !== undefined
         ? req.body.enableWebSearch
@@ -103,7 +105,9 @@ export async function streamMessage(
         signal,
         res: {
           write: (chunk: string) => {
-            tokenUsageEmitted = true;
+            if (typeof chunk === 'string' && chunk.startsWith('event: token_usage\n')) {
+              tokenUsageEmitted = true;
+            }
             return res.write(chunk);
           },
         },
@@ -112,9 +116,6 @@ export async function streamMessage(
         writeSse(res, { type: 'token', token });
       },
       (convId: number, ragStatus?: string) => {
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
         writeSse(res, {
           type: 'init',
           conversationId: convId,
@@ -155,6 +156,8 @@ export async function streamMessage(
       writeSse(res, { type: 'error', error: publicStreamErrorText(message) });
       res.end();
     }
+  } finally {
+    stopPing?.();
   }
 }
 

@@ -1,5 +1,5 @@
 import type { Response } from 'express';
-import { writeSse, writeSseEvent } from '../utils/sse';
+import { beginSseStream, writeSse, writeSseEvent } from '../utils/sse';
 import logger from '../logger';
 
 jest.mock('../logger', () => ({
@@ -60,5 +60,25 @@ describe('sse utils', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringMatching(/SSE event "token_usage" write skipped \(client closed\?\): connection reset/)
     );
+  });
+
+  it('flushes SSE headers and writes a ping comment on the interval', () => {
+    jest.useFakeTimers();
+    const res = {
+      writableEnded: false,
+      setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
+      write: jest.fn(),
+    } as unknown as Response;
+
+    const stop = beginSseStream(res, 15_000);
+    expect(res.setHeader).toHaveBeenCalledWith('X-Accel-Buffering', 'no');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
+    expect(res.flushHeaders).toHaveBeenCalled();
+
+    jest.advanceTimersByTime(15_000);
+    expect(res.write).toHaveBeenCalledWith(':ping\n\n');
+    stop();
+    jest.useRealTimers();
   });
 });

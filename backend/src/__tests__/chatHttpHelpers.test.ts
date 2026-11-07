@@ -164,6 +164,7 @@ describe('chatController enableWebSearch propagation', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis(),
       setHeader: jest.fn(),
+      flushHeaders: jest.fn(),
       write: jest.fn(),
       end: jest.fn(),
       on: jest.fn(),
@@ -267,5 +268,41 @@ describe('chatController enableWebSearch propagation', () => {
       expect.stringContaining('"type":"done"')
     );
     expect(res.end).toHaveBeenCalled();
+    expect(res.flushHeaders).toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith('X-Accel-Buffering', 'no');
+  });
+
+  it('emits token_usage after tool events and does not emit it twice', async () => {
+    const fakeTokenUsage = {
+      promptTokens: 3,
+      completionTokens: 1,
+      totalTokens: 4,
+    };
+    jest.spyOn(ChatService, 'streamMessage').mockImplementationOnce(async (input) => {
+      input.res?.write('event: tool_call\ndata: {"name":"calculate"}\n\n');
+      input.res?.write(`event: token_usage\ndata: ${JSON.stringify(fakeTokenUsage)}\n\n`);
+      return {
+        conversationId: 101,
+        messageId: 1,
+        content: '4',
+        sources: [],
+        tokenUsage: fakeTokenUsage,
+      } as any;
+    });
+
+    const req = {
+      id: 'rid-4',
+      userId: 42,
+      body: { message: 'порахуй', provider: 'openai' },
+      on: jest.fn(),
+    } as unknown as AuthRequest;
+    const res = mockRes();
+
+    await streamMessage(req, res, () => {});
+
+    const usageFrames = (res.write as jest.Mock).mock.calls.filter((call) =>
+      String(call[0]).startsWith('event: token_usage\n')
+    );
+    expect(usageFrames).toHaveLength(1);
   });
 });
