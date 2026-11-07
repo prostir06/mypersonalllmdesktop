@@ -32,3 +32,10 @@ for (const file of entryFiles) {
   }
   console.log(`Bundle budget OK: ${file} = ${kb} KB (limit: 180 KB)`);
 }
+
+const indexHtml = fs.readFileSync(path.resolve(__dirname, '../build/index.html'), 'utf8');
+if (/modulepreload[^>]*jspdf/i.test(indexHtml)) {
+  console.error('Bundle check failed: index.html preloads jspdf');
+  process.exit(1);
+}
+console.log('Bundle check OK: jspdf is not preloaded');
