@@ -3,32 +3,30 @@ import {
   isAbortError,
 } from '../utils/requestAbort';
 
+function fakePair() {
+  const listeners: Record<string, Array<() => void>> = {};
+  const res = {
+    writableEnded: false,
+    on: (event: string, cb: () => void) => {
+      (listeners[event] ||= []).push(cb);
+    },
+  };
+  const req = { on: jest.fn() };
+  return { req, res, listeners };
+}
+
 describe('requestAbort', () => {
-  it('aborts when req closes before response ends', () => {
-    const listeners: Record<string, Array<() => void>> = {};
-    const req = {
-      on: (event: string, cb: () => void) => {
-        (listeners[event] ||= []).push(cb);
-      },
-    };
-    const res = { writableEnded: false, on: jest.fn() };
-
+  it('aborts when the response closes before it finishes', () => {
+    const { req, res, listeners } = fakePair();
     const signal = bindClientAbortSignal(req as any, res as any);
-    expect(signal.aborted).toBe(false);
-
     listeners.close.forEach((cb) => cb());
     expect(signal.aborted).toBe(true);
+    expect(req.on).not.toHaveBeenCalled();
   });
 
-  it('does not abort after response has ended', () => {
-    const listeners: Record<string, Array<() => void>> = {};
-    const req = {
-      on: (event: string, cb: () => void) => {
-        (listeners[event] ||= []).push(cb);
-      },
-    };
-    const res = { writableEnded: true, on: jest.fn() };
-
+  it('does not abort when the response already finished', () => {
+    const { req, res, listeners } = fakePair();
+    res.writableEnded = true;
     const signal = bindClientAbortSignal(req as any, res as any);
     listeners.close.forEach((cb) => cb());
     expect(signal.aborted).toBe(false);

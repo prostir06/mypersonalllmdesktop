@@ -5,20 +5,15 @@ import type { IncomingMessage, ServerResponse } from 'http';
  * Normal completion (writableEnded) does not abort.
  */
 export function bindClientAbortSignal(
-  req: Pick<IncomingMessage, 'on'>,
+  _req: Pick<IncomingMessage, 'on'>,
   res: Pick<ServerResponse, 'on'> & { writableEnded: boolean }
 ): AbortSignal {
   const ac = new AbortController();
-
-  const abortIfClientGone = () => {
+  res.on('close', () => {
     if (!res.writableEnded && !ac.signal.aborted) {
       ac.abort();
     }
-  };
-
-  req.on('close', abortIfClientGone);
-  req.on('aborted', abortIfClientGone);
-
+  });
   return ac.signal;
 }
 
