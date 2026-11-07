@@ -57,7 +57,7 @@
     ]
   },
   "dependencies": {
-    "electron-updater": "^6.3.9"
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
