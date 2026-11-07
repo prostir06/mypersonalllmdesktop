@@ -29,6 +29,12 @@ vi.mock('../hooks/useSettings', () => ({
   }),
 }));
 
+vi.mock('../services/api/users', () => ({
+  usersAPI: {
+    getMe: vi.fn().mockResolvedValue({ data: { id: 1, name: 'A', email: 'a@b.c', role: 'member' } }),
+  },
+}));
+
 vi.mock('../hooks/useModels', () => ({
   useModels: () => ({
     data: [

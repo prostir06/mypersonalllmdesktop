@@ -8,12 +8,14 @@ export function toPublicUser(row: {
   id: number;
   name: string;
   email: string;
+  role?: string;
   createdAt: Date;
 }) {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
+    role: row.role,
     created_at: row.createdAt,
   };
 }
@@ -38,7 +40,7 @@ export async function getMe(req: AuthRequest, res: Response): Promise<void> {
   try {
     const row = await prisma.user.findUnique({
       where: { id: req.userId! },
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
     });
     if (!row) {
       jsonError(res, req, 404, 'User not found');

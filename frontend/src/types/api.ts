@@ -13,6 +13,7 @@ export interface UserProfile {
   id: number;
   name: string;
   email: string;
+  role?: 'admin' | 'member';
   created_at?: string;
 }
 

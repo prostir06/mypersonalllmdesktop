@@ -17,6 +17,9 @@ jest.mock('../config/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    invite: {
+      updateMany: jest.fn(),
+    },
   },
 }));
 
@@ -48,6 +51,9 @@ const mockedPrisma = prisma as unknown as {
     create: jest.Mock;
     findUnique: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
+  };
+  invite: {
     updateMany: jest.Mock;
   };
 };
@@ -116,6 +122,28 @@ describe('Auth API (Prisma)', () => {
     }
   });
 
+  it('POST /register accepts a single-use invite when registration is closed', async () => {
+    const prev = process.env.ALLOW_REGISTRATION;
+    process.env.ALLOW_REGISTRATION = 'false';
+    mockedPrisma.user.findUnique.mockResolvedValue(null);
+    mockedPrisma.user.count.mockResolvedValue(2);
+    mockedPrisma.user.create.mockResolvedValue({ id: 8 });
+    mockedPrisma.invite.updateMany.mockResolvedValue({ count: 1 });
+    try {
+      const res = await request(app)
+        .post('/api/auth/register')
+        .send({ email: 'a@b.com', password: 'Password1', name: 'Ada', invite: 'once' });
+      expect(res.status).toBe(201);
+      expect(mockedPrisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ role: 'member' }),
+        select: { id: true },
+      });
+    } finally {
+      if (prev === undefined) delete process.env.ALLOW_REGISTRATION;
+      else process.env.ALLOW_REGISTRATION = prev;
+    }
+  });
+
   it('POST /login returns 400 for unknown user without leaking existence', async () => {
     mockedPrisma.user.findUnique.mockResolvedValue(null);
 
@@ -145,6 +173,26 @@ describe('Auth API (Prisma)', () => {
     expect(res.body.userId).toBe(7);
     expect(typeof res.body.token).toBe('string');
     expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
+  });
+
+  it('POST /login rejects a blocked account after the password matches', async () => {
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash('Password1', 4);
+    mockedPrisma.user.findUnique.mockResolvedValue({
+      id: 7,
+      email: 'a@b.com',
+      password: hash,
+      name: 'Ada',
+      blocked: true,
+    });
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'a@b.com', password: 'Password1' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Обліковий запис заблоковано');
+    expect(mockedPrisma.refreshToken.create).not.toHaveBeenCalled();
   });
 
   it('POST /refresh rotates cookie and returns new access token', async () => {

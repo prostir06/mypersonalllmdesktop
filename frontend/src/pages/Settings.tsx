@@ -1,7 +1,7 @@
 /**
  * Сторінка налаштувань AI — провайдер, модель, температура, system prompt, каталог моделей.
  */
-import React, { useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
+import React, { useEffect, useState, useMemo, type FormEvent, type ChangeEvent } from 'react';
 import { Container, Tabs, Tab, Alert, Spinner } from 'react-bootstrap';
 import { useInRouterContext, useSearchParams, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -15,10 +15,12 @@ import ApiKeysTab from '../components/settings/ApiKeysTab';
 import ModelCatalog from '../components/settings/ModelCatalog';
 import UserMemoryCard from '../components/settings/UserMemoryCard';
 import DesktopUpdatesCard from '../components/settings/DesktopUpdatesCard';
+import AdminTeamTab from '../components/settings/AdminTeamTab';
+import { usersAPI } from '../services/api/users';
 import type { SettingsUpdatePayload } from '../types/api';
 
 const ALLOWED_PROVIDERS = new Set(['openai', 'ollama', 'gemini', 'anthropic']);
-const VALID_TABS = new Set(['general', 'api-keys', 'models', 'memory', 'updates']);
+const VALID_TABS = new Set(['general', 'api-keys', 'models', 'memory', 'updates', 'team']);
 
 function normalizeProvider(raw: string | undefined): string {
   const prov = raw || 'openai';
@@ -48,6 +50,22 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
   const [loadingRemote, setLoadingRemote] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'ok' | 'error' | null>(null);
   const [hydratedKey, setHydratedKey] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    usersAPI
+      .getMe()
+      .then((response) => {
+        if (!cancelled) setIsAdmin(response.data.role === 'admin');
+      })
+      .catch(() => {
+        if (!cancelled) setIsAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const settingsFingerprint = settingsData
     ? [
@@ -257,7 +275,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
       )}
 
       <Tabs
-        activeKey={activeTab}
+        activeKey={activeTab === 'team' && !isAdmin ? 'general' : activeTab}
         onSelect={(k) => k && onTabChange(k)}
         id="settings-tabs"
         className="mb-4"
@@ -330,6 +348,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
             <DesktopUpdatesCard />
           </div>
         </Tab>
+        {isAdmin && (
+          <Tab eventKey="team" title="Команда">
+            <AdminTeamTab />
+          </Tab>
+        )}
       </Tabs>
     </Container>
   );

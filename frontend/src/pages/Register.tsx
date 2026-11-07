@@ -5,7 +5,7 @@
 
 import React, { useState, type FormEvent } from 'react';
 import { Form, Button, Container, Row, Col, Alert, Spinner } from 'react-bootstrap';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import { authAPI } from '../services/api';
@@ -18,6 +18,8 @@ const Register: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const invite = searchParams.get('invite') || '';
   const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -26,7 +28,7 @@ const Register: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, name);
+      const response = await authAPI.register(email, password, name, invite || undefined);
       login(response.data.token);
       toast.success('Акаунт створено успішно! ✨');
       navigate('/dashboard');

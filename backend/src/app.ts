@@ -17,6 +17,7 @@ import usersRoutes from './routes/users';
 import documentsRoutes from './routes/documents';
 import promptsRoutes from './routes/prompts';
 import systemRoutes from './routes/system';
+import adminRoutes from './routes/admin';
 import prisma from './config/prisma';
 import type { RequestWithId } from './types/express';
 
@@ -82,6 +83,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/prompts', promptsRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/api/health', async (_req: Request, res: Response) => {
   const startTime = process.hrtime.bigint();

@@ -14,6 +14,7 @@ import {
 } from '../utils/refreshTokens';
 import { isRegistrationAllowed } from '../utils/registrationGate';
 import { resolveRegistrationRole } from '../auth/roles';
+import { claimInvite, releaseInvite } from '../services/admin/invites';
 import { jsonError, jsonValidationErrors } from '../utils/httpJson';
 import type { AuthRequest } from '../types/express';
 
@@ -65,11 +66,6 @@ async function getDummyHash(): Promise<string> {
 }
 
 export async function register(req: AuthRequest, res: Response): Promise<void> {
-  if (!isRegistrationAllowed()) {
-    jsonError(res, req, 403, 'Реєстрація нових користувачів вимкнена');
-    return;
-  }
-
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     jsonValidationErrors(res, req, errors.array());
@@ -80,7 +76,13 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
     email: string;
     password: string;
     name: string;
+    invite?: string;
   };
+  const invite = typeof req.body.invite === 'string' ? req.body.invite.trim() : '';
+  if (!isRegistrationAllowed() && !invite) {
+    jsonError(res, req, 403, 'Реєстрація нових користувачів вимкнена');
+    return;
+  }
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -90,16 +92,29 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    if (invite) {
+      const claimed = await claimInvite(invite);
+      if (!claimed) {
+        jsonError(res, req, 403, 'Запрошення недійсне або вже використане');
+        return;
+      }
+    }
     const existingUsers = await prisma.user.count();
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: resolveRegistrationRole(email, existingUsers),
-      },
-      select: { id: true },
-    });
+    let user: { id: number };
+    try {
+      user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role: resolveRegistrationRole(email, existingUsers),
+        },
+        select: { id: true },
+      });
+    } catch (error: unknown) {
+      if (invite) await releaseInvite(invite);
+      throw error;
+    }
 
     const token = await attachSession(res, user.id);
     logger.info(`New user registered: ${email} (id=${user.id})`);
@@ -131,6 +146,10 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
 
     if (!user || !isPasswordValid) {
       jsonError(res, req, 400, 'Невірний email або пароль');
+      return;
+    }
+    if (user.blocked) {
+      jsonError(res, req, 403, 'Обліковий запис заблоковано');
       return;
     }
 
@@ -168,11 +187,11 @@ export async function refresh(req: AuthRequest, res: Response): Promise<void> {
 
     const user = await prisma.user.findUnique({
       where: { id: rotated.userId },
-      select: { id: true },
+      select: { id: true, blocked: true },
     });
-    if (!user) {
+    if (!user || user.blocked) {
       clearRefreshCookie(res);
-      jsonError(res, req, 401, 'Користувача не знайдено');
+      jsonError(res, req, user ? 403 : 401, user ? 'Обліковий запис заблоковано' : 'Користувача не знайдено');
       return;
     }
 

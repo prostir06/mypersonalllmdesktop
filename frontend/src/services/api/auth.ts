@@ -9,8 +9,18 @@ import { api } from './client';
 export const authAPI = {
   login: (email: string, password: string): Promise<AxiosResponse<AuthTokenResponse>> =>
     api.post('/auth/login', { email, password }),
-  register: (email: string, password: string, name: string): Promise<AxiosResponse<AuthTokenResponse>> =>
-    api.post('/auth/register', { email, password, name }),
+  register: (
+    email: string,
+    password: string,
+    name: string,
+    invite?: string
+  ): Promise<AxiosResponse<AuthTokenResponse>> =>
+    api.post('/auth/register', {
+      email,
+      password,
+      name,
+      ...(invite ? { invite } : {}),
+    }),
   refresh: (): Promise<AxiosResponse<AuthRefreshResponse>> =>
     api.post('/auth/refresh'),
   logout: (): Promise<AxiosResponse<SuccessResponse>> => api.post('/auth/logout'),
