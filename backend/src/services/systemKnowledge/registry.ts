@@ -219,7 +219,7 @@ export function getCuratedKnowledgeCards(): KnowledgeCard[] {
       category: 'artifacts',
       title: 'Інтерактивні артефакти',
       summary:
-        'Відокремлений рендеринг коду, Markdown-документів, SVG-графіки, діаграм Mermaid та HTML-віджетів.',
+        'Відокремлений рендеринг коду, Markdown-документів, SVG-графіки, діаграм Mermaid, HTML-віджетів та документів Word (.docx).',
       whyUse:
         'Дозволяє зручно переглядати, копіювати, тестувати та експортувати створені моделлю матеріали поруч із чатом.',
       howToUse:
@@ -232,9 +232,12 @@ export function getCuratedKnowledgeCards(): KnowledgeCard[] {
         'svg',
         'попередній перегляд',
         'html',
+        'docx',
+        'word',
+        'документ',
       ],
       liveFacts: {
-        supportedFormats: ['code', 'markdown', 'mermaid', 'svg', 'html'],
+        supportedFormats: ['code', 'markdown', 'mermaid', 'svg', 'html', 'docx'],
       },
     },
     {

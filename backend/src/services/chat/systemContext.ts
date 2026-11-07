@@ -13,6 +13,12 @@ import { defaultModelFor } from '../../config/models';
 import WebSearchService from '../webSearch';
 import { UNTRUSTED_DOCUMENT_DISCLAIMER, wrapUntrustedDocument } from './untrusted';
 
+export const ARTIFACT_FORMATTING_INSTRUCTION =
+  '📄 ГЕНЕРАЦІЯ ДОКУМЕНТІВ WORD (DOCX АРТЕФАКТИ): Якщо користувач просить створити Word-документ (.docx), договір, офіційний лист, заяву, наказ або структурований звіт для завантаження у Word, оформи повний текст документа в окремому блоці коду ```docx ... ``` (всередині використовуй чистий Markdown: заголовки # / ## / ###, абзаци, марковані або нумеровані списки, таблиці |...|). Такий блок автоматично відкриється в бічній панелі артефактів із попереднім переглядом аркуша A4, можливістю редагування та кнопкою «Завантажити .docx».';
+
+const DOCX_TRIGGER_REGEX =
+  /(\bdocx\b|\bword\b|ворд|догов[іо]р|офіційн\w+\s+лист|заяв[ауи]|наказ|шаблон\s+документ|у\s+форматі\s+doc)/i;
+
 export function buildDateTimeMessage(
   timezone = 'Europe/Kyiv',
   now = new Date()
@@ -219,6 +225,9 @@ export async function buildSystemContext(
     ]);
 
   systemMessages.push(...knowledgeMessages);
+  if (DOCX_TRIGGER_REGEX.test(userMessage)) {
+    systemMessages.push({ role: 'system', content: ARTIFACT_FORMATTING_INSTRUCTION });
+  }
   if (settingsResult?.systemPrompt) {
     systemMessages.push({ role: 'system', content: settingsResult.systemPrompt });
   }

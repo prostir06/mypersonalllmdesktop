@@ -350,6 +350,13 @@ export interface DocumentDeleteResponse {
   message?: string;
 }
 
+export interface DocumentContentResponse {
+  id: number;
+  filename: string;
+  file_type?: string | null;
+  content: string;
+}
+
 export interface UserSettings {
   default_model?: string;
   temperature?: number;
@@ -411,7 +418,7 @@ export interface UserPromptUpdatePayload {
 
 export interface Artifact {
   id: string;
-  type: 'html' | 'svg';
+  type: 'html' | 'svg' | 'docx';
   title: string;
   language: string;
   content: string;

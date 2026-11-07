@@ -26,7 +26,7 @@ function stripTags(html: string): string {
 function extractTitle(
   content: string,
   beforeBlock: string,
-  type: 'html' | 'svg'
+  type: 'html' | 'svg' | 'docx'
 ): string {
   // 1. Explicit title comment inside the code block: <!-- title: ... -->
   const insideTitleComment = content.match(/<!--\s*title:\s*([^\r\n-]+?)\s*-->/i);
@@ -38,6 +38,14 @@ function extractTitle(
   const precedingTitleComment = beforeBlock.match(/<!--\s*(?:title:\s*)?([^\r\n-]+?)\s*-->\s*$/i);
   if (precedingTitleComment && precedingTitleComment[1]?.trim()) {
     return precedingTitleComment[1].trim();
+  }
+
+  // Markdown heading inside DOCX document
+  if (type === 'docx') {
+    const mdHeadingInDoc = content.match(/^\s*#{1,3}\s+([^\r\n]+)/m);
+    if (mdHeadingInDoc) {
+      return mdHeadingInDoc[1].trim().slice(0, 60);
+    }
   }
 
   // 3. Leading HTML comment inside the code block: <!-- My Title -->
@@ -77,11 +85,14 @@ function extractTitle(
   }
 
   // 7. Sensible defaults
+  if (type === 'docx') {
+    return 'Документ Word (DOCX)';
+  }
   return type === 'svg' ? 'Векторне зображення SVG' : 'Інтерактивний HTML';
 }
 
 /**
- * Parses markdown text to detect HTML and SVG code blocks that qualify as interactive artifacts.
+ * Parses markdown text to detect HTML, SVG, and DOCX code blocks that qualify as interactive artifacts.
  */
 export function parseArtifacts(markdown: string, scope?: string): Artifact[] {
   if (!markdown || typeof markdown !== 'string') {
@@ -107,31 +118,36 @@ export function parseArtifacts(markdown: string, scope?: string): Artifact[] {
     const isHtmlLang = rawLang === 'html' || rawLang === 'htm' || rawLang === 'xhtml';
     const isSvgLang = rawLang === 'svg';
     const isXmlLang = rawLang === 'xml';
+    const isDocxLang = rawLang === 'docx' || rawLang === 'document' || rawLang === 'doc';
 
-    if (!isHtmlLang && !isSvgLang && !isXmlLang) {
+    if (!isHtmlLang && !isSvgLang && !isXmlLang && !isDocxLang) {
       return;
     }
 
-    const hasSvgTag = /<svg\b/i.test(trimmedContent);
-    const hasHtmlMarkup =
-      HTML_MARKUP_REGEX.test(trimmedContent) || GENERAL_HTML_TAG_REGEX.test(trimmedContent);
-
-    let type: 'html' | 'svg';
+    let type: 'html' | 'svg' | 'docx';
     let language: string;
 
-    if (isXmlLang) {
+    if (isDocxLang) {
+      type = 'docx';
+      language = 'markdown';
+    } else if (isXmlLang) {
+      const hasSvgTag = /<svg\b/i.test(trimmedContent);
       if (!hasSvgTag) {
         return;
       }
       type = 'svg';
       language = 'svg';
     } else if (isSvgLang) {
+      const hasSvgTag = /<svg\b/i.test(trimmedContent);
       if (!hasSvgTag) {
         return;
       }
       type = 'svg';
       language = 'svg';
     } else if (isHtmlLang) {
+      const hasSvgTag = /<svg\b/i.test(trimmedContent);
+      const hasHtmlMarkup =
+        HTML_MARKUP_REGEX.test(trimmedContent) || GENERAL_HTML_TAG_REGEX.test(trimmedContent);
       if (!hasHtmlMarkup) {
         return;
       }

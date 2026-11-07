@@ -301,4 +301,45 @@ def foo():
     expect(second[0].id).toBe('artifact-22-1');
     expect(first[0].id).not.toBe(second[0].id);
   });
+  it('extracts docx artifact from ```docx and ```document fenced blocks with Markdown heading title', () => {
+    const md = [
+      'Ось проєкт договору:',
+      '```docx',
+      '# Договір про надання послуг №12',
+      '',
+      'Місто Київ, 2026 рік.',
+      '```',
+    ].join('\n');
+
+    const artifacts = parseArtifacts(md);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]).toMatchObject({
+      type: 'docx',
+      title: 'Договір про надання послуг №12',
+      language: 'markdown',
+    });
+    expect(artifacts[0].content).toContain('Місто Київ, 2026 рік.');
+  });
+
+  it('extracts streaming unclosed ```docx block once content exceeds 32 chars', () => {
+    const md = '```docx\n# Офіційний лист-запит\n\nПросимо надати інформацію щодо стану виконання робіт.';
+    const artifacts = parseArtifacts(md);
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0].type).toBe('docx');
+    expect(artifacts[0].title).toBe('Офіційний лист-запит');
+  });
+
+  it('extracts docx artifact from ```document and ```doc fenced blocks with fallback title', () => {
+    const md1 = '```document\n# Звіт за квартал\nТекст\n```';
+    const a1 = parseArtifacts(md1);
+    expect(a1).toHaveLength(1);
+    expect(a1[0].type).toBe('docx');
+    expect(a1[0].title).toBe('Звіт за квартал');
+
+    const md2 = '```doc\nБез заголовка текст документа\n```';
+    const a2 = parseArtifacts(md2);
+    expect(a2).toHaveLength(1);
+    expect(a2[0].type).toBe('docx');
+    expect(a2[0].title).toBe('Документ Word (DOCX)');
+  });
 });

@@ -94,7 +94,7 @@ import prisma from '../config/prisma';
 import EmbeddingService from '../services/EmbeddingService';
 import ProviderFactory from '../services/providerFactory';
 import ChatService from '../services/ChatService';
-import { buildSystemContext } from '../services/chat/systemContext';
+import { buildSystemContext, ARTIFACT_FORMATTING_INSTRUCTION } from '../services/chat/systemContext';
 import { buildSystemKnowledgeMessages } from '../services/systemKnowledge';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 import {
@@ -236,6 +236,18 @@ describe('ChatService', () => {
       expect(sysIdx).toBeGreaterThanOrEqual(0);
       expect(pinIdx).toBeGreaterThanOrEqual(0);
       expect(sysIdx).toBeLessThan(pinIdx);
+    });
+
+    it('injects ARTIFACT_FORMATTING_INSTRUCTION when user message requests docx or documents', async () => {
+      mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
+      mockedEmbed.isAvailable.mockReturnValue(false);
+
+      const result = await buildSystemContext(1, {}, 'Створи договір про надання послуг');
+      const docxMsg = result.messages.find(
+        (m) => m.content === ARTIFACT_FORMATTING_INSTRUCTION
+      );
+      expect(docxMsg).toBeDefined();
+      expect(docxMsg?.role).toBe('system');
     });
 
     it('collects RAG chunk sources', async () => {
