@@ -8,16 +8,11 @@ import {
 } from './providers/shared';
 import { ChatError } from './chat/types';
 import type { RagSource, TokenUsage } from './chat/types';
-import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
+import type { NormalizedToolCall } from './providers/types';
+import { buildGeminiPayload, pushGeminiToolCall } from './gemini/formatters';
 
-export type GeminiMessagePart =
-  | { text: string }
-  | { inlineData: { mimeType: string; data: string } };
-
-export type GeminiContent = {
-  role: 'user' | 'model';
-  parts: GeminiMessagePart[];
-};
+export type { GeminiContent, GeminiMessagePart } from './gemini/formatters';
+export { buildGeminiPayload } from './gemini/formatters';
 
 export function formatGroundingSources(chunks?: Array<{ web?: { uri?: string; title?: string } }>): RagSource[] {
   if (!Array.isArray(chunks)) return [];
@@ -65,93 +60,56 @@ export function formatGeminiTokenUsage(
   );
 }
 
-export function buildGeminiPayload(
-  messages: Array<{ role: string; content?: unknown }>,
-  options: Record<string, unknown> = {}
-) {
-  let systemInstructionText = '';
-  const contents: GeminiContent[] = [];
+function isInvalidGeminiKey(error: { status?: number; message?: string }): boolean {
+  const message = error.message || '';
+  return (
+    error.status === 401 ||
+    error.status === 403 ||
+    message.includes('API_KEY_INVALID') ||
+    message.includes('API key not valid')
+  );
+}
 
-  for (const msg of messages) {
-    if (msg.role === 'system') {
-      if (typeof msg.content === 'string') {
-        systemInstructionText += (systemInstructionText ? '\n\n' : '') + msg.content;
-      }
-      continue;
-    }
+function mapGeminiError(error: any, logLabel: string, fallbackPrefix: string): never {
+  if (
+    isAbortOrCallbackError(error) ||
+    isAbortError(error) ||
+    error?.code === 'ERR_CANCELED' ||
+    error instanceof ChatError
+  ) {
+    throw error;
+  }
+  logger.error(`${logLabel}: ${error?.message || error}`);
+  if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+    throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.', { cause: error });
+  }
+  if (isInvalidGeminiKey(error)) {
+    throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.', { cause: error });
+  }
+  if (error?.status === 400) {
+    throw new ChatError(400, `Некоректний запит до Gemini: ${error?.message || 'невідома причина'}`, { cause: error });
+  }
+  throw new ChatError(500, `${fallbackPrefix}: ${error?.message || 'Невідома помилка'}`, { cause: error });
+}
 
-    if (msg.role === 'tool') {
-      contents.push({
-        role: 'user',
-        parts: [{
-          text: `Tool result: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`,
-        }],
-      });
-      continue;
-    }
-
-    const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
-    const parts: GeminiMessagePart[] = [];
-
-    if (typeof msg.content === 'string') {
-      parts.push({ text: msg.content });
-    } else if (Array.isArray(msg.content)) {
-      for (const part of msg.content as Array<{ type?: string; text?: string; image_url?: { url?: string } }>) {
-        if (part.type === 'text' && part.text) {
-          parts.push({ text: part.text });
-        } else if (part.type === 'image_url' && part.image_url?.url) {
-          const match = part.image_url.url.match(/^data:([^;]+);base64,(.+)$/);
-          if (match) {
-            parts.push({
-              inlineData: {
-                mimeType: match[1],
-                data: match[2],
-              },
-            });
-          }
-        }
-      }
-    }
-
-    if (parts.length > 0) {
-      contents.push({ role, parts });
+function collectResponseToolCalls(response: {
+  functionCalls?: () => Array<{ id?: string; name?: string; args?: unknown }> | undefined;
+  candidates?: Array<{ content?: { parts?: Array<{ functionCall?: { id?: string; name?: string; args?: unknown } }> } }>;
+}): NormalizedToolCall[] {
+  const toolCalls: NormalizedToolCall[] = [];
+  const parts = response.candidates?.[0]?.content?.parts;
+  if (Array.isArray(parts)) {
+    for (const part of parts) {
+      if (part?.functionCall) pushGeminiToolCall(toolCalls, part.functionCall);
     }
   }
-
-  const enableWebSearch = options.enableWebSearch === true;
-  const config: Record<string, unknown> = {
-    temperature: typeof options.temperature === 'number' ? options.temperature : 0.7,
-    maxOutputTokens: typeof options.max_tokens === 'number' ? options.max_tokens : 4096,
-  };
-
-  if (options.signal instanceof AbortSignal) {
-    config.abortSignal = options.signal;
+  if (toolCalls.length === 0 && typeof response.functionCalls === 'function') {
+    const calls = response.functionCalls();
+    if (Array.isArray(calls)) {
+      for (const call of calls) pushGeminiToolCall(toolCalls, call);
+    }
   }
-
-  if (systemInstructionText.trim().length > 0) {
-    config.systemInstruction = { parts: [{ text: systemInstructionText.trim() }] };
-  }
-
-  const toolsArray: any[] = [];
-  if (enableWebSearch) {
-    toolsArray.push({ googleSearch: {} });
-  }
-
-  const rawTools = options.tools;
-  if (Array.isArray(rawTools) && rawTools.length > 0) {
-    const functionDeclarations = (rawTools as ToolDefinitionSpec[]).map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: t.parameters,
-    }));
-    toolsArray.push({ functionDeclarations });
-  }
-
-  if (toolsArray.length > 0) {
-    config.tools = toolsArray;
-  }
-
-  return { contents, config };
+  return toolCalls;
 }
 
 async function sendGeminiMessage(
@@ -190,30 +148,7 @@ async function sendGeminiMessage(
       text = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
     }
 
-    const toolCalls: NormalizedToolCall[] = [];
-    if (typeof (response as any).functionCalls === 'function') {
-      const fcs = (response as any).functionCalls();
-      if (Array.isArray(fcs)) {
-        for (const fc of fcs) {
-          toolCalls.push({
-            id: fc.name || `gemini_call_${Date.now()}`,
-            name: fc.name,
-            argumentsJson: typeof fc.args === 'string' ? fc.args : JSON.stringify(fc.args ?? {}),
-          });
-        }
-      }
-    }
-    if (toolCalls.length === 0 && candidate?.content?.parts) {
-      for (const part of candidate.content.parts as any[]) {
-        if (part.functionCall) {
-          toolCalls.push({
-            id: part.functionCall.name || `gemini_call_${Date.now()}`,
-            name: part.functionCall.name,
-            argumentsJson: typeof part.functionCall.args === 'string' ? part.functionCall.args : JSON.stringify(part.functionCall.args ?? {}),
-          });
-        }
-      }
-    }
+    const toolCalls = collectResponseToolCalls(response as any);
 
     const groundingChunks = (candidate as any)?.groundingMetadata?.groundingChunks;
     const sources = formatGroundingSources(groundingChunks);
@@ -228,28 +163,7 @@ async function sendGeminiMessage(
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: any) {
-    if (
-      isAbortOrCallbackError(error) ||
-      isAbortError(error) ||
-      error?.code === 'ERR_CANCELED' ||
-      error instanceof ChatError
-    ) {
-      throw error;
-    }
-    logger.error(`Gemini send error: ${error?.message || error}`);
-    if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-      throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.', { cause: error });
-    }
-    if (
-      error?.status === 400 ||
-      error?.status === 401 ||
-      error?.status === 403 ||
-      error?.message?.includes('API_KEY_INVALID') ||
-      error?.message?.includes('API key not valid')
-    ) {
-      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.', { cause: error });
-    }
-    throw new ChatError(500, `Помилка Gemini API: ${error?.message || 'Невідома помилка'}`, { cause: error });
+    mapGeminiError(error, 'Gemini send error', 'Помилка Gemini API');
   }
 }
 
@@ -308,30 +222,16 @@ async function streamGeminiMessage(
 
       if (candidate?.content?.parts) {
         for (const part of candidate.content.parts as any[]) {
-          if (part.functionCall) {
-            toolCalls.push({
-              id: part.functionCall.name || `gemini_call_${Date.now()}`,
-              name: part.functionCall.name,
-              argumentsJson: typeof part.functionCall.args === 'string' ? part.functionCall.args : JSON.stringify(part.functionCall.args ?? {}),
-            });
-          }
+          if (part.functionCall) pushGeminiToolCall(toolCalls, part.functionCall);
         }
       }
 
       const chunkText = chunk.text || '';
       if (chunkText) {
         fullText += chunkText;
-        if (onChunk) {
-          try {
-            invokeStreamTokenCallback(onChunk, chunkText, (msg) => {
-              logger.error(`Помилка в onChunk коллбеку: ${msg}`);
-            });
-          } catch (cbError: unknown) {
-            if (isAbortOrCallbackError(cbError) && (cbError as Error)?.name !== 'StreamCallbackError') {
-              throw cbError;
-            }
-          }
-        }
+        invokeStreamTokenCallback(onChunk, chunkText, (msg) => {
+          logger.error(`Помилка в onChunk коллбеку: ${msg}`);
+        });
       }
       const chunks = (candidate as any)?.groundingMetadata?.groundingChunks;
       if (Array.isArray(chunks) && chunks.length > 0) {
@@ -342,15 +242,9 @@ async function streamGeminiMessage(
     if (isSafetyBlocked) {
       const fallback = 'Відповідь заблоковано фільтрами безпеки Google Gemini.';
       if (!fullText && onChunk) {
-        try {
-          invokeStreamTokenCallback(onChunk, fallback, (msg) => {
-            logger.error(`Помилка в onChunk коллбеку: ${msg}`);
-          });
-        } catch (cbError: unknown) {
-          if (isAbortOrCallbackError(cbError) && (cbError as Error)?.name !== 'StreamCallbackError') {
-            throw cbError;
-          }
-        }
+        invokeStreamTokenCallback(onChunk, fallback, (msg) => {
+          logger.error(`Помилка в onChunk коллбеку: ${msg}`);
+        });
       }
       fullText = fallback;
     }
@@ -365,28 +259,7 @@ async function streamGeminiMessage(
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   } catch (error: any) {
-    if (
-      isAbortOrCallbackError(error) ||
-      isAbortError(error) ||
-      error?.code === 'ERR_CANCELED' ||
-      error instanceof ChatError
-    ) {
-      throw error;
-    }
-    logger.error(`Gemini stream error: ${error?.message || error}`);
-    if (error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-      throw new ChatError(429, 'Перевищено ліміт запитів Gemini API. Будь ласка, зачекайте або спробуйте іншу модель.');
-    }
-    if (
-      error?.status === 400 ||
-      error?.status === 401 ||
-      error?.status === 403 ||
-      error?.message?.includes('API_KEY_INVALID') ||
-      error?.message?.includes('API key not valid')
-    ) {
-      throw new ChatError(401, 'Недійсний Google Gemini API key. Будь ласка, перевірте ключ у Налаштуваннях або у файлі .env.');
-    }
-    throw new ChatError(500, `Помилка стрімінгу Gemini: ${error?.message || 'Невідома помилка'}`);
+    mapGeminiError(error, 'Gemini stream error', 'Помилка стрімінгу Gemini');
   }
 }
 

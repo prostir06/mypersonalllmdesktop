@@ -162,6 +162,57 @@ describe('geminiService', () => {
 
       expect(config.tools).toEqual([{ googleSearch: {} }]);
     });
+
+    it('formats tool calls and results as function parts and skips googleSearch', () => {
+      const { contents, config } = buildGeminiPayload(
+        [
+          { role: 'user', content: 'Яка погода?' },
+          {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'call-1',
+                function: { name: 'get_weather', arguments: '{"city":"Kyiv"}' },
+              },
+              {
+                id: 'call-2',
+                function: { name: 'get_weather', arguments: '{"city":"Lviv"}' },
+              },
+            ],
+          },
+          { role: 'tool', tool_call_id: 'call-1', content: '{"temp":12}' },
+          { role: 'tool', tool_call_id: 'call-2', content: 'ясно' },
+        ] as any,
+        {
+          enableWebSearch: true,
+          tools: [{ name: 'get_weather', description: 'Погода', parameters: { type: 'object' } }],
+        }
+      );
+
+      expect(config.tools).toEqual([
+        {
+          functionDeclarations: [
+            { name: 'get_weather', description: 'Погода', parameters: { type: 'object' } },
+          ],
+        },
+      ]);
+      expect(contents[1]).toEqual({
+        role: 'model',
+        parts: [
+          { functionCall: { id: 'call-1', name: 'get_weather', args: { city: 'Kyiv' } } },
+          { functionCall: { id: 'call-2', name: 'get_weather', args: { city: 'Lviv' } } },
+        ],
+      });
+      expect(contents[2]).toEqual({
+        role: 'user',
+        parts: [
+          { functionResponse: { id: 'call-1', name: 'get_weather', response: { temp: 12 } } },
+          { functionResponse: { id: 'call-2', name: 'get_weather', response: { result: 'ясно' } } },
+        ],
+      });
+      expect(contents[1].parts[0]).not.toEqual(contents[1].parts[1]);
+    });
   });
 
   describe('sendGeminiMessage', () => {
@@ -250,6 +301,51 @@ describe('geminiService', () => {
       ).rejects.toMatchObject({
         statusCode: 500,
         message: expect.stringContaining('Помилка Gemini API: Internal network error'),
+      });
+    });
+
+    it('keeps the provider function-call id and does not reuse the function name', async () => {
+      mockGenerateContent.mockResolvedValueOnce({
+        text: '',
+        candidates: [
+          {
+            content: {
+              parts: [
+                { functionCall: { id: 'fc-a', name: 'search_documents', args: { q: 'a' } } },
+                { functionCall: { name: 'search_documents', args: { q: 'b' } } },
+              ],
+            },
+          },
+        ],
+      });
+
+      const result = await geminiService.sendGeminiMessage(
+        [{ role: 'user', content: 'Знайди' }],
+        'gemini-2.0-flash',
+        { apiKey: 'test-key' }
+      );
+
+      expect(result.toolCalls).toHaveLength(2);
+      expect(result.toolCalls?.[0].id).toBe('fc-a');
+      expect(result.toolCalls?.[1].id).not.toBe('search_documents');
+      expect(result.toolCalls?.[1].id).not.toBe(result.toolCalls?.[0].id);
+    });
+
+    it('maps a Gemini HTTP 400 to ChatError 400', async () => {
+      mockGenerateContent.mockRejectedValueOnce({
+        status: 400,
+        message: 'Invalid argument: tools',
+      });
+
+      await expect(
+        geminiService.sendGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' }
+        )
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        message: expect.stringContaining('Некоректний запит до Gemini'),
       });
     });
 
@@ -461,7 +557,7 @@ describe('geminiService', () => {
       ).rejects.toThrow('This operation was aborted');
     });
 
-    it('re-throws AbortError from onChunk and handles non-abort callback errors', async () => {
+    it('aborts the stream when onChunk throws and rethrows AbortError', async () => {
       const asyncChunks = [{ text: 'Chunk 1' }, { text: 'Chunk 2' }];
       mockGenerateContentStream.mockResolvedValueOnce({
         async *[Symbol.asyncIterator]() {
@@ -469,18 +565,21 @@ describe('geminiService', () => {
         },
       });
 
-      // Non-abort callback error is logged and stream continues
       const onChunkError = jest.fn().mockImplementationOnce(() => {
         throw new Error('Callback UI glitch');
       });
 
-      const res = await geminiService.streamGeminiMessage(
-        [{ role: 'user', content: 'Hi' }],
-        'gemini-2.0-flash',
-        { apiKey: 'test-key' },
-        onChunkError
-      );
-      expect(res.content).toBe('Chunk 1Chunk 2');
+      await expect(
+        geminiService.streamGeminiMessage(
+          [{ role: 'user', content: 'Hi' }],
+          'gemini-2.0-flash',
+          { apiKey: 'test-key' },
+          onChunkError
+        )
+      ).rejects.toMatchObject({
+        name: 'StreamCallbackError',
+        message: 'Callback UI glitch',
+      });
 
       // AbortError in onChunk is rethrown
       mockGenerateContentStream.mockResolvedValueOnce({
