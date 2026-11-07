@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.[jt]s', '**/?(*.)+(spec|test).[jt]s'],
+  testPathIgnorePatterns: ['/node_modules/', '/src/__tests__/integration/'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   clearMocks: true,
   collectCoverageFrom: [

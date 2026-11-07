@@ -44,7 +44,8 @@ function clientFor(options: ProviderOptions): OpenAI {
   if (!apiKey) {
     throw new Error('OpenAI API key is not configured');
   }
-  return new OpenAI({ apiKey });
+  const baseURL = process.env.OPENAI_BASE_URL?.trim();
+  return new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey });
 }
 
 function buildBaseParams(

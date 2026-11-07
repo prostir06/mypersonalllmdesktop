@@ -1,0 +1,41 @@
+# E2E profile: deterministic OpenAI-compatible mock and a SearXNG JSON stub.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
+#
+# OPENAI_API_KEY must not look like a placeholder (the backend ignores those).
+# ADMIN_EMAIL is the bootstrap admin so the quota spec does not depend on an empty database.
+
+services:
+  mock-llm:
+    image: node:24-alpine
+    container_name: llm-assistant-mock-llm
+    working_dir: /app
+    volumes:
+      - ./e2e/mock-llm:/app:ro
+    command: ["node", "server.mjs"]
+    networks:
+      - llm-network
+
+  searxng-stub:
+    image: node:24-alpine
+    container_name: llm-assistant-searxng-stub
+    working_dir: /app
+    volumes:
+      - ./e2e/searxng-stub:/app:ro
+    command: ["node", "server.mjs"]
+    networks:
+      - llm-network
+
+  backend:
+    environment:
+      ALLOW_REGISTRATION: "true"
+      ADMIN_EMAIL: e2e-admin@test.local
+      OPENAI_API_KEY: sk-e2e-mock-key
+      OPENAI_BASE_URL: http://mock-llm:4010/v1
+      SEARXNG_URL: http://searxng-stub:8088
+      TAVILY_API_KEY: ""
+    depends_on:
+      mock-llm:
+        condition: service_started
+      searxng-stub:
+        condition: service_started

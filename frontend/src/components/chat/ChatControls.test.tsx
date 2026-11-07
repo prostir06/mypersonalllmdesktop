@@ -24,6 +24,7 @@ describe('ChatControls', () => {
         onShowPromptModal={vi.fn()}
         onShowDocModal={vi.fn()}
         onExportChat={vi.fn()}
+        onExportPdf={vi.fn()}
         messagesCount={0}
       />
     );
@@ -50,6 +51,7 @@ describe('ChatControls', () => {
         onShowPromptModal={vi.fn()}
         onShowDocModal={vi.fn()}
         onExportChat={vi.fn()}
+        onExportPdf={vi.fn()}
         messagesCount={0}
       />
     );
@@ -80,6 +82,7 @@ describe('ChatControls', () => {
         onShowPromptModal={vi.fn()}
         onShowDocModal={vi.fn()}
         onExportChat={vi.fn()}
+        onExportPdf={vi.fn()}
         messagesCount={0}
       />
     );

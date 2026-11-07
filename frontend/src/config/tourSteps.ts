@@ -1,7 +1,6 @@
 import type { TourStep } from '../types/tour';
 
-export const CURRENT_TOUR_VERSION = 'v18.1';
-export const TOUR_STORAGE_KEY = 'product_tour_completed_version';
+export { CURRENT_TOUR_VERSION, TOUR_STORAGE_KEY } from './tourVersion';
 
 export const productTourSteps: TourStep[] = [
   {

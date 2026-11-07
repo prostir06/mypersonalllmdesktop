@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment -- converted JSX stream mock stays untyped */
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderHook, act, waitFor } from '@testing-library/react';

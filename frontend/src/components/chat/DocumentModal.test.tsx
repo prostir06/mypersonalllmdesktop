@@ -8,7 +8,7 @@ import { documentsAPI } from '../../services/api';
 vi.mock('../../services/api', () => ({
   documentsAPI: {
     getChunks: vi.fn().mockResolvedValue({
-      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1 },
+      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1, limit: 20, offset: 0 },
     }),
   },
 }));
@@ -16,8 +16,8 @@ vi.mock('../../services/api', () => ({
 describe('DocumentModal', () => {
   beforeEach(() => {
     vi.mocked(documentsAPI.getChunks).mockResolvedValue({
-      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1 },
-    });
+      data: { items: [{ chunk_index: 0, content: 'chunk text' }], total: 1, limit: 20, offset: 0 },
+    } as Awaited<ReturnType<typeof documentsAPI.getChunks>>);
   });
 
   afterEach(() => {
@@ -226,8 +226,10 @@ describe('DocumentModal', () => {
       data: {
         items: [{ chunk_index: 0, content: '## Sheet: Inventory\nSKU,1' }],
         total: 1,
+        limit: 20,
+        offset: 0,
       },
-    });
+    } as Awaited<ReturnType<typeof documentsAPI.getChunks>>);
     const user = userEvent.setup();
     render(
       <DocumentModal

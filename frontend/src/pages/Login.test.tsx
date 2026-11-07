@@ -50,7 +50,9 @@ describe('Login', () => {
   });
 
   it('submits credentials and calls auth login on success', async () => {
-    authAPI.login.mockResolvedValue({ data: { token: 'tok-1' } });
+    vi.mocked(authAPI.login).mockResolvedValue({
+      data: { token: 'tok-1' },
+    } as Awaited<ReturnType<typeof authAPI.login>>);
     const user = userEvent.setup();
     renderLogin();
 
@@ -66,7 +68,7 @@ describe('Login', () => {
   });
 
   it('shows API error message on failure', async () => {
-    authAPI.login.mockRejectedValue({
+    vi.mocked(authAPI.login).mockRejectedValue({
       response: { data: { error: 'Невірний пароль' } },
     });
     const user = userEvent.setup();

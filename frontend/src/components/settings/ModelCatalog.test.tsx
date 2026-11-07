@@ -33,7 +33,8 @@ vi.mock('../../hooks/useModels', () => ({
   useCreateModel: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateModel: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteModel: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  isSystemModel: (m) => m.user_id == null || m.is_default === true,
+  isSystemModel: (m: { user_id?: number | null; is_default?: boolean }) =>
+    m.user_id == null || m.is_default === true,
 }));
 
 function renderCatalog() {

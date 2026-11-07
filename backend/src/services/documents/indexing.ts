@@ -31,7 +31,7 @@ type ChunkWriter = {
   $executeRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown>;
 };
 
-async function insertChunks(
+export async function insertChunks(
   tx: ChunkWriter,
   docId: number,
   chunks: string[],

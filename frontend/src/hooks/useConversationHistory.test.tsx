@@ -12,7 +12,7 @@ vi.mock('../services/api', () => ({
 
 import { chatAPI } from '../services/api';
 
-function wrapper({ children }) {
+function wrapper({ children }: { children: React.ReactNode }) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -27,20 +27,21 @@ describe('useConversationHistory', () => {
   });
 
   it('aborts in-flight history fetch when conversationId changes', async () => {
-    let resolveFirst;
-    const firstSignalRef = { current: null };
+    type HistoryResponse = Awaited<ReturnType<typeof chatAPI.getHistory>>;
+    let resolveFirst: (value: HistoryResponse) => void = () => undefined;
+    const firstSignalRef: { current: AbortSignal | null } = { current: null };
 
-    chatAPI.getHistory.mockImplementationOnce((_id, config) => {
-      firstSignalRef.current = config?.signal;
+    vi.mocked(chatAPI.getHistory).mockImplementationOnce((_id, config) => {
+      firstSignalRef.current = (config?.signal as AbortSignal | undefined) ?? null;
       return new Promise((resolve) => {
         resolveFirst = resolve;
       });
     });
 
-    chatAPI.getHistory.mockImplementationOnce(() =>
+    vi.mocked(chatAPI.getHistory).mockImplementationOnce(() =>
       Promise.resolve({
         data: { messages: [{ role: 'user', content: 'second' }] },
-      })
+      } as HistoryResponse)
     );
 
     const setError = vi.fn();
@@ -64,7 +65,7 @@ describe('useConversationHistory', () => {
 
     resolveFirst({
       data: { messages: [{ role: 'user', content: 'stale' }] },
-    });
+    } as HistoryResponse);
     await new Promise((r) => setTimeout(r, 20));
     expect(result.current.messages).toEqual([
       { role: 'user', content: 'second' },

@@ -53,7 +53,7 @@ describe('MessageInput', () => {
         {...baseProps}
         supportsVision
         attachedImage={{ url: 'blob:test', base64: 'abc' }}
-        chatAttachments={[{ filename: 'plan.pdf', mime_type: 'application/pdf', size: 10 }]}
+        chatAttachments={[{ filename: 'plan.pdf', content: 'plan' }]}
       />
     );
 

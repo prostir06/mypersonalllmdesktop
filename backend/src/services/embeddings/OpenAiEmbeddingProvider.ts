@@ -2,7 +2,11 @@ import axios from 'axios';
 import logger from '../../logger';
 import { EMBEDDING_DIMENSIONS } from './types';
 
-const OPENAI_EMBEDDING_URL = 'https://api.openai.com/v1/embeddings';
+/** Follow OPENAI_BASE_URL so the E2E mock can serve embeddings. */
+export function openAiEmbeddingsUrl(): string {
+  const base = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  return `${base}/embeddings`;
+}
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_BATCH_SIZE = 100;
 
@@ -18,7 +22,7 @@ export class OpenAiEmbeddingProvider {
   ): Promise<number[] | null> {
     try {
       const response = await axios.post(
-        OPENAI_EMBEDDING_URL,
+        openAiEmbeddingsUrl(),
         {
           model: EMBEDDING_MODEL,
           input: truncateText(text),
@@ -65,7 +69,7 @@ export class OpenAiEmbeddingProvider {
       ) {
         const batch = cleanTexts.slice(offset, offset + EMBEDDING_BATCH_SIZE);
         const response = await axios.post(
-          OPENAI_EMBEDDING_URL,
+          openAiEmbeddingsUrl(),
           {
             model: EMBEDDING_MODEL,
             input: batch,

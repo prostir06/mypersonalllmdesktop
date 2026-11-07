@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { CURRENT_TOUR_VERSION, TOUR_STORAGE_KEY } from '../frontend/src/config/tourVersion';
 
 export const API_BASE_URL = process.env.E2E_API_URL || 'http://localhost:5000';
 
@@ -45,12 +46,23 @@ export async function dismissTourIfOpen(page: Page): Promise<void> {
   }
 }
 
-export async function loginViaUi(page: Page, user: TestUser): Promise<void> {
-  await page.addInitScript(() => {
-    try {
-      localStorage.setItem('product_tour_completed_version', 'v18.1');
-    } catch {}
-  });
+export async function loginViaUi(
+  page: Page,
+  user: TestUser,
+  opts?: { showTour?: boolean }
+): Promise<void> {
+  if (!opts?.showTour) {
+    await page.addInitScript(
+      ({ key, version }) => {
+        try {
+          localStorage.setItem(key, version);
+        } catch {
+          /* private mode */
+        }
+      },
+      { key: TOUR_STORAGE_KEY, version: CURRENT_TOUR_VERSION }
+    );
+  }
   await page.goto('/login');
   await page.getByTestId('login-email').fill(user.email);
   await page.getByTestId('login-password').fill(user.password);

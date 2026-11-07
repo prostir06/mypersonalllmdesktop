@@ -71,6 +71,9 @@ jobs:
         run: npm run lint
         working-directory: backend
 
+      - name: Explicit any ratchet
+        run: node scripts/any-ratchet.mjs backend
+
       - name: Generate Prisma client
         run: npx prisma generate --config prisma/prisma.config.ts
         working-directory: backend
@@ -89,6 +92,10 @@ jobs:
 
       - name: Run backend tests with coverage
         run: npm run test:coverage
+        working-directory: backend
+
+      - name: pgvector integration tests
+        run: npm run test:integration
         working-directory: backend
 
       - name: Upload coverage report
@@ -123,6 +130,9 @@ jobs:
       - name: Lint
         run: npm run lint
         working-directory: frontend
+
+      - name: Explicit any ratchet
+        run: node scripts/any-ratchet.mjs frontend
 
       - name: Unit tests
         run: npm test

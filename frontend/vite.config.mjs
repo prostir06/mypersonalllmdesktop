@@ -63,9 +63,10 @@ export default defineConfig(({ mode }) => ({
     coverage: {
       all: false,
       provider: 'v8',
-      include: ['src/hooks/**', 'src/services/**'],
+      include: ['src/components/**', 'src/hooks/**', 'src/services/**'],
       thresholds: {
-        statements: 50,
+        lines: 60,
+        statements: 60,
       },
     },
   },

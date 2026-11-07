@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { chromium, defineConfig } from '@playwright/test';
+import { CURRENT_TOUR_VERSION, TOUR_STORAGE_KEY } from '../frontend/src/config/tourVersion';
 
 const channel =
   process.env.E2E_BROWSER_CHANNEL ||
@@ -22,8 +23,8 @@ export default defineConfig({
           origin: process.env.E2E_BASE_URL || 'http://localhost:3000',
           localStorage: [
             {
-              name: 'product_tour_completed_version',
-              value: 'v18.1',
+              name: TOUR_STORAGE_KEY,
+              value: CURRENT_TOUR_VERSION,
             },
           ],
         },
