@@ -12,6 +12,7 @@ jest.mock('../services/DocumentService', () => ({
   default: {
     acceptUpload: jest.fn(),
     getByUser: jest.fn(),
+    getStatuses: jest.fn(),
     getById: jest.fn(),
     getChunks: jest.fn(),
     retryIndexing: jest.fn(),
@@ -37,6 +38,7 @@ app.use('/api/documents', documentsRouter);
 const mockedService = DocumentService as unknown as {
   acceptUpload: jest.Mock;
   getByUser: jest.Mock;
+  getStatuses: jest.Mock;
   getById: jest.Mock;
   getChunks: jest.Mock;
   retryIndexing: jest.Mock;
@@ -81,6 +83,26 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.body.items[0].chunks_count).toBe(3);
     expect(res.body.total).toBe(1);
     expect(mockedService.getByUser).toHaveBeenCalledWith(1, 50, 0);
+  });
+
+  it('GET /status returns statuses for the requested ids only', async () => {
+    mockedService.getStatuses.mockResolvedValue([
+      { id: 4, filename: 'a.txt', status: 'ready', has_embeddings: false },
+    ]);
+
+    const res = await request(app).get('/api/documents/status?ids=4,4');
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([
+      { id: 4, filename: 'a.txt', status: 'ready', has_embeddings: false },
+    ]);
+    expect(mockedService.getStatuses).toHaveBeenCalledWith(1, [4]);
+  });
+
+  it('GET /status rejects a malformed id list', async () => {
+    const res = await request(app).get('/api/documents/status?ids=1,nope');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Некоректний список документів');
+    expect(mockedService.getStatuses).not.toHaveBeenCalled();
   });
 
   it('DELETE /:id success', async () => {

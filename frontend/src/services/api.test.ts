@@ -193,6 +193,7 @@ describe('api service wrappers', () => {
     chatAPI.uploadAttachment(new FormData());
 
     documentsAPI.getAll({ limit: 5 });
+    documentsAPI.getStatuses([4, 5]);
     documentsAPI.upload(new FormData());
     documentsAPI.delete(3);
     documentsAPI.getChunks(3, { offset: 10 });
@@ -244,6 +245,9 @@ describe('api service wrappers', () => {
     );
     expect(mocks.apiInstance.get).toHaveBeenCalledWith('/documents', {
       params: { limit: 5 },
+    });
+    expect(mocks.apiInstance.get).toHaveBeenCalledWith('/documents/status', {
+      params: { ids: '4,5' },
     });
     expect(mocks.apiInstance.post).toHaveBeenCalledWith(
       '/documents/upload',

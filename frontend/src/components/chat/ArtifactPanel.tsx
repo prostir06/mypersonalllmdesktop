@@ -61,7 +61,7 @@ export function buildSafeSrcDoc(artifact: Artifact): string {
     body {
       margin: 0;
       padding: 1rem;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
       line-height: 1.5;
       color: #212529;
       background-color: #ffffff;

@@ -27,6 +27,8 @@ describe('UI_CSP and ARTIFACT_SANDBOX_CSP', () => {
     assert.match(UI_CSP, /script-src 'self'/);
     assert.match(UI_CSP, /https:\/\/www\.gravatar\.com/);
     assert.match(UI_CSP, /frame-ancestors 'none'/);
+    assert.doesNotMatch(UI_CSP, /fonts\.googleapis|fonts\.gstatic/);
+    assert.doesNotMatch(ARTIFACT_SANDBOX_CSP, /fonts\.googleapis|fonts\.gstatic/);
   });
 
   it('isolates artifact sandbox with connect-src none and frame-ancestors self', () => {

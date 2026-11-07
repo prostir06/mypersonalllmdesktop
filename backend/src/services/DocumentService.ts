@@ -170,6 +170,27 @@ class DocumentService {
     };
   }
 
+  static async getStatuses(userId: number, ids: number[]) {
+    if (ids.length === 0) return [];
+    const rows = await prisma.document.findMany({
+      where: { userId, id: { in: ids } },
+      select: {
+        id: true,
+        filename: true,
+        status: true,
+        failureReason: true,
+        embeddingsCount: true,
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      filename: row.filename,
+      status: row.status || 'ready',
+      failure_reason: row.failureReason ?? undefined,
+      has_embeddings: (row.embeddingsCount ?? 0) > 0,
+    }));
+  }
+
   static async getById(docId: number, userId: number) {
     const embedCtx = await resolveEmbeddingContext(userId);
     const row = await prisma.document.findFirst({

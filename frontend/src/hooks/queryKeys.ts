@@ -7,6 +7,7 @@ export const queryKeys = {
     ['conversation-memory', id] as const,
   userMemoryNotes: ['user-memory-notes'] as const,
   documents: ['documents'] as const,
+  documentStatuses: ['documents', 'status'] as const,
   models: ['models'] as const,
   systemKnowledgeAll: ['system-knowledge'] as const,
   systemKnowledge: (params?: {

@@ -3,6 +3,7 @@ import type {
   DocumentChunkRecord,
   DocumentDeleteResponse,
   DocumentRecord,
+  DocumentStatusResponse,
   DocumentUploadResponse,
   ListQueryParams,
   PaginatedList,
@@ -14,6 +15,10 @@ export const documentsAPI = {
     params?: ListQueryParams
   ): Promise<AxiosResponse<PaginatedList<DocumentRecord>>> =>
     api.get('/documents', { params }),
+  getStatuses: (
+    ids: Array<string | number>
+  ): Promise<AxiosResponse<DocumentStatusResponse>> =>
+    api.get('/documents/status', { params: { ids: ids.join(',') } }),
   upload: (formData: FormData): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

@@ -5,6 +5,7 @@ import { decodeMulterFilename } from '../../utils/multerFilename';
 import { parseListPagination } from '../../utils/listPagination';
 import { jsonError } from '../../utils/httpJson';
 import type { AuthRequest } from '../../types/express';
+import { parseDocumentStatusIds } from './statusIds';
 import { deleteTempUpload } from './tempUploads';
 import {
   requireDocumentId,
@@ -76,6 +77,30 @@ export async function listDocuments(
     async () => {
       const { limit, offset } = parseListPagination(req.query);
       res.json(await DocumentService.getByUser(req.userId!, limit, offset));
+    }
+  );
+}
+
+export async function getDocumentStatuses(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  const ids = parseDocumentStatusIds(req.query.ids);
+  if (ids == null) {
+    jsonError(res, req, 400, 'Некоректний список документів');
+    return;
+  }
+  if (ids.length === 0) {
+    res.json({ items: [] });
+    return;
+  }
+  await withDocErrors(
+    req,
+    res,
+    'GET /documents/status error',
+    'Не вдалося отримати статус документів',
+    async () => {
+      res.json({ items: await DocumentService.getStatuses(req.userId!, ids) });
     }
   );
 }

@@ -125,6 +125,7 @@ describe('Settings', () => {
   it('saves gemini api key via GeminiSettingsCard', async () => {
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const input = screen.getByPlaceholderText(/Введіть Gemini API ключ/i);
     await user.type(input, 'AIzaSy123456789');
@@ -145,6 +146,7 @@ describe('Settings', () => {
     };
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const clearBtn = screen.getByRole('button', { name: /^Видалити ключ$/i });
     await user.click(clearBtn);
@@ -159,6 +161,7 @@ describe('Settings', () => {
   it('saves openai api key via ApiKeysTab', async () => {
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const input = screen.getByPlaceholderText(/sk-\.\.\./i);
     await user.type(input, 'sk-proj-test123456');
@@ -182,6 +185,7 @@ describe('Settings', () => {
     };
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
     await user.click(clearBtn);
@@ -200,6 +204,7 @@ describe('Settings', () => {
     mutateAsync.mockRejectedValueOnce(new Error('Network error on save'));
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const input = screen.getByPlaceholderText(/sk-\.\.\./i);
     await user.type(input, 'sk-test-fail');
@@ -219,6 +224,7 @@ describe('Settings', () => {
     mutateAsync.mockRejectedValueOnce(new Error('Network error on clear'));
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const clearBtn = screen.getByRole('button', { name: /Видалити ключ/i });
     await user.click(clearBtn);
@@ -231,6 +237,7 @@ describe('Settings', () => {
   it('saves claude api key via ClaudeSettingsCard', async () => {
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const input = screen.getByPlaceholderText(/Введіть Claude API ключ/i);
     await user.type(input, 'sk-ant-api03-abcdef123456');
@@ -251,6 +258,7 @@ describe('Settings', () => {
     };
     const user = userEvent.setup();
     render(<Settings />);
+    await user.click(screen.getByRole('tab', { name: /API Ключі/i }));
 
     const clearBtn = screen.getByRole('button', { name: /Видалити ключ Claude/i });
     await user.click(clearBtn);

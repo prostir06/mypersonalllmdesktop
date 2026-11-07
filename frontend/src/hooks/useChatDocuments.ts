@@ -13,12 +13,18 @@ import type { AxiosError } from 'axios';
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
+  type InfiniteData,
 } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import { documentsAPI } from '../services/api';
 import { queryKeys } from './queryKeys';
 import { nextListOffset } from '../utils/listPagination';
+import {
+  applyDocumentStatuses,
+  pendingDocumentIds,
+} from '../utils/documentStatus';
 import type { DocumentRecord, PaginatedList } from '../types/api';
 
 const PAGE_SIZE = 50;
@@ -28,16 +34,6 @@ export function shouldSelectDocumentOnUpload(
   status?: string | null
 ): boolean {
   return status === 'ready';
-}
-
-function pageHasPending(
-  data: { pages: PaginatedList<DocumentRecord>[] } | undefined
-): boolean {
-  return Boolean(
-    data?.pages.some((page) =>
-      page.items.some((doc) => doc.status === 'pending')
-    )
-  );
 }
 
 export function useChatDocuments() {
@@ -67,14 +63,45 @@ export function useChatDocuments() {
     initialPageParam: 0,
     getNextPageParam: (last) => nextListOffset(last),
     staleTime: 1000 * 60,
-    refetchInterval: (query) =>
-      pageHasPending(query.state.data) ? 1500 : false,
   });
 
   const userDocuments = useMemo(
     () => documentsQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [documentsQuery.data]
   );
+  const pendingIds = useMemo(
+    () => pendingDocumentIds(userDocuments),
+    [userDocuments]
+  );
+
+  const statusQuery = useQuery({
+    queryKey: [...queryKeys.documentStatuses, pendingIds.join(',')],
+    enabled: pendingIds.length > 0,
+    refetchInterval: pendingIds.length > 0 ? 1500 : false,
+    queryFn: async () => {
+      const res = await documentsAPI.getStatuses(pendingIds);
+      return res.data.items;
+    },
+  });
+
+  useEffect(() => {
+    const updates = statusQuery.data;
+    if (!updates?.length) return;
+    queryClient.setQueryData<InfiniteData<PaginatedList<DocumentRecord>>>(
+      queryKeys.documents,
+      (current) => {
+        if (!current) return current;
+        let changed = false;
+        const pages = current.pages.map((page) => {
+          const merged = applyDocumentStatuses(page.items, updates);
+          if (!merged.changed) return page;
+          changed = true;
+          return { ...page, items: merged.items };
+        });
+        return changed ? { ...current, pages } : current;
+      }
+    );
+  }, [queryClient, statusQuery.data, statusQuery.dataUpdatedAt]);
 
   useEffect(() => {
     for (const doc of userDocuments) {

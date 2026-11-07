@@ -279,6 +279,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
         onSelect={(k) => k && onTabChange(k)}
         id="settings-tabs"
         className="mb-4"
+        mountOnEnter
         unmountOnExit={false}
       >
         <Tab eventKey="general" title="Загальні">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyUnicodeFont, resetPdfFontCache } from './pdfFont';
+import { applyUnicodeFont, bytesToBase64, resetPdfFontCache } from './pdfFont';
 
 const jspdfMock = vi.hoisted(() => {
   const addFileToVFS = vi.fn();
@@ -14,6 +14,14 @@ const jspdfMock = vi.hoisted(() => {
 });
 
 describe('pdfFont', () => {
+  it('encodes a buffer larger than one chunk', () => {
+    const bytes = new Uint8Array(0x8001);
+    bytes[0] = 65;
+    bytes[0x8000] = 66;
+    const expected = btoa(String.fromCharCode(65) + '\0'.repeat(0x7fff) + String.fromCharCode(66));
+    expect(bytesToBase64(bytes)).toBe(expected);
+  });
+
   beforeEach(() => {
     resetPdfFontCache();
     vi.restoreAllMocks();

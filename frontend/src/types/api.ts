@@ -333,6 +333,10 @@ export interface DocumentChunkRecord {
   content: string;
 }
 
+export interface DocumentStatusResponse {
+  items: Array<Pick<DocumentRecord, 'id' | 'filename' | 'status' | 'failure_reason' | 'has_embeddings'>>;
+}
+
 export interface DocumentUploadResponse {
   document: DocumentRecord;
   status?: string;

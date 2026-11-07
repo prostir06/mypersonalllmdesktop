@@ -4,6 +4,7 @@
 export {
   uploadDocument,
   listDocuments,
+  getDocumentStatuses,
   getDocument,
   deleteDocument,
   getDocumentChunks,
