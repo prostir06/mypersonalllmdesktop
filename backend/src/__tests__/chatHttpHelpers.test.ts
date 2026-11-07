@@ -166,6 +166,8 @@ describe('chatController enableWebSearch propagation', () => {
       setHeader: jest.fn(),
       write: jest.fn(),
       end: jest.fn(),
+      on: jest.fn(),
+      writableEnded: false,
     } as unknown as Response;
   }
 
