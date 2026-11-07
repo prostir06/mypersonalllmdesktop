@@ -10,6 +10,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { GuideModalProvider } from './context/GuideModalContext';
 import { ProductTourProvider } from './context/ProductTourContext';
 import ProductTour from './components/tour/ProductTour';
 import Navigation from './components/Navigation';
@@ -82,9 +83,11 @@ function App() {
         <AuthProvider>
           <ProductTourProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <GuideModalProvider>
             <Suspense fallback={<LoadingFallback />}>
               <AppRoutes />
             </Suspense>
+            </GuideModalProvider>
           </Router>
           <ToastContainer
             position="top-right"

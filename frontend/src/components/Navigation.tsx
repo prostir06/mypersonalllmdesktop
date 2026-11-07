@@ -5,30 +5,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { Navbar, Nav, Container, Button, Badge } from 'react-bootstrap';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useProductTour } from '../context/ProductTourContext';
+import { useGuideModal } from '../context/GuideModalContext';
 import { isElectronApp } from '../types/electron';
-import { useSystemKnowledge } from '../hooks/useSystemKnowledge';
-import SystemGuideModal from './system/SystemGuideModal';
-import type { AdvisoryTip } from '../types/api';
 
 const Navigation: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { logout } = useAuth();
   const { startTour, hasNewVersion } = useProductTour();
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'dark');
-  const [showGuideModal, setShowGuideModal] = useState(false);
-
-  const {
-    data: knowledge,
-    isLoading,
-    isError,
-    refetch,
-  } = useSystemKnowledge();
-  const warningCount =
-    knowledge?.advisories.filter((a) => a.severity === 'warning').length ?? 0;
+  const guide = useGuideModal();
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -41,18 +29,6 @@ const Navigation: React.FC = () => {
 
   const handleLogout = async () => {
     await logout();
-  };
-
-  const handleAdvisoryAction = (tip: AdvisoryTip) => {
-    if (tip.actionType === 'navigate_settings') {
-      navigate(tip.actionTarget || '/settings');
-    } else if (tip.actionType === 'open_documents' || tip.actionType === 'open_prompts') {
-      navigate('/dashboard');
-    }
-  };
-
-  const handleAskPrompt = () => {
-    navigate('/dashboard');
   };
 
   const isActive = (path: string) => location.pathname === path;
@@ -84,14 +60,14 @@ const Navigation: React.FC = () => {
               </Nav.Link>
               <Nav.Link
                 as="button"
-                onClick={() => setShowGuideModal(true)}
+                onClick={() => guide.open()}
                 className="btn btn-link nav-link px-3 py-2 d-flex align-items-center"
                 title="Гід по системі та AI-асистент"
               >
                 <span>🧭 Гід</span>
-                {warningCount > 0 && (
+                {guide.warningCount > 0 && (
                   <Badge bg="warning" text="dark" className="ms-1">
-                    {warningCount}
+                    {guide.warningCount}
                   </Badge>
                 )}
               </Nav.Link>
@@ -152,17 +128,6 @@ const Navigation: React.FC = () => {
           </Navbar.Collapse>
         </Container>
       </Navbar>
-
-      <SystemGuideModal
-        show={showGuideModal}
-        onHide={() => setShowGuideModal(false)}
-        knowledge={knowledge}
-        isLoading={isLoading}
-        isError={isError}
-        onRetry={() => void refetch()}
-        onAction={handleAdvisoryAction}
-        onAskPrompt={handleAskPrompt}
-      />
     </>
   );
 };

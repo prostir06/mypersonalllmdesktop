@@ -3,22 +3,23 @@
  */
 import React, { type ChangeEvent, useState } from 'react';
 import { Form, Button } from 'react-bootstrap';
+import { useChatSession } from '../../context/ChatSessionContext';
 import MemoryPanel from './MemoryPanel';
 
 export type ModelSelectOption = { value: string; label: string };
 
 export type ChatControlsProps = {
-  selectedProvider: string;
-  onProviderChange: (e: ChangeEvent<HTMLSelectElement>) => void;
-  selectedModel: string;
-  onModelChange: (value: string) => void;
-  availableModels: ModelSelectOption[];
-  temperature: number;
-  onTemperatureChange: (value: number) => void;
-  selectedDocIds: Array<string | number>;
+  selectedProvider?: string;
+  onProviderChange?: (e: ChangeEvent<HTMLSelectElement>) => void;
+  selectedModel?: string;
+  onModelChange?: (value: string) => void;
+  availableModels?: ModelSelectOption[];
+  temperature?: number;
+  onTemperatureChange?: (value: number) => void;
+  selectedDocIds?: Array<string | number>;
+  onShowDocModal?: () => void;
   streaming: boolean;
   onShowPromptModal: () => void;
-  onShowDocModal: () => void;
   onExportChat: () => void;
   onExportPdf: () => void;
   messagesCount: number;
@@ -32,30 +33,34 @@ export type ChatControlsProps = {
   toolsSupported?: boolean;
 };
 
-const ChatControls = React.memo(function ChatControls({
-  selectedProvider,
-  onProviderChange,
-  selectedModel,
-  onModelChange,
-  availableModels,
-  temperature,
-  onTemperatureChange,
-  selectedDocIds,
-  streaming,
-  onShowPromptModal,
-  onShowDocModal,
-  onExportChat,
-  onExportPdf,
-  messagesCount,
-  conversationId,
-  onShowGuideModal,
-  advisoryWarningCount,
-  webSearchEnabled,
-  onToggleWebSearch,
-  toolsEnabled,
-  onToggleTools,
-  toolsSupported,
-}: ChatControlsProps) {
+const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) {
+  const session = useChatSession();
+  const selectedProvider = session?.model.selectedProvider ?? props.selectedProvider ?? 'openai';
+  const onProviderChange = session?.model.handleProviderChange ?? props.onProviderChange ?? (() => {});
+  const selectedModel = session?.model.activeModel ?? props.selectedModel ?? '';
+  const onModelChange = session?.model.setSelectedModel ?? props.onModelChange ?? (() => {});
+  const availableModels = session?.model.availableModels ?? props.availableModels ?? [];
+  const temperature = session?.model.temperature ?? props.temperature ?? 0.7;
+  const onTemperatureChange = session?.model.setTemperature ?? props.onTemperatureChange ?? (() => {});
+  const selectedDocIds = session?.documents.selectedDocIds ?? props.selectedDocIds ?? [];
+  const onShowDocModal = session
+    ? () => session.documents.setShowDocModal(true)
+    : props.onShowDocModal ?? (() => {});
+  const {
+    streaming,
+    onShowPromptModal,
+    onExportChat,
+    onExportPdf,
+    messagesCount,
+    conversationId,
+    onShowGuideModal,
+    advisoryWarningCount,
+    webSearchEnabled,
+    onToggleWebSearch,
+    toolsEnabled,
+    onToggleTools,
+    toolsSupported,
+  } = props;
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
 
   return (

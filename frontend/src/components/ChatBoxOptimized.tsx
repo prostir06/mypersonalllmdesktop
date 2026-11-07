@@ -11,8 +11,9 @@ import { useChatExport } from '../hooks/useChatExport';
 import { useChatAttachments } from '../hooks/useChatAttachments';
 import { useChatModelSelection } from '../hooks/useChatModelSelection';
 import { useSystemKnowledge } from '../hooks/useSystemKnowledge';
-import { modelSupportsVision } from '../utils/modelSupportsVision';
 import { copyTextWithToast } from '../utils/clipboard';
+import { useGuideModal } from '../context/GuideModalContext';
+import { ChatSessionProvider } from '../context/ChatSessionContext';
 import type { Artifact, Message, AdvisoryTip } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
@@ -21,7 +22,6 @@ import ChatHiddenFileInputs from './chat/ChatHiddenFileInputs';
 import ChatBoxModals from './chat/ChatBoxModals';
 import ArtifactPanel from './chat/ArtifactPanel';
 import SmartAdvisoryBar from './chat/SmartAdvisoryBar';
-import SystemGuideModal from './system/SystemGuideModal';
 
 type ChatBoxOptimizedProps = {
   conversationId?: string | number | null;
@@ -86,52 +86,28 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   }, [settings, toolsHydrated]);
 
   const [showPromptModal, setShowPromptModal] = useState(false);
-  const [showGuideModal, setShowGuideModal] = useState(false);
+  const guide = useGuideModal();
   const lastUserContentRef = useRef('');
   const updateSettings = useUpdateSettings();
+  const model = useChatModelSelection({ settings });
   const {
     catalogModels,
     selectedProvider,
     activeModel,
-    availableModels,
     temperature,
-    setTemperature,
     maxTokens,
-    handleProviderChange,
-    setSelectedModel,
-  } = useChatModelSelection({ settings });
+  } = model;
   const { isListening, speakingIdx, toggleListening, speakText } =
     useSpeech(setInputMessage);
-  const {
-    userDocuments,
-    selectedDocIds,
-    showDocModal,
-    setShowDocModal,
-    uploadingDoc,
-    fileInputRef,
-    handleFileUpload,
-    handleToggleDoc,
-    handleDeleteDoc,
-    handleRetryDoc,
-    handleReindexDoc,
-    retryingDocId,
-    reindexingDocId,
-    hasMoreDocuments,
-    loadMoreDocuments,
-    loadingMoreDocuments,
-  } = useChatDocuments();
+  const documents = useChatDocuments();
+  const { selectedDocIds, setShowDocModal } = documents;
+  const attachments = useChatAttachments();
   const {
     attachedImage,
     setAttachedImage,
     chatAttachments,
     setChatAttachments,
-    handleImageAttach,
-    handleFileAttach,
-    clearAttachedImage,
-    removeAttachment,
-    imageInputRef,
-    chatFileInputRef,
-  } = useChatAttachments();
+  } = attachments;
 
   const {
     streaming,
@@ -159,8 +135,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
   const {
     data: systemKnowledge,
-    isLoading: isLoadingKnowledge,
-    isError: isKnowledgeError,
     refetch: refetchSystemKnowledge,
   } = useSystemKnowledge({
     provider: selectedProvider,
@@ -193,6 +167,27 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     },
     [navigate, setShowDocModal, setShowPromptModal, setInputMessage]
   );
+
+  useEffect(() => {
+    return guide.register({
+      params: {
+        provider: selectedProvider,
+        model: activeModel,
+        selectedDocCount: selectedDocIds.length,
+        webSearchEnabled,
+      },
+      onAskPrompt: (prompt) => setInputMessage(prompt),
+      onOpenDocuments: () => setShowDocModal(true),
+      onOpenPrompts: () => setShowPromptModal(true),
+    });
+  }, [
+    activeModel,
+    guide,
+    selectedDocIds.length,
+    selectedProvider,
+    setShowDocModal,
+    webSearchEnabled,
+  ]);
 
   const copyMessage = useCallback((text: string) => {
     copyTextWithToast(text, 'Скопійовано! 📋');
@@ -267,27 +262,19 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
   };
 
   return (
+    <ChatSessionProvider value={{ documents, attachments, model }}>
     <div
       className="glass-panel p-3 d-flex flex-column"
       style={{ height: 'calc(100vh - 120px)' }}
     >
       <ChatControls
-        selectedProvider={selectedProvider}
-        onProviderChange={handleProviderChange}
-        selectedModel={activeModel}
-        onModelChange={setSelectedModel}
-        availableModels={availableModels}
-        temperature={temperature}
-        onTemperatureChange={setTemperature}
-        selectedDocIds={selectedDocIds}
         streaming={streaming}
         onShowPromptModal={() => setShowPromptModal(true)}
-        onShowDocModal={() => setShowDocModal(true)}
         onExportChat={exportMarkdown}
         onExportPdf={exportPdf}
         messagesCount={messages.length}
         conversationId={conversationId}
-        onShowGuideModal={() => setShowGuideModal(true)}
+        onShowGuideModal={() => guide.open()}
         advisoryWarningCount={advisoryWarningCount}
         webSearchEnabled={webSearchEnabled}
         onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
@@ -363,16 +350,9 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
             onToggleListening={toggleListening}
             streaming={streaming}
             onStop={stopStreaming}
-            attachedImage={attachedImage}
-            onClearImage={clearAttachedImage}
-            onAttachImage={() => imageInputRef.current && imageInputRef.current.click()}
-            chatAttachments={chatAttachments}
-            onRemoveAttachment={removeAttachment}
-            onAttachFile={() => chatFileInputRef.current && chatFileInputRef.current.click()}
-            supportsVision={modelSupportsVision(activeModel, catalogModels)}
+            supportsVision={false}
             webSearchEnabled={webSearchEnabled}
             onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
-            isGeminiProvider={true}
           />
         </div>
 
@@ -389,32 +369,11 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         )}
       </div>
 
-      <ChatHiddenFileInputs
-        chatFileInputRef={chatFileInputRef}
-        imageInputRef={imageInputRef}
-        onFileAttach={handleFileAttach}
-        onImageAttach={handleImageAttach}
-      />
+      <ChatHiddenFileInputs />
 
       <ChatBoxModals
-        showDocModal={showDocModal}
-        setShowDocModal={setShowDocModal}
         showPromptModal={showPromptModal}
         setShowPromptModal={setShowPromptModal}
-        userDocuments={userDocuments}
-        selectedDocIds={selectedDocIds}
-        handleToggleDoc={handleToggleDoc}
-        handleDeleteDoc={handleDeleteDoc}
-        handleRetryDoc={handleRetryDoc}
-        handleReindexDoc={handleReindexDoc}
-        retryingDocId={retryingDocId}
-        reindexingDocId={reindexingDocId}
-        uploadingDoc={uploadingDoc}
-        fileInputRef={fileInputRef}
-        handleFileUpload={handleFileUpload}
-        hasMoreDocuments={hasMoreDocuments}
-        loadMoreDocuments={loadMoreDocuments}
-        loadingMoreDocuments={loadingMoreDocuments}
         ragEmbeddingMode={
           settings?.rag_embedding_mode ||
           (settings?.has_openai_api_key ? 'openai' : 'fallback')
@@ -426,18 +385,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           void refetchSystemKnowledge();
         }}
       />
-
-      <SystemGuideModal
-        show={showGuideModal}
-        onHide={() => setShowGuideModal(false)}
-        knowledge={systemKnowledge}
-        isLoading={isLoadingKnowledge}
-        isError={isKnowledgeError}
-        onRetry={() => void refetchSystemKnowledge()}
-        onAction={handleAdvisoryAction}
-        onAskPrompt={(prompt) => setInputMessage(prompt)}
-      />
     </div>
+    </ChatSessionProvider>
   );
 };
 

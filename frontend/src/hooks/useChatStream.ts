@@ -209,10 +209,9 @@ export function useChatStream({
           controller.signal,
           (done) => {
             doneSourcesRef.current = done.sources;
-            if (done.tokenUsage || (done as any).token_usage) {
-              const u = done.tokenUsage || (done as any).token_usage;
-              tokenUsageRef.current = u;
-              handleTokenUsageEvent('token_usage', u, setMessages);
+            if (done.tokenUsage) {
+              tokenUsageRef.current = done.tokenUsage;
+              handleTokenUsageEvent('token_usage', done.tokenUsage, setMessages);
             }
           },
           (usage) => {

@@ -3,6 +3,8 @@
  */
 import React, { type FormEvent, type KeyboardEvent } from 'react';
 import { Form, Button } from 'react-bootstrap';
+import { useChatSession } from '../../context/ChatSessionContext';
+import { modelSupportsVision } from '../../utils/modelSupportsVision';
 import type { AttachedImage } from '../../hooks/useChatStream';
 import type { ChatAttachmentPayload } from '../../types/api';
 
@@ -14,9 +16,9 @@ export type MessageInputProps = {
   onToggleListening: () => void;
   streaming: boolean;
   onStop: () => void;
-  attachedImage: AttachedImage | null;
-  onClearImage: () => void;
-  onAttachImage: () => void;
+  attachedImage?: AttachedImage | null;
+  onClearImage?: () => void;
+  onAttachImage?: () => void;
   chatAttachments?: ChatAttachmentPayload[];
   onRemoveAttachment?: (index: number) => void;
   onAttachFile?: () => void;
@@ -26,25 +28,33 @@ export type MessageInputProps = {
   isGeminiProvider?: boolean;
 };
 
-const MessageInput = React.memo(function MessageInput({
-  inputMessage,
-  onInputChange,
-  onSubmit,
-  isListening,
-  onToggleListening,
-  streaming,
-  onStop,
-  attachedImage,
-  onClearImage,
-  onAttachImage,
-  chatAttachments = [],
-  onRemoveAttachment = () => {},
-  onAttachFile = () => {},
-  supportsVision,
-  webSearchEnabled = false,
-  onToggleWebSearch,
-  isGeminiProvider = false,
-}: MessageInputProps) {
+const MessageInput = React.memo(function MessageInput(props: MessageInputProps) {
+  const session = useChatSession();
+  const inputMessage = props.inputMessage;
+  const onInputChange = props.onInputChange;
+  const onSubmit = props.onSubmit;
+  const isListening = props.isListening;
+  const onToggleListening = props.onToggleListening;
+  const streaming = props.streaming;
+  const onStop = props.onStop;
+  const webSearchEnabled = props.webSearchEnabled ?? false;
+  const onToggleWebSearch = props.onToggleWebSearch;
+  const attachedImage = session?.attachments.attachedImage ?? props.attachedImage;
+  const onClearImage = session?.attachments.clearAttachedImage ?? props.onClearImage;
+  const onAttachImage = session
+    ? () => session.attachments.imageInputRef.current?.click()
+    : props.onAttachImage;
+  const chatAttachments = session?.attachments.chatAttachments ?? props.chatAttachments ?? [];
+  const onRemoveAttachment = session?.attachments.removeAttachment ?? props.onRemoveAttachment ?? (() => {});
+  const onAttachFile = session
+    ? () => session.attachments.chatFileInputRef.current?.click()
+    : props.onAttachFile ?? (() => {});
+  const supportsVision = session
+    ? modelSupportsVision(session.model.activeModel, session.model.catalogModels)
+    : props.supportsVision;
+  const isGeminiProvider = session
+    ? session.model.selectedProvider === 'gemini'
+    : props.isGeminiProvider ?? false;
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

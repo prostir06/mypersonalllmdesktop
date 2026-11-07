@@ -1,18 +1,20 @@
 import React, { type ChangeEvent, type RefObject } from 'react';
+import { useChatSession } from '../../context/ChatSessionContext';
 
 type Props = {
-  chatFileInputRef: RefObject<HTMLInputElement>;
-  imageInputRef: RefObject<HTMLInputElement>;
-  onFileAttach: (e: ChangeEvent<HTMLInputElement>) => void;
-  onImageAttach: (e: ChangeEvent<HTMLInputElement>) => void;
+  chatFileInputRef?: RefObject<HTMLInputElement>;
+  imageInputRef?: RefObject<HTMLInputElement>;
+  onFileAttach?: (e: ChangeEvent<HTMLInputElement>) => void;
+  onImageAttach?: (e: ChangeEvent<HTMLInputElement>) => void;
 };
 
-export default function ChatHiddenFileInputs({
-  chatFileInputRef,
-  imageInputRef,
-  onFileAttach,
-  onImageAttach,
-}: Props) {
+export default function ChatHiddenFileInputs(props: Props) {
+  const session = useChatSession();
+  const chatFileInputRef = session?.attachments.chatFileInputRef ?? props.chatFileInputRef;
+  const imageInputRef = session?.attachments.imageInputRef ?? props.imageInputRef;
+  const onFileAttach = session?.attachments.handleFileAttach ?? props.onFileAttach;
+  const onImageAttach = session?.attachments.handleImageAttach ?? props.onImageAttach;
+  if (!chatFileInputRef || !imageInputRef || !onFileAttach || !onImageAttach) return null;
   return (
     <>
       <input

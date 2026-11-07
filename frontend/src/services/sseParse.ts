@@ -2,7 +2,8 @@
  * Pure SSE helpers for chat streaming (unit-tested).
  * Keeps buffer state out of React and out of the Axios client.
  */
-import type { RagSource, StreamEvent, TokenUsage } from '../types/api';
+import type { RagSource, TokenUsage } from '../types/api';
+import { parseStreamEvent } from './streamEvent';
 
 /** Raised when the server sends `data: {"type":"error",...}` mid-stream. */
 export class SseStreamError extends Error {
@@ -102,9 +103,9 @@ export function consumeSseChunk(
 
     if (!dataStr || dataStr === '[DONE]') continue;
 
-    let data: StreamEvent;
+    let data;
     try {
-      data = JSON.parse(dataStr) as StreamEvent;
+      data = parseStreamEvent(JSON.parse(dataStr) as unknown, currentEvent);
     } catch (parseErr: unknown) {
       // Incomplete or non-JSON SSE data line
       console.warn('sseParse: failed to parse SSE data line as JSON:', {
@@ -113,36 +114,27 @@ export function consumeSseChunk(
       });
       continue;
     }
+    if (!data) {
+      console.warn('sseParse: ignored SSE event that failed validation', { dataStr });
+      continue;
+    }
 
     try {
-      if (
-        (currentEvent === 'token_usage' ||
-          (data as { type?: string }).type === 'token_usage' ||
-          (typeof (data as unknown as TokenUsage).promptTokens === 'number' &&
-            typeof (data as unknown as TokenUsage).totalTokens === 'number')) &&
-        handlers.onTokenUsage
-      ) {
-        handlers.onTokenUsage(data as unknown as TokenUsage);
+      if (data.type === 'token_usage' && handlers.onTokenUsage) {
+        const { type: _type, ...usage } = data;
+        handlers.onTokenUsage(usage);
+      } else if (data.type === 'tool_call' && handlers.onToolCall) {
+        const { type: _type, ...payload } = data;
+        handlers.onToolCall(payload);
+      } else if (data.type === 'tool_result' && handlers.onToolResult) {
+        const { type: _type, ...payload } = data;
+        handlers.onToolResult(payload);
       } else if (
-        (currentEvent === 'tool_call' ||
-          (data as { type?: string }).type === 'tool_call') &&
-        handlers.onToolCall
-      ) {
-        handlers.onToolCall(data as unknown as ToolCallEventPayload);
-      } else if (
-        (currentEvent === 'tool_result' ||
-          (data as { type?: string }).type === 'tool_result') &&
-        handlers.onToolResult
-      ) {
-        handlers.onToolResult(data as unknown as ToolResultEventPayload);
-      } else if (
-        (currentEvent === 'tool_confirmation_required' ||
-          (data as { type?: string }).type === 'tool_confirmation_required') &&
+        data.type === 'tool_confirmation_required' &&
         handlers.onToolConfirmationRequired
       ) {
-        handlers.onToolConfirmationRequired(
-          data as unknown as ToolConfirmationRequiredEventPayload
-        );
+        const { type: _type, ...payload } = data;
+        handlers.onToolConfirmationRequired(payload);
       } else if (data.type === 'init' && handlers.onInit) {
         handlers.onInit(data.conversationId, data.ragStatus);
       } else if (data.type === 'token' && handlers.onToken) {
@@ -153,7 +145,7 @@ export function consumeSseChunk(
           content: data.content,
           sources: data.sources,
           ragStatus: data.ragStatus,
-          tokenUsage: (data as any).tokenUsage || (data as any).token_usage,
+          tokenUsage: data.tokenUsage,
         });
       } else if (data.type === 'error') {
         const message =
