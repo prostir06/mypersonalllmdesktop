@@ -93,7 +93,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ProductTourProvider>
-          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Router>
             <GuideModalProvider>
             <Suspense fallback={<LoadingFallback />}>
               <AppRoutes />

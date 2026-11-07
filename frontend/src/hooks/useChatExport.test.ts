@@ -15,13 +15,15 @@ const jspdfMock = vi.hoisted(() => {
   const addPage = vi.fn();
   const text = vi.fn();
   const output = vi.fn();
-  const jsPDF = vi.fn(() => ({
-    splitTextToSize,
-    setFontSize,
-    addPage,
-    text,
-    output,
-  }));
+  const jsPDF = vi.fn(function JsPDF() {
+    return {
+      splitTextToSize,
+      setFontSize,
+      addPage,
+      text,
+      output,
+    };
+  });
 
   return {
     addPage,
