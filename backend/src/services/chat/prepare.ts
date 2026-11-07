@@ -12,6 +12,7 @@ import { clampGeneration, pickAllowedOptions } from './generationOptions';
 import { getSettingsForUser } from '../settingsService';
 import { defaultModelFor } from '../../config/models';
 import { loadOllamaShowCapabilities } from '../ollama/showCapabilities';
+import { readToolsOverride, resolveToolsEnabled } from './toolMode';
 import {
   ChatError,
   type ChatMessage,
@@ -124,6 +125,12 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
   }
   // Defense-in-depth: never honor client-enabled tools at the service layer.
   options.enableTools = false;
+  options.toolsEnabled = resolveToolsEnabled({
+    settingsEnabled: settings.tools_enabled,
+    clientOverride: readToolsOverride(allowed.toolsEnabled),
+    model: input.model || defaultModelFor(input.provider),
+    provider: input.provider || 'openai',
+  });
   if (input.options?.enableWebSearch === true) {
     options.enableWebSearch = true;
   }

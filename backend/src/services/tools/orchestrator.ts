@@ -8,6 +8,8 @@ import { modelSupportsTools } from '../../utils/modelCapabilities';
 import { defaultModelFor } from '../../config/models';
 import { sumTokenUsage } from '../providers/shared';
 import { writeSseEvent } from '../../utils/sse';
+import { runPlainTurn } from '../chat/plainTurn';
+import { readToolsOverride, resolveToolsEnabled } from '../chat/toolMode';
 import toolRegistry from './registry';
 import type {
   ToolExecutionContext,
@@ -46,82 +48,43 @@ export async function runToolOrchestratedTurn(
   const provider = options.provider || 'openai';
   const model = options.model || defaultModelFor(provider);
 
-  let toolsEnabled = options.toolsEnabled;
-  if (toolsEnabled === undefined && options.options?.toolsEnabled !== undefined) {
-    toolsEnabled = Boolean(options.options.toolsEnabled);
-  }
-  if (toolsEnabled === undefined && options.options?.tools_enabled !== undefined) {
-    toolsEnabled = Boolean(options.options.tools_enabled);
-  }
-  if (toolsEnabled === undefined) {
+  let settingsEnabled = true;
+  const explicit = readToolsOverride(
+    options.toolsEnabled,
+    options.options?.toolsEnabled,
+    options.options?.tools_enabled
+  );
+  if (explicit === undefined) {
     const settings = await prisma.userSettings.findUnique({
       where: { userId: options.userId },
       select: { toolsEnabled: true },
     });
-    toolsEnabled = settings?.toolsEnabled ?? true;
+    settingsEnabled = settings?.toolsEnabled ?? true;
   }
+  const toolsOn = resolveToolsEnabled({
+    settingsEnabled,
+    clientOverride: explicit,
+    model,
+    provider,
+  });
 
-  const supportsTools = modelSupportsTools(model, provider);
-
-  // Fallback to normal non-tool chat flow if tools disabled or unsupported
-  if (!toolsEnabled || !supportsTools) {
+  if (!toolsOn) {
     logger.info(
-      `Non-tool flow for user ${options.userId} (toolsEnabled=${toolsEnabled}, modelSupportsTools=${supportsTools})`
+      `Non-tool flow for user ${options.userId} (toolsEnabled=${explicit ?? settingsEnabled}, modelSupportsTools=${modelSupportsTools(model, provider)})`
     );
-
-    let response: {
-      content: string;
-      usage?: unknown;
-      tokenUsage?: TokenUsage;
-      model?: string;
-      sources?: unknown[];
-    };
-
-    if (options.onToken) {
-      response = await ProviderFactory.streamMessage(
-        provider,
-        options.chatMessages,
-        model,
-        { ...(options.options || {}), signal: options.signal },
-        options.onToken
-      );
-    } else {
-      response = await ProviderFactory.sendMessage(
-        provider,
-        options.chatMessages,
-        model,
-        { ...(options.options || {}), signal: options.signal }
-      );
-    }
-
-    const mergedSources: RagSource[] = [
-      ...(options.sources || []),
-      ...((response.sources as RagSource[]) || []),
-    ];
-    const tokenUsage = response.tokenUsage;
-
-    const assistant = await persistTurn(
-      options.conversationId,
-      options.userMessage || '',
-      response.content,
-      {
-        skipUserMessage: options.skipUserMessage,
-        regenerateFromMessageId: options.regenerateFromMessageId,
-        sources: mergedSources,
-        tokenUsage,
-      }
-    );
-
-    return {
+    return runPlainTurn({
       conversationId: options.conversationId,
-      messageId: assistant.id,
-      content: response.content,
-      role: 'assistant' as const,
-      timestamp: assistant.createdAt,
-      usage: response.usage,
-      tokenUsage,
-      sources: mergedSources,
-    };
+      userMessage: options.userMessage || '',
+      chatMessages: options.chatMessages,
+      provider,
+      model,
+      options: options.options,
+      signal: options.signal,
+      onToken: options.onToken,
+      skipUserMessage: options.skipUserMessage,
+      regenerateFromMessageId: options.regenerateFromMessageId,
+      sources: options.sources,
+    });
   }
 
   // Multi-turn tool loop
