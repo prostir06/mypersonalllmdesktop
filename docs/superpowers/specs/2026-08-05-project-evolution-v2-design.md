@@ -100,5 +100,5 @@ Postgres pgvector:pg15 ← prisma migrate deploy on boot
 
 ## 7. Related docs
 - Prior design (historical): `docs/superpowers/specs/2026-08-04-project-evolution-roadmap-design.md`
-- Implementation plan: `docs/superpowers/plans/2026-08-05-project-evolution-v2.md`
+- Implementation plan: local only, not in the repository. This spec is the source of truth.
 - Canvas: project audit beside chat

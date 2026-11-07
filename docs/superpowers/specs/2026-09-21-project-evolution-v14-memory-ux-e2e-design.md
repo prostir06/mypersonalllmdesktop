@@ -122,7 +122,7 @@ Finding format: `id | surface | severity (S/M/L) | problem | proposed fix`.
 
 Caps: **≤10** findings documented; select **≤6** for polish in this wave.
 
-Artifact: short markdown under `docs/superpowers/` (audit appendix or `plans/` note committed with `-f` if ignored) referenced from the implementation plan.
+Artifact: [v14 UX audit](./2026-09-21-v14-ux-audit.md).
 
 ### 5.2 Polish
 

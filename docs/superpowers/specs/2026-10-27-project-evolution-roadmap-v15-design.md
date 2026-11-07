@@ -26,7 +26,7 @@ Waves through v14 and hygiene closed modularity, memory UX, thin controllers, an
 | **3** | UX polish (cap ≤6 from v14 audit remainder) | Checklist done; FE tests on touched surfaces |
 | **4** | Memory 2.0 (cross-conversation user notes) | API + UI + tests; prompt caps; chat non-regress |
 
-**Deliverables of this design cycle:** this spec + four implementation plans under `docs/superpowers/plans/`. Implementation starts only after plans exist and wave 1 is chosen to execute.
+**Deliverables of this design cycle:** this spec. The wave plans stayed local and are not in the repository.
 
 ---
 
@@ -231,14 +231,9 @@ Each wave merges only when its gate is green on `master`. No mixing unrelated di
 
 ## 10. Implementation plans (next artifact)
 
-After this spec is reviewed and approved as written, create (via writing-plans):
+The wave plans stayed local and are not in the repository. This spec is the source of truth.
 
-1. `docs/superpowers/plans/2026-10-27-v15-w1-p49-e2e.md`  
-2. `docs/superpowers/plans/2026-10-27-v15-w2-debt-opt.md`  
-3. `docs/superpowers/plans/2026-10-27-v15-w3-ux-polish.md`  
-4. `docs/superpowers/plans/2026-10-27-v15-w4-memory-2.md`  
-
-Execution order: W1 → W2 → W3 → W4. Prefer one PR per wave (or atomic commits within one PR).
+Execution order was W1 → W2 → W3 → W4.
 
 ---
 

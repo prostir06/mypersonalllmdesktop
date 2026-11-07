@@ -6,7 +6,7 @@ Establish the **incremental** foundation for backend TypeScript + Prisma: full P
 
 This document is the **source of truth for Phase 1 foundation**. The earlier [Backend Architecture Refactoring](./2026-07-27-backend-architecture-design.md) remains the long-term direction (full TS + Prisma); it does **not** mandate a Big Bang for this slice.
 
-Supersedes contradictions in `docs/superpowers/plans/2026-07-27-backend-prisma-setup-and-auth.md` (ESM vs CJS, insecure JWT fallback). That plan will be replaced by a new implementation plan after this spec is approved.
+Supersedes the earlier local implementation notes on ESM vs CJS and the insecure JWT fallback. Those notes are not in the repository. This spec is the source of truth.
 
 ## Goals
 

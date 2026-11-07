@@ -11,7 +11,7 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 - **Multi-Provider Streaming Chat:** Real-time SSE token streaming and instant Stop across **OpenAI**, **Anthropic Claude**, **Google Gemini**, and **Ollama**.
 - **Autonomous Tools & Function Calling (v18):** Full-turn multi-iteration autonomous tool loop across **OpenAI**, **Anthropic Claude**, **Google Gemini**, and tool-capable **Ollama** models. Includes 10 built-in tools (`search_documents`, `list_documents`, `read_memory`, `get_system_help`, `calculate`, `get_current_time`, `web_search`, `add_user_memory_note`, `add_conversation_note`, `update_settings`), collapsible `ToolCallCard` traces, and per-chat `🛠 Інструменти` toggle.
 - **Human-in-the-Loop Confirmation with Visual Diff (v18):** Confirmation-gated write operations (`add_user_memory_note`, `add_conversation_note`, `update_settings`) automatically pause execution and render an interactive `ConfirmActionCard` featuring before/after parameter diffs and single-click Approve / Reject (`/api/chat/tool-actions/:id/approve|reject`).
-- **Universal Web Search (v18):** Live web search for all providers via self-hosted air-gapped **SearXNG** (Docker) with optional **Tavily** fallback and native **Google Search Grounding** for Gemini. Armed with strict `<untrusted_web_result>` prompt-injection defense tags and unified clickable citation chips.
+- **Universal Web Search (v18):** Live web search for OpenAI, Claude, and Ollama. A configured **Tavily** key is tried first; self-hosted **SearXNG** is used when Tavily is unset or the request fails. SearXNG runs in Docker and still queries the public web, so it is not an air gap. Gemini keeps native **Google Search Grounding**. Snippets are wrapped in `<untrusted_web_result>` and shown as citation chips.
 - **Safe Arithmetic Engine (v18):** Deterministic mathematical expression evaluation (`calculate`) using a sandboxed arithmetic parser without dangerous dynamic `eval`.
 - **Multimodal Vision & Inline File Attachments:** Analyze images (PNG, JPEG, WEBP, GIF) with vision-capable models and attach PDF, DOCX, XLSX, TXT, or MD files directly into a conversation turn.
 - **Interactive Artifacts Split-View:** Render generated HTML and SVG blocks inside a sandboxed preview pane (`/artifact-sandbox.html` with isolated CSP), switch between **Preview / Code**, copy, download, or inspect in fullscreen.
@@ -35,7 +35,7 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 ```text
 .
 ├── backend/                 # Express + TypeScript API (src/ → dist/)
-│   ├── prisma/              # Prisma 7 schema + 18 SQL migrations (pgvector + FTS)
+│   ├── prisma/              # Prisma 7 schema + 26 SQL migrations (pgvector + FTS)
 │   ├── src/
 │   │   ├── config/          # Env validation, Prisma pg pool, model pricing
 │   │   ├── controllers/     # Thin HTTP controllers
@@ -49,9 +49,9 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 │   ├── public/              # Static assets & isolated artifact-sandbox.html
 │   ├── src/                 # Components, hooks, typed API client, Cyber & Minimalist themes
 │   ├── nginx.conf           # SPA routing, /api proxy, hardened CSP headers
-│   └── Dockerfile           # Node 24 builder → Nginx 1.25 Alpine
+│   └── Dockerfile           # Node 24 builder → unprivileged Nginx 1.28
 ├── desktop/                 # Optional Electron desktop shell (Windows-first)
-├── e2e/                     # Playwright E2E test suite (13 specs)
+├── e2e/                     # Playwright E2E (21 tests)
 ├── docs/                    # Architecture specs & security/perf baselines
 ├── docker-compose.yml       # Local/dev stack (Postgres pgvector + API + UI)
 ├── docker-compose.prod.yml  # Production overrides (mandatory secrets, no host DB port)
@@ -92,7 +92,15 @@ cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-Take a database dump before an upgrade. Restore steps: [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
+### Team, shared keys, and backups
+
+The server is for a small trusted team (about 2–10 people).
+
+- **Roles.** Each account is `admin` or `member`. `ADMIN_EMAIL` selects the bootstrap admin. When it is unset, the first registered account is the admin.
+- **Registration.** `ALLOW_REGISTRATION=true` allows open sign-up. In production, leave it unset or set `false`. An admin can then issue a one-time invite from Settings → **Команда**.
+- **Keys.** A saved personal provider key is used first. Shared process keys are used only when `ALLOW_SHARED_PROVIDER_KEYS` is enabled. In production that flag defaults to off.
+- **Quota.** Shared-key spend is written to a usage ledger and capped per user per day (`SHARED_KEY_DAILY_LIMIT_USD`, with an admin override). Spend on a personal key is not counted. Over the cap, chat returns HTTP 429. The admin tab shows day and month totals as an estimate.
+- **Backups.** The Compose `backup` sidecar writes a `pg_dump` every day at 03:15 UTC and keeps 7 daily files plus 4 weekly copies. Dump before an upgrade. Commands: [docs/ops/backup-restore.md](docs/ops/backup-restore.md).
 
 ---
 
@@ -169,8 +177,11 @@ ALLOW_REGISTRATION=true       # unset = allow in dev, deny in production
 OPENAI_API_KEY=               # optional
 GEMINI_API_KEY=               # optional
 ANTHROPIC_API_KEY=            # optional
-SEARXNG_URL=http://searxng:8080 # optional (internal Docker or host SearXNG instance)
-TAVILY_API_KEY=                # optional fallback for universal web search
+SEARXNG_URL=http://searxng:8080 # optional; queries the public web (not an air gap)
+TAVILY_API_KEY=                # optional; used before SearXNG when set
+ALLOW_SHARED_PROVIDER_KEYS=    # unset: allow in dev, deny in production
+SHARED_KEY_DAILY_LIMIT_USD=    # daily cap for shared-key spend only
+ADMIN_EMAIL=                   # bootstrap admin; otherwise the first user
 OLLAMA_API_URL=http://127.0.0.1:11434/v1/chat/completions
 OLLAMA_EMBED_MODEL=nomic-embed-text
 EMBEDDING_DIMENSIONS=768
@@ -237,6 +248,7 @@ cd frontend
 npm run lint
 npm run typecheck
 npm test
+npm run audit:ci
 npm run build
 
 # Desktop: TypeScript build + Node test runner
@@ -246,6 +258,7 @@ npm test
 # End-to-End (Playwright against running Docker stack)
 cd e2e
 npm ci
+npm run typecheck
 npx playwright install chromium
 npm test
 ```
@@ -259,8 +272,8 @@ npm test
 - **Extra Ollama LAN hosts:** add comma-separated hostnames to `OLLAMA_URL_ALLOWLIST` in `.env`.
 - **References:**
   - Design specifications: [`docs/superpowers/specs/`](docs/superpowers/specs/README.md)
-  - Security audit baseline: [`docs/security-audit-baseline.md`](docs/security-audit-baseline.md) (`2026-10-30`, 0 high/critical backend advisories)
-  - Performance SLI baseline: [`docs/perf-baseline-2026-09-21.md`](docs/perf-baseline-2026-09-21.md)
+  - Security audit baseline: [`docs/security-audit-baseline.md`](docs/security-audit-baseline.md) (2026-11-07)
+  - Performance baseline: [`docs/perf-baseline-2026-11-07.md`](docs/perf-baseline-2026-11-07.md)
 
 ## License
 

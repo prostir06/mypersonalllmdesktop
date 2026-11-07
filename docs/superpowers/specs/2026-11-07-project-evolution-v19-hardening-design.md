@@ -1,7 +1,7 @@
 # Project Evolution Roadmap v19 — Hardening, Provider Unification, Multi-User Readiness & Performance
 
 **Date:** 2026-11-07  
-**Status:** W1 implemented (v19.0). W2 implemented (v19.1). W3 implemented (v19.2). W4 implemented (v19.3). W5 planned.  
+**Status:** W1 implemented (v19.0). W2 implemented (v19.1). W3 implemented (v19.2). W4 implemented (v19.3). W5 implemented (v19.4 tag at wave close).  
 **Parent:** Post v18 (Tool Orchestrator, Universal Web Search, Product Tour, Theme Modernization)  
 **Target Deployment Profile:** Small trusted team (2–10 users) on a shared self-hosted server (Docker Compose behind TLS reverse proxy); Electron desktop shell is secondary  
 **Scope:** Five sequential gated waves. Stabilization first; no new end-user features except the multi-user controls required by the deployment profile  

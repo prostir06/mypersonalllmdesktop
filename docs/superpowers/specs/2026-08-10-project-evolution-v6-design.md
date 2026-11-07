@@ -288,4 +288,4 @@ Coverage floors (backend): statements/lines/functions 80%, branches 60%.
 
 - v5 spec: `docs/superpowers/specs/2026-08-09-project-evolution-v5-design.md`  
 - v4: `2026-08-08-project-evolution-v4-design.md`  
-- Implementation plan (after approval): `docs/superpowers/plans/2026-08-10-project-evolution-v6.md`
+- Implementation plan: local only, not in the repository. This spec is the source of truth.

@@ -202,7 +202,7 @@ frontend/src/services/
 
 ## 9. Implementation decomposition
 
-Maps to `docs/superpowers/plans/2026-08-17-v10-implementation-plan.md`:
+Tasks:
 - **P38** — migration, persist/history, PDF+font, score clamp, tests
 - **P39** — api split, logger/multer TS, named exports on touched files
 - **P40** — E2E stream/settings, FE tests, audit doc, close-out spec status

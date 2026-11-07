@@ -98,5 +98,5 @@ Non-goals for this roadmap cycle: billing, multi-tenant SaaS, mobile apps.
 - Full strict TS conversion is large; do after ChatBox split.
 
 ## 7. Related docs
-- Implementation plan: `docs/superpowers/plans/2026-08-04-project-evolution-roadmap.md`
+- Implementation plan: local only, not in the repository. This spec is the source of truth.
 - Prior module specs under `docs/superpowers/specs/`

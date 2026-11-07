@@ -230,8 +230,4 @@ Expand provider capabilities with Anthropic Claude (Claude 3.5 Sonnet, 3.5 Haiku
 
 ## 9. Implementation Roadmap & Next Steps
 
-Upon review and approval of this specification, implementation proceeds sequentially wave by wave:
-1. `docs/superpowers/plans/2026-10-30-v16-w1-debt-modularity.md`
-2. `docs/superpowers/plans/2026-10-30-v16-w2-rag-tokens.md`
-3. `docs/superpowers/plans/2026-10-30-v16-w3-artifacts-ux.md`
-4. `docs/superpowers/plans/2026-10-30-v16-w4-anthropic-claude.md`
+The wave plans stayed local and are not in the repository. This spec is the source of truth. Implementation proceeded W1 → W2 → W3 → W4.

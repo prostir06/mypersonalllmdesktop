@@ -4,8 +4,10 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
-| [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | W1 implemented (v19.0); W2 implemented (v19.1); W3–W5 planned — Hot Fixes, Provider Unification, Multi-User Readiness, Performance, Deps/Tests/CI |
-| [2026-11-01-project-evolution-v18-tools-websearch-design.md](./2026-11-01-project-evolution-v18-tools-websearch-design.md) | Approved — Unified Provider Adapters, Agentic Tool Orchestration & Universal Web Search (W1–W4) |
+| [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | Implemented (W1–W5). Tags v19.0–v19.3 are on master; v19.4 is applied at wave close. Hot fixes, provider unification, multi-user, performance, dependencies/tests/CI |
+| [2026-11-04-theme-modernization-design.md](./2026-11-04-theme-modernization-design.md) | Implemented — Cyber Aura Nexus dark theme and Clean Minimalist light theme |
+| [2026-11-03-product-tour-design.md](./2026-11-03-product-tour-design.md) | Implemented — onboarding tour `v18.1` |
+| [2026-11-01-project-evolution-v18-tools-websearch-design.md](./2026-11-01-project-evolution-v18-tools-websearch-design.md) | Implemented (W1–W4) — provider adapters, tool orchestration, universal web search. Deferred: MCP, multi-model comparison, Redis/BullMQ, ReAct, Prisma 8 (v19 backlog) |
 | [2026-10-31-system-self-knowledge-advisor-design.md](./2026-10-31-system-self-knowledge-advisor-design.md) | Implemented — System Self-Knowledge Registry, Live Advisor, Auto-Sync & UI Guide |
 | [2026-10-30-project-evolution-roadmap-v16-design.md](./2026-10-30-project-evolution-roadmap-v16-design.md) | Implemented (W1–W4) — Debt & Modularity, Hybrid RAG & Token Telemetry, Interactive Artifacts, Anthropic Claude |
 | [2026-10-28-google-gemini-integration-design.md](./2026-10-28-google-gemini-integration-design.md) | Implemented — Gemini 2.0/1.5, Grounding, Multimodal |

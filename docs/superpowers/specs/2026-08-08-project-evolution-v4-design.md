@@ -134,5 +134,5 @@ Commit per task group; push only when asked. Ukrainian UI on touched surfaces.
 ## 7. Related docs
 
 - Prior design: `docs/superpowers/specs/2026-08-08-project-evolution-v3-design.md`  
-- Plan (gitignored): `docs/superpowers/plans/2026-08-08-project-evolution-v4.md`  
+- Implementation plan: local only, not in the repository. This spec is the source of truth.  
 - Canvas: `project-evolution-v4-audit.canvas.tsx`
