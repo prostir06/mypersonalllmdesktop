@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider, useAuth } from './AuthContext';
@@ -12,6 +13,13 @@ vi.mock('../services/api', () => ({
     logout: vi.fn(),
   },
 }));
+
+function renderAuth(ui: React.ReactElement, client = new QueryClient()) {
+  return {
+    client,
+    ...render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>),
+  };
+}
 
 function Probe() {
   const { authReady, isAuthenticated, token } = useAuth();
@@ -40,7 +48,7 @@ describe('AuthProvider refresh boot', () => {
       data: { token: 'access-from-refresh' },
     } as never);
 
-    render(
+    renderAuth(
       <AuthProvider>
         <Probe />
       </AuthProvider>
@@ -57,7 +65,7 @@ describe('AuthProvider refresh boot', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     vi.mocked(authAPI.refresh).mockRejectedValue(new Error('no cookie'));
 
-    render(
+    renderAuth(
       <AuthProvider>
         <Probe />
       </AuthProvider>
@@ -82,7 +90,7 @@ describe('AuthProvider refresh boot', () => {
       message: 'Unauthorized',
     });
 
-    render(
+    renderAuth(
       <AuthProvider>
         <Probe />
       </AuthProvider>
@@ -117,10 +125,13 @@ describe('AuthProvider refresh boot', () => {
     }
 
     const user = userEvent.setup();
-    render(
+    const client = new QueryClient();
+    client.setQueryData(['conversations'], [{ id: 1 }]);
+    renderAuth(
       <AuthProvider>
         <LogoutProbe />
-      </AuthProvider>
+      </AuthProvider>,
+      client
     );
 
     await waitFor(() => {
@@ -133,6 +144,7 @@ describe('AuthProvider refresh boot', () => {
       expect(screen.getByTestId('auth').textContent).toBe('false');
     });
     expect(screen.getByTestId('token').textContent).toBe('');
+    expect(client.getQueryData(['conversations'])).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
       'Logout request failed:',
       expect.any(Error)
