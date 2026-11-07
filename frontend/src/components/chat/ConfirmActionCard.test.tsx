@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ConfirmActionCard from './ConfirmActionCard';
+import type { AxiosResponse } from 'axios';
 import type { ToolTraceEntry } from '../../types/api';
 
 vi.mock('../../services/api', () => ({
@@ -77,7 +78,7 @@ describe('ConfirmActionCard', () => {
       status: 200,
       statusText: 'OK',
       headers: {},
-      config: {} as any,
+      config: {} as AxiosResponse['config'],
     });
 
     const entry: ToolTraceEntry = {
@@ -110,7 +111,7 @@ describe('ConfirmActionCard', () => {
       status: 200,
       statusText: 'OK',
       headers: {},
-      config: {} as any,
+      config: {} as AxiosResponse['config'],
     });
 
     const entry: ToolTraceEntry = {

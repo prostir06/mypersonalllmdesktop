@@ -19,12 +19,23 @@ import { queryKeys } from './queryKeys';
 import {
   appendOrReplaceAssistant,
   buildChatRequestOptions,
+  buildDoneAssistantMessage,
+  buildFallbackAssistantMessage,
+  cleanupStreamAttachments,
+  handleTokenUsageEvent,
+  initConversationHistory,
+  invalidateChatQueries,
   mapChatError,
   type AttachedImage,
   type UseChatStreamArgs,
   type SendOptions,
 } from './chatStreamHelpers';
+import {
+  createToolTraceHandlers,
+  upsertStreamingAssistantMessage,
+} from './toolTraceReducer';
 
+export { handleTokenUsageEvent };
 export type { AttachedImage, UseChatStreamArgs, SendOptions };
 
 export function useChatStream({
@@ -131,41 +142,15 @@ export function useChatStream({
       let inFlightAssistantIndex: number | undefined = opts.replaceAssistantIndex;
 
       const syncInFlightAssistant = () => {
-        const currentTrace = [...toolTraceRef.current];
         setMessages((prev) => {
-          if (typeof inFlightAssistantIndex === 'number' && inFlightAssistantIndex >= 0) {
-            const next = [...prev];
-            const existing = next[inFlightAssistantIndex] || { role: 'assistant', content: '' };
-            next[inFlightAssistantIndex] = {
-              ...existing,
-              tool_trace: currentTrace,
-              toolTrace: currentTrace,
-            };
-            return next;
-          }
-          const last = prev[prev.length - 1];
-          if (last && last.role === 'assistant') {
-            inFlightAssistantIndex = prev.length - 1;
-            return [
-              ...prev.slice(0, -1),
-              {
-                ...last,
-                tool_trace: currentTrace,
-                toolTrace: currentTrace,
-              },
-            ];
-          }
-          inFlightAssistantIndex = prev.length;
-          return [
-            ...prev,
-            {
-              role: 'assistant',
-              content: '',
-              tool_trace: currentTrace,
-              toolTrace: currentTrace,
-              created_at: new Date().toISOString(),
-            },
-          ];
+          const res = upsertStreamingAssistantMessage(
+            prev,
+            inFlightAssistantIndex ?? null,
+            currentStreamText,
+            toolTraceRef.current
+          );
+          inFlightAssistantIndex = res.inFlightIndex;
+          return res.messages;
         });
       };
 
@@ -183,25 +168,13 @@ export function useChatStream({
           },
           (newConvId, ragStatus) => {
             activeConversationId = newConvId;
-            if (!conversationId) {
-              queryClient.setQueryData<Message[]>(
-                queryKeys.history(newConvId),
-                (prev) => {
-                  const base = prev ?? [];
-                  const userMsg: Message = {
-                    role: 'user',
-                    content: userContent,
-                    created_at: new Date().toISOString(),
-                  };
-                  return base.some(
-                    (m) => m.role === 'user' && m.content === userContent
-                  )
-                    ? base
-                    : [...base, userMsg];
-                }
-              );
-            }
-            if (!conversationId && onNewMessage) onNewMessage(newConvId);
+            initConversationHistory(
+              queryClient,
+              conversationId,
+              newConvId,
+              userContent,
+              onNewMessage
+            );
             if (ragStatus === 'error') {
               toast.warn('Контекст RAG тимчасово недоступний');
             }
@@ -218,105 +191,11 @@ export function useChatStream({
             tokenUsageRef.current = usage;
             handleTokenUsageEvent('token_usage', usage, setMessages);
           },
-          {
-            onToolCall: (payload) => {
-              receivedStreamByte = true;
-              const toolName = payload.name || payload.tool || 'tool';
-              const args = payload.args || {};
-              const existingIdx = payload.id
-                ? toolTraceRef.current.findIndex(
-                    (e) => (e as any).callId === payload.id || (e as any).id === payload.id
-                  )
-                : -1;
-              const newEntry: ToolTraceEntry = {
-                tool: toolName,
-                args,
-                category: 'read',
-                status: 'completed',
-                callId: payload.id,
-                ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
-              } as ToolTraceEntry;
-
-              if (existingIdx >= 0) {
-                toolTraceRef.current[existingIdx] = {
-                  ...toolTraceRef.current[existingIdx],
-                  ...newEntry,
-                };
-              } else {
-                toolTraceRef.current.push(newEntry);
-              }
-              syncInFlightAssistant();
-            },
-            onToolResult: (payload) => {
-              receivedStreamByte = true;
-              const toolName = payload.name || payload.tool;
-              const existingIdx = payload.id
-                ? toolTraceRef.current.findIndex(
-                    (e) => (e as any).callId === payload.id || (e as any).id === payload.id
-                  )
-                : toolTraceRef.current.findIndex((e) => e.tool === toolName);
-
-              const hasError = Boolean(
-                payload.error || payload.status === 'failed' || payload.status === 'error'
-              );
-              const status: 'completed' | 'failed' = hasError ? 'failed' : 'completed';
-
-              if (existingIdx >= 0) {
-                toolTraceRef.current[existingIdx] = {
-                  ...toolTraceRef.current[existingIdx],
-                  result: payload.result,
-                  durationMs: payload.durationMs,
-                  status,
-                  ...(payload.error ? { error: payload.error } : {}),
-                  ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
-                };
-              } else {
-                toolTraceRef.current.push({
-                  tool: toolName || 'tool',
-                  args: {},
-                  category: 'read',
-                  result: payload.result,
-                  durationMs: payload.durationMs,
-                  status,
-                  callId: payload.id,
-                  ...(payload.error ? { error: payload.error } : {}),
-                  ...(payload.uiSummary ? { summary: payload.uiSummary } : {}),
-                } as ToolTraceEntry);
-              }
-              syncInFlightAssistant();
-            },
-            onToolConfirmationRequired: (payload) => {
-              receivedStreamByte = true;
-              const newEntry: ToolTraceEntry = {
-                tool: payload.toolName,
-                args: (payload as any).toolArgs || (payload as any).args || {},
-                category: 'write',
-                requiresConfirmation: true,
-                pendingActionId: payload.actionId,
-                status: 'pending_confirmation',
-                title: payload.title,
-                summary: payload.summary,
-                diff: payload.diff,
-                expiresAt: payload.expiresAt,
-              };
-              const existingIdx = toolTraceRef.current.findIndex(
-                (e) =>
-                  e.pendingActionId === payload.actionId ||
-                  (e.category === 'write' &&
-                    e.tool === payload.toolName &&
-                    e.status === 'pending_confirmation')
-              );
-              if (existingIdx >= 0) {
-                toolTraceRef.current[existingIdx] = {
-                  ...toolTraceRef.current[existingIdx],
-                  ...newEntry,
-                };
-              } else {
-                toolTraceRef.current.push(newEntry);
-              }
-              syncInFlightAssistant();
-            },
-          }
+          createToolTraceHandlers((updater) => {
+            receivedStreamByte = true;
+            toolTraceRef.current = updater(toolTraceRef.current);
+            syncInFlightAssistant();
+          })
         );
 
         if (rafRef.current != null) {
@@ -324,17 +203,12 @@ export function useChatStream({
           rafRef.current = null;
         }
         setStreamedText('');
-        const assistantMsg: Message = {
-          role: 'assistant',
-          content: currentStreamText,
-          sources: doneSourcesRef.current,
-          tokenUsage: tokenUsageRef.current,
-          tool_trace:
-            toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-          toolTrace:
-            toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-          created_at: new Date().toISOString(),
-        };
+        const assistantMsg = buildDoneAssistantMessage(
+          currentStreamText,
+          doneSourcesRef.current,
+          tokenUsageRef.current,
+          toolTraceRef.current
+        );
         if (!conversationId && activeConversationId != null) {
           queryClient.setQueryData<Message[]>(
             queryKeys.history(activeConversationId),
@@ -355,15 +229,7 @@ export function useChatStream({
         );
         if (onNewMessage) onNewMessage();
         sentOk = true;
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.conversations,
-        });
-        const historyId = activeConversationId ?? conversationId;
-        if (historyId != null && historyId !== '') {
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.history(historyId),
-          });
-        }
+        invalidateChatQueries(queryClient, activeConversationId, conversationId);
       } catch (err: unknown) {
         if (isAbortError(err)) {
           if (rafRef.current != null) {
@@ -371,31 +237,14 @@ export function useChatStream({
             rafRef.current = null;
           }
           const partial = pendingTextRef.current || currentStreamText;
-          if (typeof inFlightAssistantIndex === 'number' && inFlightAssistantIndex >= 0) {
-            setMessages((prev) => {
-              const next = [...prev];
-              if (next[inFlightAssistantIndex!]) {
-                next[inFlightAssistantIndex!] = {
-                  ...next[inFlightAssistantIndex!],
-                  content: partial || next[inFlightAssistantIndex!].content,
-                  tool_trace:
-                    toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-                  toolTrace:
-                    toolTraceRef.current.length > 0 ? [...toolTraceRef.current] : undefined,
-                };
-              }
-              return next;
-            });
-          } else if (partial) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: 'assistant',
-                content: partial,
-                created_at: new Date().toISOString(),
-              },
-            ]);
-          }
+          setMessages((prev) =>
+            upsertStreamingAssistantMessage(
+              prev,
+              inFlightAssistantIndex ?? null,
+              partial,
+              toolTraceRef.current
+            ).messages
+          );
           setStreamedText('');
           toast.info('Генерацію зупинено');
           return;
@@ -420,39 +269,21 @@ export function useChatStream({
             selectedProvider,
             requestOptions
           );
-          const data = response.data;
+          const assistantMsg = buildFallbackAssistantMessage(response.data);
           setMessages((prev) =>
             appendOrReplaceAssistant(
               prev,
-              {
-                role: 'assistant',
-                content: data.content,
-                sources: data.sources,
-                tokenUsage: (data.tokenUsage || (data.usage as TokenUsage | undefined)),
-                tool_trace:
-                  (data.tool_trace as ToolTraceEntry[]) || (data.toolTrace as ToolTraceEntry[]),
-                toolTrace:
-                  (data.toolTrace as ToolTraceEntry[]) || (data.tool_trace as ToolTraceEntry[]),
-                created_at:
-                  typeof data.timestamp === 'string'
-                    ? data.timestamp
-                    : data.timestamp
-                      ? String(data.timestamp)
-                      : undefined,
-              },
+              assistantMsg,
               inFlightAssistantIndex ?? opts.replaceAssistantIndex
             )
           );
-          if (onNewMessage) onNewMessage(data.conversationId);
+          if (onNewMessage) onNewMessage(response.data.conversationId);
           sentOk = true;
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.conversations,
-          });
-          if (data.conversationId) {
-            void queryClient.invalidateQueries({
-              queryKey: queryKeys.history(data.conversationId),
-            });
-          }
+          invalidateChatQueries(
+            queryClient,
+            response.data.conversationId,
+            conversationId
+          );
         } catch (fallbackErr: unknown) {
           const ax = fallbackErr as AxiosError<{ error?: string }>;
           const msg =
@@ -467,11 +298,7 @@ export function useChatStream({
         setStreaming(false);
         setStreamedText('');
         if (sentOk) {
-          setAttachedImage((prev) => {
-            if (prev?.url) URL.revokeObjectURL(prev.url);
-            return null;
-          });
-          setChatAttachments([]);
+          cleanupStreamAttachments(setAttachedImage, setChatAttachments);
         }
       }
     },
@@ -519,26 +346,4 @@ export function useChatStream({
     regenerateMessage,
     stopStreaming,
   };
-}
-
-export function handleTokenUsageEvent(
-  event: string,
-  data: string | TokenUsage,
-  setMessages: Dispatch<SetStateAction<Message[]>>
-) {
-  if (event === 'token_usage') {
-    try {
-      const usage =
-        typeof data === 'string' ? (JSON.parse(data) as TokenUsage) : data;
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last && last.role === 'assistant') {
-          return [...prev.slice(0, -1), { ...last, tokenUsage: usage }];
-        }
-        return prev;
-      });
-    } catch (err) {
-      console.warn('Failed to parse token_usage event', err);
-    }
-  }
 }

@@ -69,10 +69,11 @@ export interface ToolTraceEntry {
   tool: string;
   args: Record<string, unknown>;
   category: 'read' | 'write';
+  callId?: string;
   result?: unknown;
   requiresConfirmation?: boolean;
   pendingActionId?: string;
-  status: 'completed' | 'pending_confirmation' | 'rejected' | 'failed';
+  status: 'completed' | 'pending_confirmation' | 'rejected' | 'failed' | 'running';
   durationMs?: number;
   error?: string;
   title?: string;

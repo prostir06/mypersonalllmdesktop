@@ -194,9 +194,9 @@ export const chatAPI = {
       `/conversations/${id}/pin`,
       is_pinned !== undefined ? { is_pinned } : {}
     ),
-  approveToolAction: (actionId: string): Promise<AxiosResponse<any>> =>
+  approveToolAction: (actionId: string): Promise<AxiosResponse<Record<string, unknown>>> =>
     api.post(`/chat/tool-actions/${actionId}/approve`),
-  rejectToolAction: (actionId: string): Promise<AxiosResponse<any>> =>
+  rejectToolAction: (actionId: string): Promise<AxiosResponse<Record<string, unknown>>> =>
     api.post(`/chat/tool-actions/${actionId}/reject`),
 };
 

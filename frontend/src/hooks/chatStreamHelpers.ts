@@ -1,5 +1,14 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { Message, ChatAttachmentPayload } from '../types/api';
+import type { QueryClient } from '@tanstack/react-query';
+import type {
+  Message,
+  ChatAttachmentPayload,
+  ChatSendResponse,
+  RagSource,
+  TokenUsage,
+  ToolTraceEntry,
+} from '../types/api';
+import { queryKeys } from './queryKeys';
 
 export type AttachedImage = {
   url: string;
@@ -109,4 +118,114 @@ export function mapChatError(rawMessage: string | undefined | null): string {
   }
 
   return 'Не вдалося отримати відповідь від AI. Спробуйте ще раз.';
+}
+
+export function handleTokenUsageEvent(
+  event: string,
+  data: string | TokenUsage,
+  setMessages: Dispatch<SetStateAction<Message[]>>
+): void {
+  if (event === 'token_usage') {
+    try {
+      const usage =
+        typeof data === 'string' ? (JSON.parse(data) as TokenUsage) : data;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant') {
+          return [...prev.slice(0, -1), { ...last, tokenUsage: usage }];
+        }
+        return prev;
+      });
+    } catch (err) {
+      console.warn('Failed to parse token_usage event', err);
+    }
+  }
+}
+
+export function buildDoneAssistantMessage(
+  content: string,
+  sources: RagSource[] | undefined,
+  tokenUsage: TokenUsage | undefined,
+  toolTrace: ToolTraceEntry[]
+): Message {
+  return {
+    role: 'assistant',
+    content,
+    sources,
+    tokenUsage,
+    tool_trace: toolTrace.length > 0 ? [...toolTrace] : undefined,
+    toolTrace: toolTrace.length > 0 ? [...toolTrace] : undefined,
+    created_at: new Date().toISOString(),
+  };
+}
+
+export function buildFallbackAssistantMessage(
+  data: ChatSendResponse
+): Message {
+  const fallbackTrace =
+    (data.tool_trace as ToolTraceEntry[] | undefined) ||
+    (data.toolTrace as ToolTraceEntry[] | undefined);
+  return {
+    role: 'assistant',
+    content: data.content,
+    sources: data.sources,
+    tokenUsage: data.tokenUsage || (data.usage as TokenUsage | undefined),
+    tool_trace: fallbackTrace,
+    toolTrace: fallbackTrace,
+    created_at:
+      typeof data.timestamp === 'string'
+        ? data.timestamp
+        : data.timestamp
+          ? String(data.timestamp)
+          : undefined,
+  };
+}
+
+export function initConversationHistory(
+  queryClient: QueryClient,
+  conversationId: string | number | null | undefined,
+  newConvId: string | number,
+  userContent: string,
+  onNewMessage?: (conversationId?: string | number) => void
+): void {
+  if (!conversationId) {
+    queryClient.setQueryData<Message[]>(
+      queryKeys.history(newConvId),
+      (prev) => {
+        const base = prev ?? [];
+        const userMsg: Message = {
+          role: 'user',
+          content: userContent,
+          created_at: new Date().toISOString(),
+        };
+        return base.some((m) => m.role === 'user' && m.content === userContent)
+          ? base
+          : [...base, userMsg];
+      }
+    );
+    if (onNewMessage) onNewMessage(newConvId);
+  }
+}
+
+export function invalidateChatQueries(
+  queryClient: QueryClient,
+  activeConversationId?: string | number | null,
+  conversationId?: string | number | null
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+  const historyId = activeConversationId ?? conversationId;
+  if (historyId != null && historyId !== '') {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.history(historyId) });
+  }
+}
+
+export function cleanupStreamAttachments(
+  setAttachedImage: Dispatch<SetStateAction<AttachedImage>>,
+  setChatAttachments: Dispatch<SetStateAction<ChatAttachmentPayload[]>>
+): void {
+  setAttachedImage((prev) => {
+    if (prev?.url) URL.revokeObjectURL(prev.url);
+    return null;
+  });
+  setChatAttachments([]);
 }
