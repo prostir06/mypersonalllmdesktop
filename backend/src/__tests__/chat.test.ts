@@ -146,7 +146,7 @@ describe('chat routes', () => {
     expect(input.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('POST /stream returns 403 JSON before SSE headers', async () => {
+  it('POST /stream sends a ChatError on the open stream', async () => {
     const err: any = new Error('Forbidden');
     err.statusCode = 403;
     mockedChat.streamMessage.mockRejectedValue(err);
@@ -155,9 +155,9 @@ describe('chat routes', () => {
       .post('/api/chat/stream')
       .send({ message: 'hi', conversationId: 9 });
 
-    expect(res.status).toBe(403);
-    expect(res.headers['content-type']).not.toMatch(/text\/event-stream/);
-    expect(res.body.error).toBe('Forbidden');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+    expect(res.text).toContain('Forbidden');
   });
 
   it('POST /stream emits SSE error after init', async () => {
@@ -309,7 +309,7 @@ describe('chat routes', () => {
     expect(lines.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('POST /stream returns error JSON on ChatError before SSE headers', async () => {
+  it('POST /stream sends a provider error on the open stream', async () => {
     const err: any = new Error('No provider configured');
     err.statusCode = 403;
     mockedChat.streamMessage.mockRejectedValue(err);
@@ -318,7 +318,8 @@ describe('chat routes', () => {
       .post('/api/chat/stream')
       .send({ message: 'hi', model: 'gpt-4', provider: 'openai' });
 
-    expect(res.status).toBe(403);
-    expect(res.body.error).toBe('No provider configured');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/event-stream/);
+    expect(res.text).toContain('No provider configured');
   });
 });

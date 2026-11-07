@@ -82,11 +82,18 @@ function getRequestLogger(): winston.Logger {
   return child;
 }
 
+const methodOverrides = new Map<PropertyKey, unknown>();
+
 const logger: winston.Logger = new Proxy(rootLogger, {
   get(_target, prop) {
+    if (methodOverrides.has(prop)) return methodOverrides.get(prop);
     const active = getRequestLogger();
     const value = Reflect.get(active, prop, active);
     return typeof value === 'function' ? value.bind(active) : value;
+  },
+  set(_target, prop, value) {
+    methodOverrides.set(prop, value);
+    return true;
   },
 });
 
