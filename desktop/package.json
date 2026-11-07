@@ -60,7 +60,7 @@
     "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^26.6.6",
     "cross-env": "^7.0.3",
     "electron": "^45.2.3",
     "electron-builder": "^25.1.8",
