@@ -10,6 +10,7 @@ import { ChatError } from './chat/types';
 import type { RagSource, TokenUsage } from './chat/types';
 import type { NormalizedToolCall } from './providers/types';
 import { buildGeminiPayload, pushGeminiToolCall } from './gemini/formatters';
+import { defaultGeminiModel } from '../config/models';
 
 export type { GeminiContent, GeminiMessagePart } from './gemini/formatters';
 export { buildGeminiPayload } from './gemini/formatters';
@@ -114,7 +115,7 @@ function collectResponseToolCalls(response: {
 
 async function sendGeminiMessage(
   messages: Array<{ role: string; content?: unknown }>,
-  model = 'gemini-2.0-flash',
+  model = defaultGeminiModel(),
   options: Record<string, unknown> = {}
 ) {
   const apiKey = typeof options.apiKey === 'string' ? options.apiKey.trim() : null;
@@ -169,7 +170,7 @@ async function sendGeminiMessage(
 
 async function streamGeminiMessage(
   messages: Array<{ role: string; content?: unknown }>,
-  model = 'gemini-2.0-flash',
+  model = defaultGeminiModel(),
   options: Record<string, unknown> = {},
   onChunk?: (token: string) => void
 ) {

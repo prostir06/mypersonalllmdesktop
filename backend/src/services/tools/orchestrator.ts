@@ -5,6 +5,7 @@ import type { RagSource, TokenUsage } from '../chat/types';
 import { persistTurn } from '../chat/persist';
 import ProviderFactory from '../providerFactory';
 import { modelSupportsTools } from '../../utils/modelCapabilities';
+import { defaultModelFor } from '../../config/models';
 import { writeSseEvent } from '../../utils/sse';
 import toolRegistry from './registry';
 import type {
@@ -41,7 +42,7 @@ export async function runToolOrchestratedTurn(
   options: ToolOrchestrationOptions
 ) {
   const provider = options.provider || 'openai';
-  const model = options.model || 'gpt-3.5-turbo';
+  const model = options.model || defaultModelFor(provider);
 
   let toolsEnabled = options.toolsEnabled;
   if (toolsEnabled === undefined && options.options?.toolsEnabled !== undefined) {

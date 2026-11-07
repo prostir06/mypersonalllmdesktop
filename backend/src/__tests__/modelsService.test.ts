@@ -43,26 +43,26 @@ describe('modelsService', () => {
   });
 
   describe('DEFAULT_CLAUDE_MODELS', () => {
-    it('defines official Claude 3.5 models with anthropic provider', () => {
+    it('defines current Claude models with anthropic provider', () => {
       expect(DEFAULT_CLAUDE_MODELS).toHaveLength(2);
 
       const sonnet = DEFAULT_CLAUDE_MODELS.find(
-        (m) => m.modelId === 'claude-3-5-sonnet-20241022'
+        (m) => m.modelId === 'claude-sonnet-4-5'
       );
       expect(sonnet).toBeDefined();
       expect(sonnet).toMatchObject({
-        name: 'Claude 3.5 Sonnet',
+        name: 'Claude Sonnet 4.5',
         provider: 'anthropic',
         maxTokens: 4096,
         temperature: 0.7,
       });
 
       const haiku = DEFAULT_CLAUDE_MODELS.find(
-        (m) => m.modelId === 'claude-3-5-haiku-20241022'
+        (m) => m.modelId === 'claude-haiku-4-5'
       );
       expect(haiku).toBeDefined();
       expect(haiku).toMatchObject({
-        name: 'Claude 3.5 Haiku',
+        name: 'Claude Haiku 4.5',
         provider: 'anthropic',
         maxTokens: 4096,
         temperature: 0.7,

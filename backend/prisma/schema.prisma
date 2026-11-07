@@ -31,7 +31,7 @@ model User {
 model UserSettings {
   id                Int      @id @default(autoincrement())
   userId            Int      @unique @map("user_id")
-  defaultModel      String   @default("gpt-3.5-turbo") @map("default_model") @db.VarChar(255)
+  defaultModel      String   @default("gpt-4o-mini") @map("default_model") @db.VarChar(255)
   defaultProvider   String   @default("openai") @map("default_provider") @db.VarChar(50)
   defaultOllamaHost String?  @default("http://127.0.0.1:11434/v1/chat/completions") @map("default_ollama_host") @db.VarChar(255)
   temperature       Decimal  @default(0.7) @db.Decimal(3, 2)

@@ -1,6 +1,7 @@
 import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from './providerFactory';
+import { defaultModelFor } from '../config/models';
 import type { ChatMessage } from './chat/types';
 
 export const MAX_NOTES = 20;
@@ -214,7 +215,7 @@ export async function maybeRefreshSummary(
       select: { defaultProvider: true, defaultModel: true },
     });
     const provider = settings?.defaultProvider || 'openai';
-    const model = settings?.defaultModel || 'gpt-3.5-turbo';
+    const model = settings?.defaultModel || defaultModelFor(provider);
 
     const summarizeMessages: ChatMessage[] = [
       {

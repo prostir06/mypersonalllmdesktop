@@ -56,7 +56,7 @@ describe('Settings API (Prisma)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      default_model: 'gpt-3.5-turbo',
+      default_model: 'gpt-4o-mini',
       temperature: 0.7,
       max_tokens: 4096,
       default_provider: 'openai',

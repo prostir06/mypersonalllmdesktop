@@ -17,8 +17,8 @@ export const DEFAULT_GEMINI_MODEL_OPTIONS: ModelOption[] = [
 ];
 
 export const DEFAULT_CLAUDE_MODEL_OPTIONS: ModelOption[] = [
-  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+  { value: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+  { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
 ];
 
 export function catalogModelsToOptions(

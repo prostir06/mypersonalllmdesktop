@@ -25,6 +25,7 @@ describe('modelSupportsVision', () => {
     expect(modelSupportsVision('claude-3-opus-20240229')).toBe(true);
     expect(modelSupportsVision('Claude-3.5-Sonnet')).toBe(true);
     expect(modelSupportsVision('claude-sonnet-4-20250514')).toBe(true);
+    expect(modelSupportsVision('claude-haiku-4-5')).toBe(true);
     expect(modelSupportsVision('claude-opus-4')).toBe(true);
   });
 

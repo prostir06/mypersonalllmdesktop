@@ -50,4 +50,10 @@ describe('tokenCostCalculator', () => {
     const cost = calculateTokenCost('custom-unknown-model-xyz', 1000, 1000);
     expect(cost).toBeUndefined();
   });
+
+  it('does not price a model from a substring of a known id', () => {
+    expect(calculateTokenCost('sonnet', 1000, 1000)).toBeUndefined();
+    expect(calculateTokenCost('4o', 1000, 1000)).toBeUndefined();
+    expect(calculateTokenCost('mini', 1000, 1000)).toBeUndefined();
+  });
 });

@@ -19,6 +19,7 @@ export function modelSupportsVision(
     m.includes('claude-3') ||
     m.includes('claude-sonnet-4') ||
     m.includes('claude-opus-4') ||
+    m.includes('claude-haiku-4') ||
     m.includes('gemma3') ||
     m.includes('gemma-3') ||
     m.includes('gemma4') ||

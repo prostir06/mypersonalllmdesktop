@@ -7,6 +7,7 @@ import {
 } from './providers/shared';
 import { ChatError } from './chat/types';
 import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
+import { defaultAnthropicModel } from '../config/models';
 
 export {
   ClaudeImageMediaType,
@@ -107,7 +108,7 @@ function resolveApiKey(options: Record<string, unknown> = {}): string {
 
 export async function sendClaudeMessage(
   messages: Array<{ role: string; content?: unknown }>,
-  model = 'claude-3-5-sonnet-20241022',
+  model = defaultAnthropicModel(),
   options: Record<string, unknown> = {}
 ) {
   const apiKey = resolveApiKey(options);
@@ -181,7 +182,7 @@ export async function sendClaudeMessage(
 
 export async function streamClaudeMessage(
   messages: Array<{ role: string; content?: unknown }>,
-  model = 'claude-3-5-sonnet-20241022',
+  model = defaultAnthropicModel(),
   options: Record<string, unknown> = {},
   onChunk?: (token: string) => void
 ) {

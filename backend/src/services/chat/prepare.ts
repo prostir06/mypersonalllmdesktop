@@ -12,6 +12,7 @@ import { ensureConversationId } from './ownership';
 import { buildSystemContext, buildDateTimeMessage } from './systemContext';
 import { clampGeneration, pickAllowedOptions } from './generationOptions';
 import { getSettingsForUser } from '../settingsService';
+import { defaultModelFor } from '../../config/models';
 import {
   ChatError,
   type ChatMessage,
@@ -141,7 +142,7 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
       {
         ...options,
         activeProvider: input.provider || 'openai',
-        activeModel: input.model || 'gpt-3.5-turbo',
+        activeModel: input.model || defaultModelFor(input.provider),
       },
       input.message,
       convId

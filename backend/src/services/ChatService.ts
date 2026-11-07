@@ -9,6 +9,7 @@ import {
 } from './chat/types';
 import ProviderFactory from './providerFactory';
 import { modelSupportsTools } from '../utils/modelCapabilities';
+import { defaultModelFor } from '../config/models';
 import { ensureConversationId as ensureConversationIdImpl } from './chat/ownership';
 import {
   persistTurn as persistTurnImpl,
@@ -71,7 +72,7 @@ class ChatService {
     } = await this.prepareMessages(input);
 
     const provider = input.provider || 'openai';
-    const model = input.model || 'gpt-3.5-turbo';
+    const model = input.model || defaultModelFor(provider);
     const toolsEnabled = Boolean(
       (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
     );
@@ -175,7 +176,7 @@ class ChatService {
     if (onInit) onInit(convId, ragStatus);
 
     const provider = input.provider || 'openai';
-    const model = input.model || 'gpt-3.5-turbo';
+    const model = input.model || defaultModelFor(provider);
     const toolsEnabled = Boolean(
       (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
     );

@@ -8,6 +8,7 @@ import {
 } from './providers/shared';
 import type { TokenUsage } from './chat/types';
 import type { NormalizedToolCall, ToolDefinitionSpec } from './providers/types';
+import { defaultOpenAiModel } from '../config/models';
 
 type ChatMessage = { role: string; content?: unknown; [key: string]: unknown };
 type ProviderOptions = {
@@ -96,7 +97,7 @@ function toTokenUsage(
 
 async function sendOpenAIMessage(
   messages: ChatMessage[],
-  model = 'gpt-3.5-turbo',
+  model = defaultOpenAiModel(),
   options: ProviderOptions = {}
 ) {
   const openai = clientFor(options);
@@ -146,7 +147,7 @@ async function sendOpenAIMessage(
 
 async function streamOpenAIMessage(
   messages: ChatMessage[],
-  model = 'gpt-3.5-turbo',
+  model = defaultOpenAiModel(),
   options: ProviderOptions = {},
   onChunk?: (token: string) => void
 ) {

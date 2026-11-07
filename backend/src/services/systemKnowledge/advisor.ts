@@ -3,6 +3,7 @@ import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { embeddingContextToRagMode } from '../embeddings/types';
 import { computeNeedsReindex } from '../documents/publicDocument';
 import { modelSupportsVision } from '../../utils/modelCapabilities';
+import { defaultModelFor } from '../../config/models';
 import { envOpenAiKey } from '../../utils/openaiKeyResolver';
 import { envGeminiKey } from '../../utils/geminiKeyResolver';
 import { envClaudeKey } from '../../utils/claudeKeyResolver';
@@ -54,7 +55,7 @@ export async function buildUserSystemSnapshot(
     ]);
 
   const defaultProvider = userSettings?.defaultProvider || 'openai';
-  const defaultModel = userSettings?.defaultModel || 'gpt-3.5-turbo';
+  const defaultModel = userSettings?.defaultModel || defaultModelFor(defaultProvider);
   const defaultOllamaHost =
     userSettings?.defaultOllamaHost || DEFAULT_OLLAMA_HOST;
 

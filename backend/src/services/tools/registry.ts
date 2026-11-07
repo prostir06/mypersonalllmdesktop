@@ -6,6 +6,7 @@ import {
   matchRelevantKnowledgeCards,
 } from '../systemKnowledge';
 import { updateSettingsForUser } from '../settingsService';
+import { defaultOpenAiModel } from '../../config/models';
 import type { ToolDefinitionSpec } from '../providers/types';
 import { RegisteredTool, ToolExecutionContext, ToolProposal, ToolValidationError } from './types';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
@@ -352,7 +353,7 @@ export class ToolRegistry {
           diff.max_tokens = { from: current?.maxTokens ?? 4096, to: maxTokens };
         }
         if (defaultModel !== undefined) {
-          diff.default_model = { from: current?.defaultModel ?? 'gpt-3.5-turbo', to: defaultModel };
+          diff.default_model = { from: current?.defaultModel ?? defaultOpenAiModel(), to: defaultModel };
         }
         if (systemPrompt !== undefined) {
           diff.system_prompt = { from: current?.systemPrompt ?? '', to: systemPrompt };

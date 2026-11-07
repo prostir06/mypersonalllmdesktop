@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../../logger';
 import { buildTokenUsage } from '../providers/shared';
+import { defaultAnthropicModel } from '../../config/models';
 import type { TokenUsage } from '../chat/types';
 
 export type ClaudeImageMediaType =
@@ -29,7 +30,7 @@ export function formatClaudeTokenUsage(
   return buildTokenUsage(
     usage.input_tokens ?? 0,
     usage.output_tokens ?? 0,
-    model || 'claude-3-5-sonnet-20241022'
+    model || defaultAnthropicModel()
   );
 }
 

@@ -50,7 +50,7 @@ describe('settingsService mappers and updates', () => {
   it('defaultSettings returns snake_case public shape including has_gemini_api_key', () => {
     const d = defaultSettings();
     expect(d).toMatchObject({
-      default_model: 'gpt-3.5-turbo',
+      default_model: 'gpt-4o-mini',
       temperature: 0.7,
       max_tokens: 4096,
       default_provider: 'openai',

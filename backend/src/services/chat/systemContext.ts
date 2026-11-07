@@ -9,6 +9,7 @@ import { sanitizeDocumentIds } from './ownership';
 import { parseSheetName } from './sheetContext';
 import type { ChatMessage, ChatOptions, RagSource, RagStatus } from './types';
 import { modelSupportsTools } from '../../utils/modelCapabilities';
+import { defaultModelFor } from '../../config/models';
 import WebSearchService from '../webSearch';
 import { UNTRUSTED_DOCUMENT_DISCLAIMER, wrapUntrustedDocument } from './untrusted';
 
@@ -233,7 +234,7 @@ export async function buildSystemContext(
     options.enableWebSearch || (options as any)?.enable_web_search
   );
   const activeProvider = options.activeProvider || 'openai';
-  const activeModel = options.activeModel || 'gpt-3.5-turbo';
+  const activeModel = options.activeModel || defaultModelFor(activeProvider);
   const toolsEnabled = Boolean(
     (options as any)?.toolsEnabled ?? (options as any)?.tools_enabled
   );

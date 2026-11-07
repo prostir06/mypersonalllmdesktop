@@ -9,6 +9,7 @@ import {
   invalidateEmbeddingContextCache,
 } from './embeddings/resolveEmbeddingContext';
 import { numTemp } from '../utils/numTemp';
+import { defaultOpenAiModel } from '../config/models';
 
 const FALLBACK_OLLAMA =
   process.env.OLLAMA_API_URL || 'http://127.0.0.1:11434/v1/chat/completions';
@@ -54,7 +55,7 @@ export class InvalidAnthropicKeyError extends Error {
 
 export function defaultSettings() {
   return {
-    default_model: 'gpt-3.5-turbo',
+    default_model: defaultOpenAiModel(),
     temperature: 0.7,
     max_tokens: 4096,
     default_provider: 'openai',
@@ -207,7 +208,7 @@ export async function updateSettingsForUser(
     geminiApiKeyEnc?: string | null;
     anthropicApiKeyEnc?: string | null;
   } = {
-    defaultModel: default_model || existing?.defaultModel || 'gpt-3.5-turbo',
+    defaultModel: default_model || existing?.defaultModel || defaultOpenAiModel(),
     temperature: temperature ?? (existing ? numTemp(existing.temperature) : 0.7),
     maxTokens: max_tokens ?? existing?.maxTokens ?? 4096,
     defaultProvider: default_provider || existing?.defaultProvider || 'openai',

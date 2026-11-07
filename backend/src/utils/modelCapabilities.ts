@@ -1,4 +1,5 @@
 import type { ModelCapabilityFlags } from '../services/providers/types';
+import { lookupModelProfile } from '../config/models';
 
 /**
  * Explicit vision-capable model ids (no substring heuristics like "gpt-4*").
@@ -40,7 +41,8 @@ function detectStaticVision(m: string, provider?: string | null): boolean {
     m.startsWith('claude-3') ||
     m.includes('claude-3') ||
     m.includes('claude-sonnet-4') ||
-    m.includes('claude-opus-4')
+    m.includes('claude-opus-4') ||
+    m.includes('claude-haiku-4')
   ) {
     return true;
   }
@@ -73,7 +75,8 @@ function detectStaticTools(m: string, provider?: string | null): boolean {
     m.startsWith('claude-3') ||
     m.includes('claude-3') ||
     m.includes('claude-sonnet-4') ||
-    m.includes('claude-opus-4')
+    m.includes('claude-opus-4') ||
+    m.includes('claude-haiku-4')
   ) {
     return true;
   }
@@ -177,6 +180,15 @@ export function getModelCapabilities(
       return cached.flags;
     }
     runtimeCapabilitiesCache.delete(m);
+  }
+
+  const known = lookupModelProfile(m);
+  if (known) {
+    return {
+      vision: known.vision,
+      tools: known.tools,
+      webSearchGrounding: known.webSearchGrounding,
+    };
   }
 
   const prov = provider ? provider.trim().toLowerCase() : null;

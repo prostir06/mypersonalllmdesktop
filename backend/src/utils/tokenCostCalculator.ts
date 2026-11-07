@@ -48,20 +48,22 @@ export function calculateTokenCost(
     return 0;
   }
 
-  // Exact match
   let pricing: ModelPricing | undefined = PRICING_MAP[normalized];
 
-  // Match by stripped date suffix (e.g. model-name-20241022 or model-name-2024-07-18)
   if (!pricing) {
     const stripped = normalized.replace(/-\d{8}$/, '').replace(/-\d{4}-\d{2}-\d{2}$/, '');
-    pricing = PRICING_MAP[stripped];
+    if (stripped !== normalized) pricing = PRICING_MAP[stripped];
   }
 
-  // Substring match with longest keys checked first (e.g. gpt-4o-mini before gpt-4o)
   if (!pricing) {
-    const sortedKeys = Object.keys(PRICING_MAP).sort((a, b) => b.length - a.length);
-    const key = sortedKeys.find((k) => normalized.includes(k) || k.includes(normalized));
-    if (key) pricing = PRICING_MAP[key];
+    let bestKey = '';
+    for (const key of Object.keys(PRICING_MAP)) {
+      if (key.length <= bestKey.length) continue;
+      if (normalized.startsWith(`${key}-`) || normalized.startsWith(`${key}.`)) {
+        bestKey = key;
+        pricing = PRICING_MAP[key];
+      }
+    }
   }
 
   if (!pricing) return undefined;

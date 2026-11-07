@@ -38,6 +38,7 @@ describe('modelCapabilities', () => {
       expect(modelSupportsVision('claude-3-opus-20240229')).toBe(true);
       expect(modelSupportsVision('Claude-3.5-Sonnet')).toBe(true);
       expect(modelSupportsVision('claude-sonnet-4-20250514')).toBe(true);
+      expect(modelSupportsVision('claude-haiku-4-5')).toBe(true);
       expect(modelSupportsVision('claude-opus-4')).toBe(true);
     });
 
@@ -70,6 +71,7 @@ describe('modelCapabilities', () => {
     it('recognizes Anthropic tool-capable models', () => {
       expect(modelSupportsTools('claude-3-5-sonnet-20241022')).toBe(true);
       expect(modelSupportsTools('claude-sonnet-4-20250514')).toBe(true);
+      expect(modelSupportsTools('claude-haiku-4-5')).toBe(true);
       expect(modelSupportsTools('claude-opus-4')).toBe(true);
     });
 
