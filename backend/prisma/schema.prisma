@@ -78,7 +78,7 @@ model UserSettings {
   defaultProvider   String   @default("openai") @map("default_provider") @db.VarChar(50)
   defaultOllamaHost String?  @default("http://127.0.0.1:11434/v1/chat/completions") @map("default_ollama_host") @db.VarChar(255)
   temperature       Decimal  @default(0.7) @db.Decimal(3, 2)
-  maxTokens         Int      @default(2000) @map("max_tokens")
+  maxTokens         Int      @default(4096) @map("max_tokens")
   systemPrompt      String   @default("") @map("system_prompt") @db.Text
   toolsEnabled      Boolean  @default(true) @map("tools_enabled")
   openaiApiKeyEnc   String?  @map("openai_api_key_enc") @db.Text
@@ -207,7 +207,7 @@ model LlmModel {
   description String?  @db.Text
   provider    String   @default("openai") @db.VarChar(50)
   temperature Decimal  @default(0.7) @db.Decimal(3, 2)
-  maxTokens   Int      @default(2000) @map("max_tokens")
+  maxTokens   Int      @default(4096) @map("max_tokens")
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at")
 

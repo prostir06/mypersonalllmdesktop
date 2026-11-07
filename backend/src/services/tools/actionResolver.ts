@@ -1,8 +1,13 @@
+import type { Prisma } from '@prisma/client';
 import prisma from '../../config/prisma';
 import logger from '../../logger';
 import { ChatError } from '../chat/types';
 import toolRegistry from './registry';
-import { ToolValidationError, type ToolExecutionContext } from './types';
+import {
+  ToolValidationError,
+  type ToolExecutionContext,
+  type ToolTraceEntry,
+} from './types';
 
 async function claimPending(actionId: string): Promise<void> {
   const updated = await prisma.pendingToolAction.updateMany({
@@ -63,15 +68,16 @@ export async function resolvePendingToolAction(
       select: { id: true, toolTrace: true },
     });
     if (message && Array.isArray(message.toolTrace)) {
-      const updatedTrace = (message.toolTrace as any[]).map((entry) => {
+      const trace = message.toolTrace as unknown as ToolTraceEntry[];
+      const updatedTrace = trace.map((entry) => {
         if (entry.pendingActionId === actionId) {
-          return { ...entry, status: 'rejected' };
+          return { ...entry, status: 'rejected' as const };
         }
         return entry;
       });
       await prisma.message.update({
         where: { id: message.id },
-        data: { toolTrace: updatedTrace },
+        data: { toolTrace: updatedTrace as unknown as Prisma.InputJsonValue },
       });
     }
 
@@ -92,11 +98,11 @@ export async function resolvePendingToolAction(
     userId: action.userId,
     conversationId: action.conversationId,
   };
-  let args: any;
+  let args: Record<string, unknown>;
   try {
     args = typeof action.toolArgs === 'string'
-      ? JSON.parse(action.toolArgs)
-      : action.toolArgs;
+      ? (JSON.parse(action.toolArgs) as Record<string, unknown>)
+      : ((action.toolArgs as Record<string, unknown>) || {});
   } catch (parseErr: unknown) {
     logger.error(
       `Malformed pending tool action arguments for action ${actionId}: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
@@ -108,7 +114,7 @@ export async function resolvePendingToolAction(
     throw new ChatError(400, 'Invalid tool arguments format', { cause: parseErr });
   }
 
-  let result: any;
+  let result: unknown;
   try {
     result = await tool.execute(args, ctx);
   } catch (execErr: unknown) {
@@ -144,15 +150,16 @@ export async function resolvePendingToolAction(
     select: { id: true, toolTrace: true },
   });
   if (message && Array.isArray(message.toolTrace)) {
-    const updatedTrace = (message.toolTrace as any[]).map((entry) => {
+    const trace = message.toolTrace as unknown as ToolTraceEntry[];
+    const updatedTrace = trace.map((entry) => {
       if (entry.pendingActionId === actionId) {
-        return { ...entry, status: 'completed', result };
+        return { ...entry, status: 'completed' as const, result };
       }
       return entry;
     });
     await prisma.message.update({
       where: { id: message.id },
-      data: { toolTrace: updatedTrace },
+      data: { toolTrace: updatedTrace as unknown as Prisma.InputJsonValue },
     });
   }
 

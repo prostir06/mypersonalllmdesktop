@@ -2,6 +2,7 @@ const mockPrisma = {
   userSettings: {
     findUnique: jest.fn(),
     update: jest.fn(),
+    upsert: jest.fn(),
   },
   message: {
     create: jest.fn(),
@@ -35,6 +36,9 @@ const mockProviderFactory = {
   sendMessage: jest.fn(),
   streamMessage: jest.fn(),
 };
+
+const prisma = mockPrisma;
+const ProviderFactory = mockProviderFactory;
 
 jest.mock('../services/providerFactory', () => ({
   __esModule: true,
@@ -527,6 +531,71 @@ describe('ToolOrchestrator', () => {
       );
       expect(result.content).toBe('Normal answer from llama2');
       expect(result.toolTrace).toBeUndefined();
+    });
+
+    it('records secondary write tool calls as skipped in toolTrace when multiple write tools are emitted in one turn', async () => {
+      (ProviderFactory.sendMessage as jest.Mock).mockResolvedValueOnce({
+        content: '',
+        toolCalls: [
+          {
+            id: 'call_w1',
+            name: 'add_user_memory_note',
+            argumentsJson: JSON.stringify({ content: 'Перша нотатка' }),
+          },
+          {
+            id: 'call_w2',
+            name: 'add_conversation_note',
+            argumentsJson: JSON.stringify({ content: 'Друга нотатка' }),
+          },
+        ],
+        tokenUsage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 },
+      });
+
+      (prisma.message.create as jest.Mock)
+        .mockResolvedValueOnce({ id: 501, role: 'user' })
+        .mockResolvedValueOnce({ id: 502, role: 'assistant', createdAt: new Date() });
+      (prisma.pendingToolAction.create as jest.Mock).mockResolvedValueOnce({
+        id: 'pending-501',
+        expiresAt: new Date(Date.now() + 600000),
+      });
+      (prisma.message.update as jest.Mock).mockResolvedValueOnce({});
+
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'Запам’ятай обидва факти',
+        chatMessages: [{ role: 'user', content: 'Запам’ятай обидва факти' }],
+        provider: 'openai',
+        model: 'gpt-4o',
+        toolsEnabled: true,
+      });
+
+      expect(['pending_confirmation', 'awaiting_confirmation']).toContain(result.status);
+      expect(result.toolTrace).toHaveLength(2);
+      expect(result.toolTrace?.[0]).toMatchObject({
+        tool: 'add_user_memory_note',
+        status: 'pending_confirmation',
+        pendingActionId: 'pending-501',
+      });
+      expect(result.toolTrace?.[1]).toMatchObject({
+        tool: 'add_conversation_note',
+        status: 'skipped',
+      });
+    });
+
+    it('allows update_settings tool to set max_tokens up to 32000', async () => {
+      const updateTool = toolRegistry.get('update_settings');
+      expect(updateTool).toBeDefined();
+      (prisma.userSettings.upsert as jest.Mock).mockResolvedValueOnce({
+        userId: 1,
+        maxTokens: 16384,
+      });
+      const res = (await updateTool!.execute({ max_tokens: 16384 }, { userId: 1 })) as {
+        success: boolean;
+        updated: { max_tokens: number };
+      };
+      expect(res.success).toBe(true);
+      expect(res.updated.max_tokens).toBe(16384);
     });
   });
 

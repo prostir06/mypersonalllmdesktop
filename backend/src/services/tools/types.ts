@@ -24,12 +24,12 @@ export interface ToolProposal {
   diff?: Record<string, { from: unknown; to: unknown }>;
 }
 
-export interface RegisteredTool<TArgs = Record<string, any>> {
+export interface RegisteredTool<TArgs = Record<string, unknown>> {
   name: string;
   description: string;
   category: 'read' | 'write';
   parameters: Record<string, unknown>;
-  execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<any>;
+  execute: (args: TArgs, ctx: ToolExecutionContext) => Promise<unknown>;
   describeProposal?: (
     args: TArgs,
     ctx?: ToolExecutionContext
@@ -43,7 +43,12 @@ export interface ToolTraceEntry {
   result?: unknown;
   requiresConfirmation?: boolean;
   pendingActionId?: string;
-  status: 'completed' | 'pending_confirmation' | 'rejected' | 'failed';
+  status:
+    | 'completed'
+    | 'pending_confirmation'
+    | 'rejected'
+    | 'failed'
+    | 'skipped';
   durationMs: number;
   error?: string;
 }

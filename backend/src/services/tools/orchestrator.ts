@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import type { Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import prisma from '../../config/prisma';
 import logger from '../../logger';
 import type { RagSource, TokenUsage } from '../chat/types';
@@ -11,13 +13,16 @@ import { writeSseEvent } from '../../utils/sse';
 import { runPlainTurn } from '../chat/plainTurn';
 import { readToolsOverride, resolveToolsEnabled } from '../chat/toolMode';
 import toolRegistry from './registry';
-import type {
-  ToolExecutionContext,
-  RegisteredTool,
-  ToolProposal,
-  ToolTraceEntry,
-} from './types';
-import type { NormalizedToolCall } from '../providers/types';
+import type { ToolExecutionContext, RegisteredTool, ToolProposal, ToolTraceEntry } from './types';
+import type { NormalizedToolCall, ProviderMessage } from '../providers/types';
+
+export interface ProviderTurnResponse {
+  content?: string;
+  toolCalls?: NormalizedToolCall[];
+  tokenUsage?: TokenUsage;
+  sources?: unknown[];
+  [key: string]: unknown;
+}
 
 export const MAX_TOOL_ITERATIONS = 5;
 export const PENDING_ACTION_TTL_MS = 15 * 60 * 1000; // 15 minutes
@@ -29,12 +34,12 @@ export interface ToolOrchestrationOptions {
   userId: number;
   conversationId: number;
   userMessage?: string;
-  chatMessages: Array<{ role: string; content?: unknown; [key: string]: unknown }>;
+  chatMessages: ProviderMessage[];
   provider?: string;
   model?: string;
   options?: Record<string, unknown>;
   signal?: AbortSignal;
-  res?: any;
+  res?: Response | { write: (chunk: string) => unknown; writeHead?: (...args: unknown[]) => unknown };
   onToken?: (token: string) => void;
   skipUserMessage?: boolean;
   regenerateFromMessageId?: number;
@@ -95,7 +100,7 @@ export async function runToolOrchestratedTurn(
   const accumulatedSources: RagSource[] = [...(options.sources || [])];
   const usageParts: Array<TokenUsage | undefined> = [];
   let streamedVisible = '';
-  let lastResponse: any = null;
+  let lastResponse: ProviderTurnResponse | null = null;
 
   const recordVisible = (token: string) => {
     if (!token) return;
@@ -105,17 +110,13 @@ export async function runToolOrchestratedTurn(
 
   for (let iteration = 1; iteration <= MAX_TOOL_ITERATIONS; iteration++) {
     const toolDefinitions = toolRegistry.getDefinitions();
-    const providerOpts = {
-      ...(options.options || {}),
-      tools: toolDefinitions,
-      signal: options.signal,
-    };
+    const providerOpts = { ...(options.options || {}), tools: toolDefinitions, signal: options.signal };
 
     const isStreaming = Boolean(options.onToken);
     let iterationEmitted = false;
-    let response: any;
+    let response: ProviderTurnResponse;
     if (isStreaming) {
-      response = await ProviderFactory.streamMessage(
+      response = (await ProviderFactory.streamMessage(
         provider,
         dialogueHistory,
         model,
@@ -124,14 +125,14 @@ export async function runToolOrchestratedTurn(
           iterationEmitted = true;
           recordVisible(token);
         }
-      );
+      )) as unknown as ProviderTurnResponse;
     } else {
-      response = await ProviderFactory.sendMessage(
+      response = (await ProviderFactory.sendMessage(
         provider,
         dialogueHistory,
         model,
         providerOpts
-      );
+      )) as unknown as ProviderTurnResponse;
     }
     lastResponse = response;
     usageParts.push(response.tokenUsage);
@@ -144,21 +145,27 @@ export async function runToolOrchestratedTurn(
     }
 
     const toolCalls = response.toolCalls;
-    if (!toolCalls || toolCalls.length === 0) {
-      // Model produced text without calling tools
-      break;
-    }
+    if (!toolCalls || toolCalls.length === 0) break;
 
     // Process tool calls
-    let writeToolFound: { call: NormalizedToolCall; tool: RegisteredTool; args: any } | null = null;
-    const readToolCalls: Array<{ call: NormalizedToolCall; tool: RegisteredTool; args: any }> = [];
+    let writeToolFound: {
+      call: NormalizedToolCall;
+      tool: RegisteredTool;
+      args: Record<string, unknown>;
+    } | null = null;
+    const skippedWriteCalls: ToolTraceEntry[] = [];
+    const readToolCalls: Array<{
+      call: NormalizedToolCall;
+      tool: RegisteredTool;
+      args: Record<string, unknown>;
+    }> = [];
 
     for (const call of toolCalls) {
-      let args: any;
+      let args: Record<string, unknown>;
       try {
         args = typeof call.argumentsJson === 'string'
-          ? JSON.parse(call.argumentsJson)
-          : (call.argumentsJson || {});
+          ? (JSON.parse(call.argumentsJson) as Record<string, unknown>)
+          : ((call.argumentsJson as Record<string, unknown>) || {});
       } catch (err: unknown) {
         logger.warn(
           `Failed to parse tool call arguments for "${call.name}": ${err instanceof Error ? err.message : String(err)}`
@@ -183,6 +190,17 @@ export async function runToolOrchestratedTurn(
       if (tool.category === 'write') {
         if (!writeToolFound) {
           writeToolFound = { call, tool, args };
+        } else {
+          skippedWriteCalls.push({
+            tool: call.name,
+            args,
+            category: 'write',
+            requiresConfirmation: true,
+            status: 'skipped',
+            durationMs: 0,
+            error:
+              'Одночасно можна запросити підтвердження лише для однієї дії запису; повторіть цю дію наступним кроком',
+          });
         }
       } else {
         readToolCalls.push({ call, tool, args });
@@ -216,11 +234,7 @@ export async function runToolOrchestratedTurn(
         })),
       });
       for (const exec of executions) {
-        dialogueHistory.push({
-          role: 'tool',
-          tool_call_id: exec.call.id,
-          content: exec.resultStr,
-        });
+        dialogueHistory.push({ role: 'tool', tool_call_id: exec.call.id, content: exec.resultStr });
       }
     }
 
@@ -236,26 +250,17 @@ export async function runToolOrchestratedTurn(
           model,
         });
         if (typeof rawProposal === 'string') {
-          proposal = {
-            title: `Запит на виконання дії ${call.name}`,
-            summary: rawProposal,
-          };
+          proposal = { title: `Запит на виконання дії ${call.name}`, summary: rawProposal };
         } else if (rawProposal && typeof rawProposal === 'object') {
           proposal = rawProposal;
         } else {
-          proposal = {
-            title: `Запит на виконання дії ${call.name}`,
-            summary: `Виконати ${call.name}`,
-          };
+          proposal = { title: `Запит на виконання дії ${call.name}`, summary: `Виконати ${call.name}` };
         }
       } catch (proposalErr: unknown) {
         logger.warn(
           `Failed to describe proposal for write tool "${call.name}": ${proposalErr instanceof Error ? proposalErr.message : String(proposalErr)}`
         );
-        proposal = {
-          title: `Запит на виконання дії ${call.name}`,
-          summary: `Запит на виконання дії ${call.name}`,
-        };
+        proposal = { title: `Запит на виконання дії ${call.name}`, summary: `Запит на виконання дії ${call.name}` };
       }
 
       const actionId = crypto.randomUUID();
@@ -270,70 +275,65 @@ export async function runToolOrchestratedTurn(
         status: 'pending_confirmation',
         durationMs: 0,
       });
+      toolTrace.push(...skippedWriteCalls);
 
       const pauseContent = options.onToken ? streamedVisible : (response.content || '');
       const pauseUsage = sumTokenUsage(usageParts);
       const pauseTrace = storedToolTrace(toolTrace);
       const assistant = await persistTurn(
-        options.conversationId,
-        options.userMessage || '',
-        pauseContent,
+        options.conversationId, options.userMessage || '', pauseContent,
         {
-          skipUserMessage: options.skipUserMessage,
-          regenerateFromMessageId: options.regenerateFromMessageId,
-          sources: accumulatedSources,
-          tokenUsage: pauseUsage,
-          toolTrace: pauseTrace,
+          skipUserMessage: options.skipUserMessage, regenerateFromMessageId: options.regenerateFromMessageId,
+          sources: accumulatedSources, tokenUsage: pauseUsage, toolTrace: pauseTrace,
         }
       );
 
       const pendingAction = await prisma.pendingToolAction.create({
         data: {
-          id: actionId,
-          userId: options.userId,
-          conversationId: options.conversationId,
-          messageId: assistant.id,
-          toolName: call.name,
-          toolArgs: args,
-          status: 'pending',
-          expiresAt,
+          id: actionId, userId: options.userId, conversationId: options.conversationId,
+          messageId: assistant.id, toolName: call.name, toolArgs: args as unknown as Prisma.InputJsonValue,
+          status: 'pending', expiresAt,
         },
       });
 
       const effectiveActionId = pendingAction?.id || actionId;
       const effectiveExpiresAt = pendingAction?.expiresAt ? new Date(pendingAction.expiresAt) : expiresAt;
 
+      if (effectiveActionId !== actionId) {
+        for (const entry of toolTrace) {
+          if (entry.pendingActionId === actionId) entry.pendingActionId = effectiveActionId;
+        }
+      }
+      const finalPauseTrace = storedToolTrace(toolTrace);
+
+      if (effectiveActionId !== actionId) {
+        try {
+          await prisma.message.update({
+            where: { id: assistant.id },
+            data: { toolTrace: finalPauseTrace as unknown as Prisma.InputJsonValue },
+          });
+        } catch (err: unknown) {
+          logger.warn(`Failed to update message toolTrace with effectiveActionId: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+
       if (options.res) {
-        writeSseEvent(options.res, 'tool_confirmation_required', {
-          actionId: effectiveActionId,
-          toolName: call.name,
-          title: proposal.title,
-          summary: proposal.summary,
-          diff: proposal.diff,
-          expiresAt: effectiveExpiresAt.toISOString(),
+        writeSseEvent(options.res as unknown as Response, 'tool_confirmation_required', {
+          actionId: effectiveActionId, toolName: call.name, title: proposal.title,
+          summary: proposal.summary, diff: proposal.diff, expiresAt: effectiveExpiresAt.toISOString(),
         });
       }
 
       return {
-        conversationId: options.conversationId,
-        messageId: assistant.id,
-        content: pauseContent,
-        role: 'assistant' as const,
-        timestamp: assistant.createdAt,
-        sources: accumulatedSources,
-        toolTrace: pauseTrace,
+        conversationId: options.conversationId, messageId: assistant.id, content: pauseContent,
+        role: 'assistant' as const, timestamp: assistant.createdAt, sources: accumulatedSources,
+        toolTrace: finalPauseTrace,
         pendingAction: {
-          actionId: effectiveActionId,
-          toolName: call.name,
-          toolArgs: args,
-          title: proposal.title,
-          summary: proposal.summary,
-          proposal: proposal.summary,
-          diff: proposal.diff,
-          expiresAt: effectiveExpiresAt,
+          actionId: effectiveActionId, toolName: call.name, toolArgs: args,
+          title: proposal.title, summary: proposal.summary, proposal: proposal.summary,
+          diff: proposal.diff, expiresAt: effectiveExpiresAt,
         },
-        status: 'pending_confirmation',
-        tokenUsage: pauseUsage,
+        status: 'pending_confirmation', tokenUsage: pauseUsage,
       };
     }
 
@@ -344,9 +344,7 @@ export async function runToolOrchestratedTurn(
     }
 
     // Stop if max iterations reached
-    if (iteration === MAX_TOOL_ITERATIONS) {
-      break;
-    }
+    if (iteration === MAX_TOOL_ITERATIONS) break;
   }
 
   let finalText = lastResponse?.content || '';

@@ -1,3 +1,4 @@
+import type { Response } from 'express';
 import logger from '../../logger';
 import { writeSseEvent } from '../../utils/sse';
 import type { RegisteredTool, ToolExecutionContext, ToolTraceEntry } from './types';
@@ -33,16 +34,16 @@ export function summarizeToolPayload(value: unknown, max = TOOL_TRACE_SUMMARY_CH
 export async function executeReadTool(
   call: NormalizedToolCall,
   tool: RegisteredTool,
-  args: any,
+  args: Record<string, unknown>,
   ctx: ToolExecutionContext,
   options: {
-    res?: any;
+    res?: Response | { write: (chunk: string) => unknown };
     accumulatedSources: RagSource[];
     toolTrace: ToolTraceEntry[];
   }
 ): Promise<{ call: NormalizedToolCall; resultStr: string }> {
   if (options.res) {
-    writeSseEvent(options.res, 'tool_call', {
+    writeSseEvent(options.res as unknown as Response, 'tool_call', {
       id: call.id,
       name: call.name,
       args,
@@ -50,11 +51,11 @@ export async function executeReadTool(
   }
 
   const startMs = Date.now();
-  let result: any;
+  let result: unknown;
   let hasError = false;
   let errorMessage: string | undefined;
 
-  let timeoutId: any;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   try {
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(
@@ -74,8 +75,15 @@ export async function executeReadTool(
   }
   const durationMs = Date.now() - startMs;
 
-  if (result?.sources && Array.isArray(result.sources)) {
-    options.accumulatedSources.push(...result.sources);
+  if (
+    result &&
+    typeof result === 'object' &&
+    'sources' in result &&
+    Array.isArray((result as { sources: unknown }).sources)
+  ) {
+    options.accumulatedSources.push(
+      ...((result as { sources: RagSource[] }).sources)
+    );
   }
 
   let resultStr = typeof result === 'string' ? result : JSON.stringify(result);
@@ -84,7 +92,7 @@ export async function executeReadTool(
   }
 
   if (options.res) {
-    writeSseEvent(options.res, 'tool_result', {
+    writeSseEvent(options.res as unknown as Response, 'tool_result', {
       id: call.id,
       name: call.name,
       result: summarizeToolPayload(result),
