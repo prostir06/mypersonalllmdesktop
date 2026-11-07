@@ -4,10 +4,11 @@
 #   CORS_ORIGIN=https://assistant.example.com
 #
 # Bind the frontend to localhost in production so only Caddy is reachable:
-#   frontend.ports: ["127.0.0.1:3000:80"]
-# (docker-compose.prod.yml already does this.)
+#   frontend.ports: ["127.0.0.1:3000:8080"]
+# (docker-compose.prod.yml already does this. The container listens on 8080.)
 
 assistant.example.com {
 	encode gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	reverse_proxy 127.0.0.1:3000
 }

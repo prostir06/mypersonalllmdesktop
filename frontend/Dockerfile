@@ -19,17 +19,14 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
-# --- Stage 2: Serve with Nginx ---
-FROM nginx:1.25-alpine AS production
+# --- Stage 2: Serve with unprivileged Nginx (listens on 8080) ---
+FROM nginxinc/nginx-unprivileged:1.28-alpine AS production
 
-RUN apk add --no-cache wget
+COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
+COPY --chown=nginx:nginx nginx/security-headers.conf /etc/nginx/security-headers.conf
 
-# Копіюємо зібраний статичний додаток
-COPY --from=builder /app/build /usr/share/nginx/html
+EXPOSE 8080
 
-# Копіюємо nginx конфіг (SPA підтримка — всі шляхи → index.html)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1
