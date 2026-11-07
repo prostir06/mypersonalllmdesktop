@@ -30,6 +30,7 @@ jest.mock('../logger', () => ({
 import DocumentService from '../services/DocumentService';
 import { deleteTempUpload } from '../services/documents/tempUploads';
 import documentsRouter from '../routes/documents';
+import { DocumentQueueFullError } from '../utils/documentJobQueue';
 
 const app = express();
 app.use(express.json());
@@ -157,6 +158,15 @@ describe('Documents API (Prisma routes)', () => {
     expect(res.body.document.id).toBe(11);
     expect(res.body.document.status).toBe('pending');
     expect(mockedService.acceptUpload).toHaveBeenCalled();
+  });
+
+  it('POST /upload returns 429 when the indexing queue is full', async () => {
+    mockedService.acceptUpload.mockRejectedValue(new DocumentQueueFullError());
+    const res = await request(app)
+      .post('/api/documents/upload')
+      .attach('file', Buffer.from('x'), 'note.txt');
+    expect(res.status).toBe(429);
+    expect(res.body.error).toBe('Черга індексації переповнена — спробуйте пізніше');
   });
 
   it('GET /:id returns document from service', async () => {

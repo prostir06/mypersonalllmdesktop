@@ -4,6 +4,7 @@ const mockDestroy = jest.fn().mockResolvedValue(undefined);
 jest.mock('pdf-parse', () => ({
   PDFParse: jest.fn().mockImplementation(() => ({
     getText: mockGetText,
+    getInfo: jest.fn().mockResolvedValue({ total: 1 }),
     destroy: mockDestroy,
   })),
 }));

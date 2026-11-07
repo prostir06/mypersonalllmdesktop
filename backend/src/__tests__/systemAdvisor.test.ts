@@ -2,7 +2,7 @@ jest.mock('../config/prisma', () => ({
   __esModule: true,
   default: {
     userSettings: { findUnique: jest.fn() },
-    document: { findMany: jest.fn() },
+    document: { groupBy: jest.fn(), count: jest.fn() },
     userPrompt: { count: jest.fn() },
     userMemoryNote: { count: jest.fn() },
   },
@@ -21,7 +21,7 @@ import {
 
 const mockedPrisma = prisma as unknown as {
   userSettings: { findUnique: jest.Mock };
-  document: { findMany: jest.Mock };
+  document: { groupBy: jest.Mock; count: jest.Mock };
   userPrompt: { count: jest.Mock };
   userMemoryNote: { count: jest.Mock };
 };
@@ -54,7 +54,8 @@ describe('systemKnowledge advisor', () => {
       geminiApiKeyEnc: 'enc-secret-gemini-never-expose',
       anthropicApiKeyEnc: null,
     });
-    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.document.groupBy.mockResolvedValue([]);
+    mockedPrisma.document.count.mockResolvedValue(0);
     mockedPrisma.userPrompt.count.mockResolvedValue(0);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
     mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
@@ -96,30 +97,11 @@ describe('systemKnowledge advisor', () => {
       geminiApiKeyEnc: 'enc-gemini',
       anthropicApiKeyEnc: null,
     });
-    mockedPrisma.document.findMany.mockResolvedValue([
-      {
-        id: 1,
-        userId: 7,
-        filename: 'a.pdf',
-        fileType: 'application/pdf',
-        fileSize: 100,
-        status: 'ready',
-        embeddingsCount: 0,
-        embeddingProvider: null,
-        createdAt: new Date(),
-      },
-      {
-        id: 2,
-        userId: 7,
-        filename: 'b.pdf',
-        fileType: 'application/pdf',
-        fileSize: 100,
-        status: 'failed',
-        embeddingsCount: 0,
-        embeddingProvider: null,
-        createdAt: new Date(),
-      },
+    mockedPrisma.document.groupBy.mockResolvedValue([
+      { status: 'ready', _count: { _all: 1 } },
+      { status: 'failed', _count: { _all: 1 } },
     ]);
+    mockedPrisma.document.count.mockResolvedValue(1);
     mockedPrisma.userPrompt.count.mockResolvedValue(1);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(2);
     mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
@@ -158,19 +140,10 @@ describe('systemKnowledge advisor', () => {
       geminiApiKeyEnc: null,
       anthropicApiKeyEnc: null,
     });
-    mockedPrisma.document.findMany.mockResolvedValue([
-      {
-        id: 10,
-        userId: 7,
-        filename: 'manual.docx',
-        fileType: 'application/docx',
-        fileSize: 500,
-        status: 'ready',
-        embeddingsCount: 5,
-        embeddingProvider: 'ollama',
-        createdAt: new Date(),
-      },
+    mockedPrisma.document.groupBy.mockResolvedValue([
+      { status: 'ready', _count: { _all: 1 } },
     ]);
+    mockedPrisma.document.count.mockResolvedValue(1);
     mockedPrisma.userPrompt.count.mockResolvedValue(0);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(1);
     mockedResolveEmbed.mockResolvedValue({
@@ -188,7 +161,8 @@ describe('systemKnowledge advisor', () => {
   it('respects env keys when user settings have no enc keys', async () => {
     process.env.ANTHROPIC_API_KEY = 'ant-env-key-123';
     mockedPrisma.userSettings.findUnique.mockResolvedValue(null);
-    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.document.groupBy.mockResolvedValue([]);
+    mockedPrisma.document.count.mockResolvedValue(0);
     mockedPrisma.userPrompt.count.mockResolvedValue(0);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
     mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
@@ -209,7 +183,8 @@ describe('systemKnowledge advisor', () => {
 
   it('rejects instead of returning misleading defaults when a data source fails', async () => {
     mockedPrisma.userSettings.findUnique.mockRejectedValue(new Error('db down'));
-    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.document.groupBy.mockResolvedValue([]);
+    mockedPrisma.document.count.mockResolvedValue(0);
     mockedPrisma.userPrompt.count.mockResolvedValue(0);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
     mockedResolveEmbed.mockResolvedValue({ provider: 'none' });
@@ -229,7 +204,8 @@ describe('systemKnowledge advisor', () => {
       geminiApiKeyEnc: null,
       anthropicApiKeyEnc: null,
     });
-    mockedPrisma.document.findMany.mockResolvedValue([]);
+    mockedPrisma.document.groupBy.mockResolvedValue([]);
+    mockedPrisma.document.count.mockResolvedValue(0);
     mockedPrisma.userPrompt.count.mockResolvedValue(0);
     mockedPrisma.userMemoryNote.count.mockResolvedValue(0);
     mockedResolveEmbed.mockResolvedValue({ provider: 'none' });

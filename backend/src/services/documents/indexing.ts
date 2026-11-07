@@ -4,10 +4,11 @@ import logger from '../../logger';
 import EmbeddingService from '../EmbeddingService';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { chunkText } from './chunking';
-import { extractText } from './extraction';
 import { toPublicDocument } from './publicDocument';
 import { truncateFailureReason } from './status';
 import { deleteTempUpload } from './tempUploads';
+import { extractTextOffThread } from './extractOffThread';
+import { DocumentQueueFullError } from '../../utils/documentJobQueue';
 
 export type FileMeta = {
   originalname: string;
@@ -17,7 +18,59 @@ export type FileMeta = {
 
 export type UploadSource = Buffer | string;
 
-export type EnqueueFn = (job: () => void | Promise<void>) => void;
+export type EnqueueFn = (job: () => void | Promise<void>) => boolean | void;
+
+const CHUNK_WRITE_BATCH = 1000;
+
+type ChunkWriter = {
+  documentChunk: {
+    createMany: (args: {
+      data: Array<{ documentId: number; chunkIndex: number; content: string }>;
+    }) => Promise<unknown>;
+  };
+  $executeRawUnsafe: (sql: string, ...params: unknown[]) => Promise<unknown>;
+};
+
+async function insertChunks(
+  tx: ChunkWriter,
+  docId: number,
+  chunks: string[],
+  embeddings: Array<number[] | null>,
+  hasAnyEmbedding: boolean
+): Promise<void> {
+  for (let start = 0; start < chunks.length; start += CHUNK_WRITE_BATCH) {
+    const end = Math.min(chunks.length, start + CHUNK_WRITE_BATCH);
+    if (!hasAnyEmbedding) {
+      await tx.documentChunk.createMany({
+        data: chunks.slice(start, end).map((content, offset) => ({
+          documentId: docId,
+          chunkIndex: start + offset,
+          content,
+        })),
+      });
+      continue;
+    }
+
+    const values: string[] = [];
+    const params: unknown[] = [];
+    let p = 1;
+    for (let i = start; i < end; i++) {
+      const embedding = embeddings[i] || null;
+      if (embedding) {
+        values.push(`($${p++}, $${p++}, $${p++}, $${p++}::vector)`);
+        params.push(docId, i, chunks[i], `[${embedding.join(',')}]`);
+      } else {
+        values.push(`($${p++}, $${p++}, $${p++}, NULL)`);
+        params.push(docId, i, chunks[i]);
+      }
+    }
+    await tx.$executeRawUnsafe(
+      `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
+       VALUES ${values.join(', ')}`,
+      ...params
+    );
+  }
+}
 
 /** Parse, chunk, embed an already-created pending document. */
 export async function finalizeUpload(
@@ -33,7 +86,7 @@ export async function finalizeUpload(
   try {
     const buffer =
       typeof source === 'string' ? await fs.readFile(source) : source;
-    const extractedText = await extractText(buffer, mimetype, originalname);
+    const extractedText = await extractTextOffThread(buffer, mimetype, originalname);
 
     if (!extractedText || extractedText.trim().length === 0) {
       throw new Error('Не вдалося витягти текст з надісланого файлу');
@@ -58,34 +111,7 @@ export async function finalizeUpload(
         : null;
 
     const doc = await prisma.$transaction(async (tx) => {
-      if (!hasAnyEmbedding) {
-        await tx.documentChunk.createMany({
-          data: chunks.map((content, chunkIndex) => ({
-            documentId: docId,
-            chunkIndex,
-            content,
-          })),
-        });
-      } else {
-        const values: string[] = [];
-        const params: unknown[] = [];
-        let p = 1;
-        for (let i = 0; i < chunks.length; i++) {
-          const embedding = embeddings[i] || null;
-          if (embedding) {
-            values.push(`($${p++}, $${p++}, $${p++}, $${p++}::vector)`);
-            params.push(docId, i, chunks[i], `[${embedding.join(',')}]`);
-          } else {
-            values.push(`($${p++}, $${p++}, $${p++}, NULL)`);
-            params.push(docId, i, chunks[i]);
-          }
-        }
-        await tx.$executeRawUnsafe(
-          `INSERT INTO document_chunks (document_id, chunk_index, content, embedding)
-           VALUES ${values.join(', ')}`,
-          ...params
-        );
-      }
+      await insertChunks(tx, docId, chunks, embeddings, hasAnyEmbedding);
 
       return tx.document.update({
         where: { id: docId },
@@ -183,7 +209,7 @@ export async function retryIndexing(
     size: doc.fileSize,
   };
 
-  enqueue(async () => {
+  const queued = enqueue(async () => {
     try {
       await finalizeUpload(docId, userId, meta, doc.stagingPath!);
     } catch (error: unknown) {
@@ -191,6 +217,16 @@ export async function retryIndexing(
       logger.error(`Background document retry failed id=${docId}: ${message}`);
     }
   });
+  if (queued === false) {
+    await prisma.document.update({
+      where: { id: docId },
+      data: {
+        status: 'failed',
+        failureReason: truncateFailureReason('Черга індексації переповнена'),
+      },
+    });
+    throw new DocumentQueueFullError();
+  }
 
   return { document: toPublicDocument(updated) };
 }

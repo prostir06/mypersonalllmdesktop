@@ -109,7 +109,6 @@ model Conversation {
   messages           Message[]
   pendingToolActions PendingToolAction[]
 
-  @@index([userId], map: "idx_conversations_user_id")
   @@index([userId, isPinned, updatedAt(sort: Desc)], map: "idx_conversations_user_pin_updated")
   @@index([userId, updatedAt(sort: Desc)], map: "idx_conversations_user_updated")
   @@map("conversations")
@@ -157,7 +156,6 @@ model Message {
   branches           Message[]           @relation("MessageBranches")
   pendingToolActions PendingToolAction[]
 
-  @@index([conversationId], map: "idx_messages_conversation_id")
   @@index([conversationId, createdAt(sort: Asc)], map: "idx_messages_conv_created")
   @@index([parentId], map: "idx_messages_parent_id")
   @@map("messages")

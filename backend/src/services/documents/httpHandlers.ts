@@ -7,6 +7,7 @@ import { jsonError } from '../../utils/httpJson';
 import type { AuthRequest } from '../../types/express';
 import { parseDocumentStatusIds } from './statusIds';
 import { deleteTempUpload } from './tempUploads';
+import { DocumentQueueFullError } from '../../utils/documentJobQueue';
 import {
   requireDocumentId,
   withDocErrors,
@@ -46,6 +47,10 @@ export async function uploadDocument(
     });
   } catch (error: unknown) {
     await deleteTempUpload(req.file.path ?? null);
+    if (error instanceof DocumentQueueFullError) {
+      jsonError(res, req, 429, 'Черга індексації переповнена — спробуйте пізніше');
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/upload error: ${message}`);
     if (message.includes('ліміт розміру')) {
@@ -232,6 +237,10 @@ export async function retryDocument(
       requestId: req.id,
     });
   } catch (error: unknown) {
+    if (error instanceof DocumentQueueFullError) {
+      jsonError(res, req, 429, 'Черга індексації переповнена — спробуйте пізніше');
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.error(`POST /documents/${req.params.id}/retry error: ${message}`);
     const classified = classifyRetryError(message);

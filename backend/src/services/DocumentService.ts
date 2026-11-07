@@ -2,7 +2,7 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import { resolveEmbeddingContext } from './embeddings/resolveEmbeddingContext';
 import { getMaxUploadBytes } from '../utils/fileMagic';
-import { enqueueDocumentJob } from '../utils/documentJobQueue';
+import { enqueueDocumentJob, DocumentQueueFullError } from '../utils/documentJobQueue';
 import { chunkText as chunkTextImpl } from './documents/chunking';
 import { extractText as extractTextImpl } from './documents/extraction';
 import {
@@ -23,10 +23,10 @@ type FileInfo = {
   path?: string;
 };
 
-type EnqueueFn = (job: () => void | Promise<void>) => void;
+type EnqueueFn = (job: () => void | Promise<void>) => boolean | void;
 
-function defaultEnqueue(job: () => void | Promise<void>): void {
-  enqueueDocumentJob(job);
+function defaultEnqueue(job: () => void | Promise<void>): boolean {
+  return enqueueDocumentJob(job);
 }
 
 class DocumentService {
@@ -71,7 +71,7 @@ class DocumentService {
       },
     });
 
-    enqueue(async () => {
+    const accepted = enqueue(async () => {
       try {
         await this.finalizeUpload(
           doc.id,
@@ -80,11 +80,15 @@ class DocumentService {
           tempPath
         );
       } catch (error: unknown) {
-        // Fire-and-forget: finalizeUpload already marks status=failed before rethrow.
         const message = error instanceof Error ? error.message : String(error);
-        logger.error(`Background document processing failed id=${doc.id}: ${message}`);
+        logger.error(`Background finalize failed for document ${doc.id}: ${message}`);
       }
     });
+    if (accepted === false) {
+      await prisma.document.delete({ where: { id: doc.id } }).catch(() => undefined);
+      await deleteTempUpload(tempPath);
+      throw new DocumentQueueFullError();
+    }
 
     return { document: toPublicDocument(doc) };
   }

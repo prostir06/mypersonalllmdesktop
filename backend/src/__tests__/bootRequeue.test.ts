@@ -34,12 +34,11 @@ jest.mock('../logger', () => ({
   debug: jest.fn(),
 }));
 
-jest.mock('fs', () => ({
-  existsSync: jest.fn(),
-  mkdirSync: jest.fn(),
+jest.mock('fs/promises', () => ({
+  access: jest.fn(),
 }));
 
-import fs from 'fs';
+import fs from 'fs/promises';
 import prisma from '../config/prisma';
 import DocumentService from '../services/DocumentService';
 import { enqueueDocumentJob } from '../utils/documentJobQueue';
@@ -77,9 +76,9 @@ describe('requeueOrFailStaleOnBoot', () => {
         stagingPath: '/tmp/missing.txt',
       },
     ]);
-    (fs.existsSync as jest.Mock)
-      .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false);
+    (fs.access as jest.Mock)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('missing'));
 
     const result = await requeueOrFailStaleOnBoot(1_700_000_000_000);
 

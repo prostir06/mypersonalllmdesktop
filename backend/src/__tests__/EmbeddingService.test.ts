@@ -5,12 +5,17 @@ jest.mock('../logger', () => ({
   warn: jest.fn(),
 }));
 
-jest.mock('../config/prisma', () => ({
-  __esModule: true,
-  default: {
+jest.mock('../config/prisma', () => {
+  const store = {
     $queryRawUnsafe: jest.fn(),
-  },
-}));
+    $executeRawUnsafe: jest.fn().mockResolvedValue(0),
+    $transaction: jest.fn(),
+  };
+  store.$transaction.mockImplementation(async (fn: (tx: typeof store) => unknown) =>
+    fn(store)
+  );
+  return { __esModule: true, default: store };
+});
 
 import axios from 'axios';
 import prisma from '../config/prisma';
@@ -18,7 +23,10 @@ import logger from '../logger';
 import EmbeddingService from '../services/EmbeddingService';
 
 const mockedAxios = axios as unknown as { post: jest.Mock };
-const mockedPrisma = prisma as unknown as { $queryRawUnsafe: jest.Mock };
+const mockedPrisma = prisma as unknown as {
+  $queryRawUnsafe: jest.Mock;
+  $executeRawUnsafe: jest.Mock;
+};
 
 describe('EmbeddingService (Prisma)', () => {
   const originalEnv = process.env;

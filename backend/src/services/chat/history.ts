@@ -39,12 +39,14 @@ export async function loadRecentMessages(
   return toProviderMessages(linear, 50);
 }
 
+/** Newest raw rows, oldest-first. History pages and regenerate stay inside this window. */
 export async function loadAllRawMessages(
   conversationId: number
 ): Promise<RawMessage[]> {
-  return prisma.message.findMany({
+  const rowsDesc = await prisma.message.findMany({
     where: { conversationId },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: 'desc' },
+    take: getChatHistoryRawCap(),
     select: {
       id: true,
       role: true,
@@ -54,7 +56,11 @@ export async function loadAllRawMessages(
       sources: true,
       tokenUsage: true,
     },
-  }) as unknown as Promise<RawMessage[]>;
+  });
+  return rowsDesc.slice().sort((a, b) => {
+    const byTime = a.createdAt.getTime() - b.createdAt.getTime();
+    return byTime !== 0 ? byTime : a.id - b.id;
+  }) as unknown as RawMessage[];
 }
 
 export async function getHistory(

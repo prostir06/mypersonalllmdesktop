@@ -1,7 +1,7 @@
 import prisma from '../../config/prisma';
 import { resolveEmbeddingContext } from '../embeddings/resolveEmbeddingContext';
 import { embeddingContextToRagMode } from '../embeddings/types';
-import { computeNeedsReindex } from '../documents/publicDocument';
+import type { EmbeddingProviderName } from '../embeddings/types';
 import { modelSupportsVision } from '../../utils/modelCapabilities';
 import { defaultModelFor } from '../../config/models';
 import { envOpenAiKey } from '../../utils/openaiKeyResolver';
@@ -27,32 +27,57 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 
 const DEFAULT_OLLAMA_HOST = 'http://127.0.0.1:11434/v1/chat/completions';
 
+function statusCounts(
+  groups: Array<{ status: string; _count: { _all: number } }>
+): { total: number; ready: number; pending: number; failed: number } {
+  let total = 0;
+  let ready = 0;
+  let pending = 0;
+  let failed = 0;
+  for (const group of groups) {
+    const count = group._count._all;
+    total += count;
+    if (group.status === 'ready') ready += count;
+    else if (group.status === 'pending') pending += count;
+    else if (group.status === 'failed') failed += count;
+  }
+  return { total, ready, pending, failed };
+}
+
+function needsReindexWhere(userId: number, provider: EmbeddingProviderName) {
+  if (provider === 'none') {
+    return { userId, status: 'ready' as const, embeddingsCount: 0 };
+  }
+  return {
+    userId,
+    status: 'ready' as const,
+    OR: [
+      { embeddingsCount: 0 },
+      { embeddingProvider: null },
+      { embeddingProvider: { not: provider } },
+    ],
+  };
+}
+
 export async function buildUserSystemSnapshot(
   userId: number,
   overrides?: SnapshotOverrides
 ): Promise<UserSystemSnapshot> {
-  const [userSettings, docs, embedCtx, pinnedPromptsCount, userMemoryNotesCount] =
+  const [userSettings, statusGroups, embedCtx, pinnedPromptsCount, userMemoryNotesCount] =
     await Promise.all([
       prisma.userSettings.findUnique({ where: { userId } }),
-      prisma.document.findMany({
+      prisma.document.groupBy({
+        by: ['status'],
         where: { userId },
-        select: {
-          id: true,
-          userId: true,
-          filename: true,
-          fileType: true,
-          fileSize: true,
-          status: true,
-          failureReason: true,
-          embeddingsCount: true,
-          embeddingProvider: true,
-          createdAt: true,
-        },
+        _count: { _all: true },
       }),
       resolveEmbeddingContext(userId),
       prisma.userPrompt.count({ where: { userId, isPinned: true } }),
       prisma.userMemoryNote.count({ where: { userId } }),
     ]);
+  const needsReindexDocs = await prisma.document.count({
+    where: needsReindexWhere(userId, embedCtx.provider),
+  });
 
   const defaultProvider = userSettings?.defaultProvider || 'openai';
   const defaultModel = userSettings?.defaultModel || defaultModelFor(defaultProvider);
@@ -78,25 +103,8 @@ export async function buildUserSystemSnapshot(
 
   const ragEmbeddingMode = embeddingContextToRagMode(embedCtx);
 
-  const totalDocs = docs.length;
-  let readyDocs = 0;
-  let pendingDocs = 0;
-  let failedDocs = 0;
-  let needsReindexDocs = 0;
-
-  for (const doc of docs) {
-    const status = doc.status || 'ready';
-    if (status === 'ready') {
-      readyDocs++;
-      if (computeNeedsReindex(doc, embedCtx.provider)) {
-        needsReindexDocs++;
-      }
-    } else if (status === 'pending') {
-      pendingDocs++;
-    } else if (status === 'failed') {
-      failedDocs++;
-    }
-  }
+  const { total: totalDocs, ready: readyDocs, pending: pendingDocs, failed: failedDocs } =
+    statusCounts(statusGroups);
 
   const activeProvider = overrides?.provider || defaultProvider;
   const activeModel = overrides?.model || defaultModel;

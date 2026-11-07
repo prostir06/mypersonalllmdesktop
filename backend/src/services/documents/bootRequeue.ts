@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs from 'fs/promises';
 import prisma from '../../config/prisma';
 import logger from '../../logger';
 import { enqueueDocumentJob } from '../../utils/documentJobQueue';
@@ -51,7 +51,7 @@ export async function requeueOrFailStaleOnBoot(
 
   for (const doc of pending) {
     const stagingPath = doc.stagingPath;
-    if (!stagingPath || !fs.existsSync(stagingPath)) {
+    if (!stagingPath || !(await stagingExists(stagingPath))) {
       await prisma.document.update({
         where: { id: doc.id },
         data: {
@@ -92,4 +92,13 @@ export async function requeueOrFailStaleOnBoot(
   }
 
   return { requeued, failed, staleFailed };
+}
+
+async function stagingExists(stagingPath: string): Promise<boolean> {
+  try {
+    await fs.access(stagingPath);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -34,5 +34,8 @@ export async function queryVectorRows(
   params.push(Math.max(limit * 3, limit));
   query += ` ORDER BY dc.embedding <=> $1::vector LIMIT $${params.length}`;
 
-  return (await prisma.$queryRawUnsafe(query, ...params)) as VectorRow[];
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe('SET LOCAL hnsw.iterative_scan = relaxed_order');
+    return (await tx.$queryRawUnsafe(query, ...params)) as VectorRow[];
+  });
 }

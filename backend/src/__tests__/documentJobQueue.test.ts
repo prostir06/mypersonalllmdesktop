@@ -57,6 +57,15 @@ describe('documentJobQueue', () => {
     expect(getDocumentJobActiveCount()).toBe(0);
   });
 
+  it('rejects a second job when the queue depth is full', () => {
+    process.env.DOCUMENT_JOB_QUEUE_DEPTH = '1';
+    const first = enqueueDocumentJob(async () => undefined);
+    const second = enqueueDocumentJob(async () => undefined);
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+    delete process.env.DOCUMENT_JOB_QUEUE_DEPTH;
+  });
+
   it('enqueueDocumentJob schedules via setImmediate', async () => {
     let finished = false;
     const done = new Promise<void>((resolve) => {
