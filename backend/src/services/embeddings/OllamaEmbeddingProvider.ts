@@ -24,7 +24,7 @@ export class OllamaEmbeddingProvider {
         apiUrl,
         {
           model: OLLAMA_EMBED_MODEL,
-          prompt: truncateText(text),
+          input: truncateText(text),
         },
         {
           headers: { 'Content-Type': 'application/json' },
@@ -33,7 +33,8 @@ export class OllamaEmbeddingProvider {
         }
       );
 
-      const embedding = response.data?.embedding as number[] | undefined;
+      const rows = response.data?.embeddings as number[][] | undefined;
+      const embedding = Array.isArray(rows) ? rows[0] : undefined;
       if (!Array.isArray(embedding) || embedding.length === 0) {
         logger.error('OllamaEmbeddingProvider: empty embedding response');
         return null;

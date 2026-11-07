@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { EXPECTED_ROUTE_DOMAINS } from '../../routes/routeManifest';
 import {
   ALLOWED_PROVIDERS,

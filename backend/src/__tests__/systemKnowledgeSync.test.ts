@@ -17,7 +17,7 @@ import {
   MAX_API_KEY_LENGTH,
 } from '../validators/settingsValidator';
 import { EXPECTED_ROUTE_DOMAINS } from '../routes/routeManifest';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { KnowledgeCategory } from '../services/systemKnowledge/types';
 import toolRegistry from '../services/tools/registry';
 

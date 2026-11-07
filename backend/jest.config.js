@@ -10,6 +10,7 @@ module.exports = {
     'src/**/*.{ts,js}',
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
+    '!src/generated/**',
   ],
   coverageThreshold: {
     global: {

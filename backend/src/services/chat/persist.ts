@@ -2,7 +2,7 @@ import prisma from '../../config/prisma';
 import logger from '../../logger';
 import { conversationTitle, isPlaceholderTitle } from './ownership';
 import type { RagSource, TokenUsage } from './types';
-import type { Prisma, Message } from '@prisma/client';
+import type { Prisma, Message } from '../../generated/prisma/client';
 import type { ToolTraceEntry } from '../tools/types';
 
 export async function persistTurn(

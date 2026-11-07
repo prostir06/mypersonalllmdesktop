@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 
 /**
  * Build a parameterized FTS query matching idx_messages_content_search

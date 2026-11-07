@@ -15,6 +15,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set for production}
 
   backend:
+    build:
+      target: production
     ports: !reset []
     volumes: !reset []
     environment:

@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 /** Flat ESLint for backend TypeScript sources. */
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', '**/__tests__/**'],
+    ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'src/generated/**', '**/__tests__/**'],
   },
   {
     files: ['src/**/*.ts'],

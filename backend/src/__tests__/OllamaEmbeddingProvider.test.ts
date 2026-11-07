@@ -18,7 +18,7 @@ describe('ollamaEmbeddingsUrl', () => {
       resolveOllamaEmbeddingsUrl(
         'http://127.0.0.1:11434/v1/chat/completions'
       )
-    ).toBe('http://127.0.0.1:11434/api/embeddings');
+    ).toBe('http://127.0.0.1:11434/api/embed');
   });
 
   it('rejects disallowed hosts', () => {
@@ -35,7 +35,7 @@ describe('OllamaEmbeddingProvider', () => {
 
   it('returns embedding vector on success', async () => {
     mockedAxios.post = jest.fn().mockResolvedValue({
-      data: { embedding: [0.1, 0.2, 0.3] },
+      data: { embeddings: [[0.1, 0.2, 0.3]] },
     });
     const result = await OllamaEmbeddingProvider.generateEmbedding(
       'hello',
@@ -43,7 +43,7 @@ describe('OllamaEmbeddingProvider', () => {
     );
     expect(result).toEqual([0.1, 0.2, 0.3]);
     expect(mockedAxios.post.mock.calls[0][0]).toBe(
-      'http://127.0.0.1:11434/api/embeddings'
+      'http://127.0.0.1:11434/api/embed'
     );
     expect(mockedAxios.post.mock.calls[0][1].model).toBe('nomic-embed-text');
   });
@@ -75,7 +75,7 @@ describe('OllamaEmbeddingProvider', () => {
       maxActive = Math.max(maxActive, active);
       await new Promise((r) => setTimeout(r, 30));
       active -= 1;
-      return { data: { embedding: [1, 2] } };
+      return { data: { embeddings: [[1, 2]] } };
     });
     process.env.OLLAMA_EMBED_CONCURRENCY = '2';
     const out = await OllamaEmbeddingProvider.generateBatchEmbeddings(
