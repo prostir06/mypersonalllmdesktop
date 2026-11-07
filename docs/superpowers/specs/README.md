@@ -4,7 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
-| [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | W1 implemented (v19.0); W2–W5 planned — Hot Fixes, Provider Unification, Multi-User Readiness, Performance, Deps/Tests/CI |
+| [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | W1 implemented (v19.0); W2 implemented (v19.1); W3–W5 planned — Hot Fixes, Provider Unification, Multi-User Readiness, Performance, Deps/Tests/CI |
 | [2026-11-01-project-evolution-v18-tools-websearch-design.md](./2026-11-01-project-evolution-v18-tools-websearch-design.md) | Approved — Unified Provider Adapters, Agentic Tool Orchestration & Universal Web Search (W1–W4) |
 | [2026-10-31-system-self-knowledge-advisor-design.md](./2026-10-31-system-self-knowledge-advisor-design.md) | Implemented — System Self-Knowledge Registry, Live Advisor, Auto-Sync & UI Guide |
 | [2026-10-30-project-evolution-roadmap-v16-design.md](./2026-10-30-project-evolution-roadmap-v16-design.md) | Implemented (W1–W4) — Debt & Modularity, Hybrid RAG & Token Telemetry, Interactive Artifacts, Anthropic Claude |
