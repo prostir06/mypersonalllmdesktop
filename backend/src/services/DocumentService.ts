@@ -85,7 +85,12 @@ class DocumentService {
       }
     });
     if (accepted === false) {
-      await prisma.document.delete({ where: { id: doc.id } }).catch(() => undefined);
+      await prisma.document.delete({ where: { id: doc.id } }).catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(
+          `Failed to remove document ${doc.id} after the indexing queue was full: ${message}`
+        );
+      });
       await deleteTempUpload(tempPath);
       throw new DocumentQueueFullError();
     }

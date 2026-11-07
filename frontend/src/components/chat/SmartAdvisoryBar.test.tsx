@@ -36,6 +36,26 @@ describe('SmartAdvisoryBar', () => {
     sessionStorage.clear();
   });
 
+  it('warns and still shows the tip when sessionStorage throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    render(
+      <SmartAdvisoryBar
+        advisories={mockAdvisories}
+        onAction={() => {}}
+      />
+    );
+    expect(screen.getByText('Попередження RAG')).toBeInTheDocument();
+    expect(warn).toHaveBeenCalledWith(
+      'SmartAdvisoryBar: sessionStorage read failed:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
+    vi.restoreAllMocks();
+  });
+
   it('renders at most 1 chip and prioritizes warning over info', () => {
     render(
       <SmartAdvisoryBar

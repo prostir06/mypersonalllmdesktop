@@ -34,7 +34,8 @@ const Register: React.FC = () => {
         login(session.data.token);
         toast.success('Акаунт створено успішно! ✨');
         navigate('/dashboard');
-      } catch {
+      } catch (err: unknown) {
+        console.warn('Register: session refresh after signup failed:', err);
         toast.success('Якщо адреса вільна, акаунт створено. Увійдіть.');
         navigate('/login');
       }

@@ -4,6 +4,7 @@ import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import Settings from './Settings';
+import { usersAPI } from '../services/api/users';
 
 const mutateAsync = vi.fn().mockResolvedValue({});
 
@@ -92,6 +93,20 @@ describe('Settings', () => {
     settingsData = { ...settingsData, temperature: 0 };
     render(<Settings />);
     expect(screen.getByLabelText(/Температура креативності/i)).toHaveValue('0');
+  });
+
+  it('warns when the profile role cannot be loaded', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(usersAPI.getMe).mockRejectedValueOnce(new Error('offline'));
+    render(<Settings />);
+    await waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(
+        'Settings: failed to load profile role:',
+        expect.any(Error)
+      );
+    });
+    expect(screen.queryByRole('tab', { name: 'Команда' })).not.toBeInTheDocument();
+    warn.mockRestore();
   });
 
   it('renders all settings tabs', () => {

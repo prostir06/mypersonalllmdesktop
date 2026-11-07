@@ -51,12 +51,15 @@ export async function requeueOrFailStaleOnBoot(
 
   for (const doc of pending) {
     const stagingPath = doc.stagingPath;
-    if (!stagingPath || !(await stagingExists(stagingPath))) {
+    const reason = stagingPath
+      ? await stagingFailureReason(stagingPath)
+      : MISSING_STAGING;
+    if (!stagingPath || reason) {
       await prisma.document.update({
         where: { id: doc.id },
         data: {
           status: 'failed',
-          failureReason: truncateFailureReason(MISSING_STAGING),
+          failureReason: truncateFailureReason(reason ?? MISSING_STAGING),
         },
       });
       failed += 1;
@@ -94,11 +97,16 @@ export async function requeueOrFailStaleOnBoot(
   return { requeued, failed, staleFailed };
 }
 
-async function stagingExists(stagingPath: string): Promise<boolean> {
+/** null when the file is readable. ENOENT is "missing"; other errors keep their message. */
+async function stagingFailureReason(stagingPath: string): Promise<string | null> {
   try {
     await fs.access(stagingPath);
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOENT') return MISSING_STAGING;
+    const message = err instanceof Error ? err.message : String(err);
+    logger.warn(`Boot requeue cannot read staging file ${stagingPath}: ${message}`);
+    return message;
   }
 }

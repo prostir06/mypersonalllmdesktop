@@ -109,6 +109,9 @@ export function startUiServer(opts: {
     try {
       handleRequest(req, res);
     } catch (err) {
+      if (!(err instanceof MalformedUrlError)) {
+        console.error('UI request failed:', err);
+      }
       if (res.headersSent) {
         res.end();
         return;

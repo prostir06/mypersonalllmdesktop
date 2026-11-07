@@ -59,8 +59,9 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
       .then((response) => {
         if (!cancelled) setIsAdmin(response.data.role === 'admin');
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) setIsAdmin(false);
+        console.warn('Settings: failed to load profile role:', err);
       });
     return () => {
       cancelled = true;

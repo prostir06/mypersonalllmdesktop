@@ -15,7 +15,9 @@ const isTipDismissed = (tipId: string, versionHash?: string): boolean => {
         `smart_advisory_dismissed:${tipId}:${versionHash || 'v0'}`
       ) === 'true'
     );
-  } catch {
+  } catch (err: unknown) {
+    // sessionStorage throws in private mode; show the tip instead of hiding the failure.
+    console.warn('SmartAdvisoryBar: sessionStorage read failed:', err);
     return false;
   }
 };

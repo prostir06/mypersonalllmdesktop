@@ -20,6 +20,7 @@ jest.mock('../config/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
       deleteMany: jest.fn(),
+      delete: jest.fn(),
       count: jest.fn(),
     },
     documentChunk: {
@@ -94,6 +95,7 @@ import EmbeddingService from '../services/EmbeddingService';
 import { resolveEmbeddingContext } from '../services/embeddings/resolveEmbeddingContext';
 import { computeNeedsReindex } from '../services/documents/publicDocument';
 import { deleteTempUpload } from '../services/documents/tempUploads';
+import { DocumentQueueFullError } from '../utils/documentJobQueue';
 
 const mockedPrisma = prisma as unknown as {
   document: {
@@ -104,6 +106,7 @@ const mockedPrisma = prisma as unknown as {
     update: jest.Mock;
     updateMany: jest.Mock;
     deleteMany: jest.Mock;
+    delete: jest.Mock;
     count: jest.Mock;
   };
   documentChunk: {
@@ -296,6 +299,36 @@ describe('DocumentService (Prisma)', () => {
       const createdStagingPath =
         mockedPrisma.document.create.mock.calls[0]?.[0]?.data?.stagingPath;
       await deleteTempUpload(createdStagingPath ?? null);
+    });
+
+    it('logs a failed rollback when the indexing queue is full', async () => {
+      mockedPrisma.document.create.mockResolvedValue({
+        id: 7,
+        userId: 1,
+        filename: 'full.txt',
+        fileType: 'text/plain',
+        fileSize: 4,
+        status: 'pending',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      mockedPrisma.document.delete.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        DocumentService.acceptUpload(
+          {
+            originalname: 'full.txt',
+            mimetype: 'text/plain',
+            size: 4,
+            path: '/tmp/full.txt',
+          },
+          1,
+          () => false
+        )
+      ).rejects.toBeInstanceOf(DocumentQueueFullError);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('db down')
+      );
     });
 
     it('rejects files over MAX_FILE_SIZE before create', async () => {

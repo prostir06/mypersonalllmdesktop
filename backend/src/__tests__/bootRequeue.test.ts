@@ -40,6 +40,7 @@ jest.mock('fs/promises', () => ({
 
 import fs from 'fs/promises';
 import prisma from '../config/prisma';
+import logger from '../logger';
 import DocumentService from '../services/DocumentService';
 import { enqueueDocumentJob } from '../utils/documentJobQueue';
 import { requeueOrFailStaleOnBoot } from '../services/documents/bootRequeue';
@@ -76,9 +77,10 @@ describe('requeueOrFailStaleOnBoot', () => {
         stagingPath: '/tmp/missing.txt',
       },
     ]);
+    const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
     (fs.access as jest.Mock)
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('missing'));
+      .mockRejectedValueOnce(missing);
 
     const result = await requeueOrFailStaleOnBoot(1_700_000_000_000);
 
@@ -93,7 +95,42 @@ describe('requeueOrFailStaleOnBoot', () => {
     expect(mockedPrisma.document.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 2 },
-        data: expect.objectContaining({ status: 'failed' }),
+        data: expect.objectContaining({
+          status: 'failed',
+          failureReason: 'Файл індексації відсутній після перезапуску',
+        }),
+      })
+    );
+  });
+
+  it('keeps a non-missing staging error in the log and the failure reason', async () => {
+    mockedPrisma.document.findMany.mockResolvedValue([
+      {
+        id: 3,
+        userId: 9,
+        filename: 'c.txt',
+        fileType: 'text/plain',
+        fileSize: 10,
+        stagingPath: '/tmp/locked.txt',
+      },
+    ]);
+    (fs.access as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('EACCES'), { code: 'EACCES' })
+    );
+
+    const result = await requeueOrFailStaleOnBoot(1_700_000_000_000);
+
+    expect(result.failed).toBe(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('EACCES')
+    );
+    expect(mockedPrisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 3 },
+        data: expect.objectContaining({
+          status: 'failed',
+          failureReason: 'EACCES',
+        }),
       })
     );
   });

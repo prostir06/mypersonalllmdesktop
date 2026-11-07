@@ -13,7 +13,9 @@ export const ProductTourProvider: React.FC<{ children: React.ReactNode; steps?: 
   const [savedVersion, setSavedVersion] = useState<string | null>(() => {
     try {
       return localStorage.getItem(TOUR_STORAGE_KEY);
-    } catch {
+    } catch (err: unknown) {
+      // Same restriction as dismiss: private mode and sandboxed frames throw.
+      console.warn('ProductTourContext: localStorage read failed:', err);
       return null;
     }
   });

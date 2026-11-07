@@ -71,9 +71,43 @@ describe('startUiServer', () => {
   });
 
   it('returns 400 for a malformed path', async () => {
-    const ui = await startServer();
-    const res = await get(`http://127.0.0.1:${ui.port}/%`);
-    assert.equal(res.status, 400);
+    const errors: unknown[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args);
+    };
+    try {
+      const ui = await startServer();
+      const res = await get(`http://127.0.0.1:${ui.port}/%`);
+      assert.equal(res.status, 400);
+      assert.equal(errors.length, 0);
+    } finally {
+      console.error = original;
+    }
+  });
+
+  it('logs an unexpected request error and returns 500', async () => {
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    const fsMut = fs as unknown as { statSync: typeof fs.statSync };
+    const originalStat = fsMut.statSync;
+    console.error = (...args: unknown[]) => {
+      errors.push(args);
+    };
+    fsMut.statSync = () => {
+      throw new Error('stat blew up');
+    };
+    try {
+      const ui = await startServer();
+      const res = await get(`http://127.0.0.1:${ui.port}/`);
+      assert.equal(res.status, 500);
+      assert.equal(res.body, 'Internal error');
+      assert.equal(errors.length, 1);
+      assert.match(String(errors[0][1]), /stat blew up/);
+    } finally {
+      fsMut.statSync = originalStat;
+      console.error = originalError;
+    }
   });
 
   it('forwards X-Forwarded-* and aborts when the client drops', async () => {

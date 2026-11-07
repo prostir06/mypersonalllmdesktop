@@ -1,12 +1,30 @@
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ProductTourProvider, useProductTour } from './ProductTourContext';
 import { TOUR_STORAGE_KEY } from '../config/tourSteps';
 
 describe('ProductTourContext', () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  it('warns and still starts when localStorage read throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <ProductTourProvider>{children}</ProductTourProvider>
+    );
+    const { result } = renderHook(() => useProductTour(), { wrapper });
+    expect(result.current.hasNewVersion).toBe(true);
+    expect(warn).toHaveBeenCalledWith(
+      'ProductTourContext: localStorage read failed:',
+      expect.any(Error)
+    );
+    warn.mockRestore();
+    vi.restoreAllMocks();
   });
 
   it('detects new user when storage key is empty', () => {

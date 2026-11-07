@@ -90,7 +90,7 @@ Any newly found empty catch, unlogged swallow, or wrong-success during inventory
 
 ## 7. Rollout
 
-1. Complete inventory → commit appendix update to this spec (or `docs/superpowers/specs/2026-09-21-error-handling-inventory.md`).
+1. Catch sites are classified in this spec. The generated inventory file was corrupted and is not kept.
 2. Fix G sites BE → FE → desktop.
 3. Gate: list of G all closed; `backend` / `frontend` / `desktop` tests green.
 
