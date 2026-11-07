@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import winston from 'winston';
+import { requestContext, type RequestLogContext } from './requestContext';
 
 /** Prefer ./logs; if unwritable (Docker bind-mount as non-root), skip file transports. */
 function resolveLogDir(): string | null {
@@ -40,7 +41,7 @@ if (logDir) {
   );
 }
 
-const logger = winston.createLogger({
+const rootLogger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -53,18 +54,40 @@ const logger = winston.createLogger({
 
 const consoleFormat = winston.format.combine(
   winston.format.colorize(),
-  winston.format.printf(({ level, message, timestamp }) => {
-    return `${timestamp} [${level}]: ${message}`;
+  winston.format.printf(({ level, message, timestamp, requestId }) => {
+    const id = typeof requestId === 'string' && requestId ? ` requestId=${requestId}` : '';
+    return `${timestamp} [${level}]: ${message}${id}`;
   })
 );
 
 // Dev always; production only when files are unavailable (e.g. EACCES on /app/logs).
 if (process.env.NODE_ENV !== 'production' || transports.length === 0) {
-  logger.add(
+  rootLogger.add(
     new winston.transports.Console({
       format: consoleFormat,
     })
   );
 }
+
+const requestLoggers = new WeakMap<RequestLogContext, winston.Logger>();
+
+function getRequestLogger(): winston.Logger {
+  const store = requestContext.getStore();
+  if (!store) return rootLogger;
+  let child = requestLoggers.get(store);
+  if (!child) {
+    child = rootLogger.child({ requestId: store.requestId });
+    requestLoggers.set(store, child);
+  }
+  return child;
+}
+
+const logger: winston.Logger = new Proxy(rootLogger, {
+  get(_target, prop) {
+    const active = getRequestLogger();
+    const value = Reflect.get(active, prop, active);
+    return typeof value === 'function' ? value.bind(active) : value;
+  },
+});
 
 export default logger;

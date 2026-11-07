@@ -18,6 +18,9 @@ jest.mock('fs', () => {
   };
 });
 
+import logger from '../logger';
+import { requestContext } from '../requestContext';
+
 describe('logger', () => {
   it('boots with console fallback when log directory is not writable', () => {
     jest.isolateModules(() => {
@@ -44,5 +47,23 @@ describe('logger', () => {
       process.env.NODE_ENV = origEnv;
       warnSpy.mockRestore();
     }
+  });
+
+  it('keeps the request id on logs made during that request', () => {
+    const entries: Array<{ message?: unknown; requestId?: unknown }> = [];
+    const onData = (info: { message?: unknown; requestId?: unknown }) => entries.push(info);
+    logger.on('data', onData);
+    try {
+      requestContext.run({ requestId: 'req-42' }, () => {
+        logger.info('during request');
+      });
+    } finally {
+      logger.off('data', onData);
+    }
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: 'during request', requestId: 'req-42' }),
+      ])
+    );
   });
 });

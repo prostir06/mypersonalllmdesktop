@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import logger from './logger';
 import errorHandler from './middleware/errorHandler';
 import requestId from './middleware/requestId';
+import requestLogger from './middleware/requestLogger';
 import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import modelsRoutes from './routes/models';
@@ -43,6 +44,7 @@ app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(requestId);
+app.use(requestLogger);
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -70,13 +72,6 @@ app.use('/api/auth/register', authLimiter);
 app.use('/api/auth/refresh', authLimiter);
 app.use('/api/chat/send', chatLimiter);
 app.use('/api/chat/stream', chatLimiter);
-
-app.use((req: Request, res: Response, next: NextFunction) => {
-  logger.info(
-    `${req.method} ${req.url} requestId=${(req as RequestWithId).id || '-'}`
-  );
-  next();
-});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
