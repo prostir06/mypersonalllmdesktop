@@ -9,6 +9,7 @@ jest.mock('../config/prisma', () => ({
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      count: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(),
@@ -41,6 +42,7 @@ const mockedPrisma = prisma as unknown as {
   user: {
     findUnique: jest.Mock;
     create: jest.Mock;
+    count: jest.Mock;
   };
   refreshToken: {
     create: jest.Mock;
@@ -57,6 +59,8 @@ function hashToken(raw: string) {
 describe('Auth API (Prisma)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    delete process.env.ADMIN_EMAIL;
+    mockedPrisma.user.count.mockResolvedValue(0);
     mockedPrisma.refreshToken.create.mockResolvedValue({ id: 1 });
   });
 
@@ -73,6 +77,27 @@ describe('Auth API (Prisma)', () => {
     expect(typeof res.body.token).toBe('string');
     expect(res.headers['set-cookie']?.join(';')).toMatch(/refresh_token=/);
     expect(mockedPrisma.refreshToken.create).toHaveBeenCalled();
+    expect(mockedPrisma.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ email: 'a@b.com', role: 'admin' }),
+      select: { id: true },
+    });
+  });
+
+  it('POST /register stores a member when an admin email is configured', async () => {
+    process.env.ADMIN_EMAIL = 'owner@example.com';
+    mockedPrisma.user.findUnique.mockResolvedValue(null);
+    mockedPrisma.user.count.mockResolvedValue(0);
+    mockedPrisma.user.create.mockResolvedValue({ id: 7 });
+
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ email: 'a@b.com', password: 'Password1', name: 'Ada' });
+
+    expect(res.status).toBe(201);
+    expect(mockedPrisma.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ role: 'member' }),
+      select: { id: true },
+    });
   });
 
   it('POST /register returns 403 when registration is disabled', async () => {

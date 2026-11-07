@@ -20,6 +20,12 @@ if (process.env.NODE_ENV !== 'test') {
         const message = err instanceof Error ? err.message : String(err);
         logger.warn(`Boot document requeue skipped: ${message}`);
       });
+    void import('./auth/bootstrapAdmin')
+      .then(({ bootBootstrapAdmin }) => bootBootstrapAdmin())
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn(`Bootstrap admin skipped: ${message}`);
+      });
   });
 
   const stop = (signal: NodeJS.Signals) => {

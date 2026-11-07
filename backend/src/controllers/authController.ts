@@ -13,6 +13,7 @@ import {
   setRefreshCookie,
 } from '../utils/refreshTokens';
 import { isRegistrationAllowed } from '../utils/registrationGate';
+import { resolveRegistrationRole } from '../auth/roles';
 import { jsonError, jsonValidationErrors } from '../utils/httpJson';
 import type { AuthRequest } from '../types/express';
 
@@ -89,8 +90,14 @@ export async function register(req: AuthRequest, res: Response): Promise<void> {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    const existingUsers = await prisma.user.count();
     const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword },
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: resolveRegistrationRole(email, existingUsers),
+      },
       select: { id: true },
     });
 
