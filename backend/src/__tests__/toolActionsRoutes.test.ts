@@ -10,6 +10,7 @@ const mockPrisma = {
   pendingToolAction: {
     findUnique: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   },
   message: {
     findUnique: jest.fn(),
@@ -49,6 +50,7 @@ describe('Tool Actions Routes (/api/chat/tool-actions)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockPrisma.pendingToolAction.updateMany.mockResolvedValue({ count: 1 });
   });
 
   describe('POST /api/chat/tool-actions/:id/approve', () => {

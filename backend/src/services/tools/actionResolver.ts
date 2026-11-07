@@ -4,6 +4,20 @@ import { ChatError } from '../chat/types';
 import toolRegistry from './registry';
 import { ToolValidationError, type ToolExecutionContext } from './types';
 
+async function claimPending(actionId: string): Promise<void> {
+  const updated = await prisma.pendingToolAction.updateMany({
+    where: { id: actionId, status: 'pending' },
+    data: { status: 'executing' },
+  });
+  if (updated.count === 0) {
+    const current = await prisma.pendingToolAction.findUnique({
+      where: { id: actionId },
+    });
+    if (!current) throw new ChatError(404, 'Pending action not found');
+    throw new ChatError(409, `Action is already ${current.status}`);
+  }
+}
+
 export async function resolvePendingToolAction(
   actionId: string,
   userId: number,
@@ -32,6 +46,8 @@ export async function resolvePendingToolAction(
     });
     throw new ChatError(410, 'Pending action has expired');
   }
+
+  await claimPending(actionId);
 
   if (decision === 'reject') {
     await prisma.pendingToolAction.update({
@@ -65,6 +81,10 @@ export async function resolvePendingToolAction(
   // decision === 'approve'
   const tool = toolRegistry.get(action.toolName);
   if (!tool) {
+    await prisma.pendingToolAction.update({
+      where: { id: actionId },
+      data: { status: 'failed', resolvedAt: new Date() },
+    });
     throw new ChatError(404, `Tool "${action.toolName}" not found in registry`);
   }
 
@@ -81,6 +101,10 @@ export async function resolvePendingToolAction(
     logger.error(
       `Malformed pending tool action arguments for action ${actionId}: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
     );
+    await prisma.pendingToolAction.update({
+      where: { id: actionId },
+      data: { status: 'failed', resolvedAt: new Date() },
+    });
     throw new ChatError(400, 'Invalid tool arguments format', { cause: parseErr });
   }
 
@@ -91,6 +115,10 @@ export async function resolvePendingToolAction(
     logger.error(
       `Failed to execute approved tool "${action.toolName}": ${execErr instanceof Error ? execErr.message : String(execErr)}`
     );
+    await prisma.pendingToolAction.update({
+      where: { id: actionId },
+      data: { status: 'failed', resolvedAt: new Date() },
+    });
     if (execErr instanceof ChatError || execErr instanceof ToolValidationError) {
       throw execErr;
     }
@@ -102,32 +130,14 @@ export async function resolvePendingToolAction(
   }
   const resultSummary = typeof result === 'string' ? result : JSON.stringify(result);
 
-  // Atomic update to prevent race conditions or double-execution
-  if (typeof (prisma.pendingToolAction as any).updateMany === 'function') {
-    const updated = await (prisma.pendingToolAction as any).updateMany({
-      where: { id: actionId, status: 'pending' },
-      data: {
-        status: 'approved',
-        resolvedAt: new Date(),
-        resultSummary,
-      },
-    });
-    if (updated.count === 0) {
-      const current = await prisma.pendingToolAction.findUnique({ where: { id: actionId } });
-      if (!current) throw new ChatError(404, 'Pending action not found');
-      throw new ChatError(409, `Action is already ${current.status}`);
-    }
-  }
-  if (typeof (prisma.pendingToolAction as any).update === 'function') {
-    await prisma.pendingToolAction.update({
-      where: { id: actionId },
-      data: {
-        status: 'approved',
-        resolvedAt: new Date(),
-        resultSummary,
-      },
-    });
-  }
+  await prisma.pendingToolAction.update({
+    where: { id: actionId },
+    data: {
+      status: 'approved',
+      resolvedAt: new Date(),
+      resultSummary,
+    },
+  });
 
   const message = await prisma.message.findUnique({
     where: { id: action.messageId },
