@@ -2,9 +2,7 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from './providerFactory';
 import { defaultModelFor } from '../config/models';
-import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
-import { resolveGeminiApiKey } from '../utils/geminiKeyResolver';
-import { resolveClaudeApiKey } from '../utils/claudeKeyResolver';
+import { resolveProviderKey } from './providers/resolveProviderKey';
 import type { ChatMessage } from './chat/types';
 
 const summaryInFlight = new Set<number>();
@@ -174,13 +172,6 @@ export async function buildMemorySystemMessages(
   return systemMessages;
 }
 
-async function resolveSummaryApiKey(userId: number, provider: string): Promise<string | null> {
-  if (provider === 'gemini') return resolveGeminiApiKey(userId);
-  if (provider === 'anthropic' || provider === 'claude') return resolveClaudeApiKey(userId);
-  if (provider === 'ollama') return null;
-  return resolveOpenAiApiKey(userId);
-}
-
 export async function maybeRefreshSummary(
   userId: number,
   conversationId: number,
@@ -237,7 +228,7 @@ export async function maybeRefreshSummary(
       },
     ];
 
-    const apiKey = await resolveSummaryApiKey(userId, provider);
+    const apiKey = await resolveProviderKey(userId, provider);
     const result = await ProviderFactory.sendMessage(
       provider,
       summarizeMessages,

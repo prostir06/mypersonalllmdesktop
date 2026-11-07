@@ -1,6 +1,3 @@
-import logger from '../logger';
-import { decryptSecret, EncryptionConfigError } from './secretCrypto';
-
 const PLACEHOLDERS = new Set([
   'your_openai_api_key_here',
   'sk-your-key',
@@ -29,35 +26,7 @@ export function envOpenAiKey(): string | null {
 /**
  * Prefer per-user encrypted key; fall back to process env.
  */
-export async function resolveOpenAiApiKey(
-  userId: number
-): Promise<string | null> {
-  try {
-    const prismaModule = await import('../config/prisma');
-    const prisma = prismaModule.default || prismaModule.prisma;
-    const row = await prisma.userSettings.findUnique({
-      where: { userId },
-      select: { openaiApiKeyEnc: true },
-    });
-    if (row?.openaiApiKeyEnc) {
-      try {
-        const plain = decryptSecret(row.openaiApiKeyEnc, userId);
-        if (plain && !isPlaceholderOpenAiKey(plain)) return plain.trim();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (err instanceof EncryptionConfigError) {
-          logger.warn(`resolveOpenAiApiKey: ${message}`);
-        } else {
-        logger.warn(
-          `resolveOpenAiApiKey decrypt failed for user ${userId}: ${message}`
-        );
-        }
-      }
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn(`resolveOpenAiApiKey settings load failed: ${message}`);
-  }
-
-  return envOpenAiKey();
+export async function resolveOpenAiApiKey(userId: number): Promise<string | null> {
+  const { resolveProviderKey } = await import('../services/providers/resolveProviderKey');
+  return resolveProviderKey(userId, 'openai');
 }

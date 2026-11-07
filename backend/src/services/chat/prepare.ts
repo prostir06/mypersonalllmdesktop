@@ -1,8 +1,6 @@
 import prisma from '../../config/prisma';
 import { assertChatImage } from '../../utils/chatImage';
-import { resolveOpenAiApiKey } from '../../utils/openaiKeyResolver';
-import { resolveGeminiApiKey } from '../../utils/geminiKeyResolver';
-import { resolveClaudeApiKey } from '../../utils/claudeKeyResolver';
+import { resolveProviderKey } from '../providers/resolveProviderKey';
 import {
   linearHistoryUpTo,
   toProviderMessages,
@@ -160,26 +158,8 @@ export async function prepareMessages(input: SendInput): Promise<PreparedMessage
 
   if (options.image) delete options.image;
 
-  if (input.provider === 'gemini') {
-    const geminiKey = await resolveGeminiApiKey(input.userId);
-    if (geminiKey) {
-      options.apiKey = geminiKey;
-    }
-  } else if (input.provider === 'anthropic') {
-    const claudeKey = await resolveClaudeApiKey(input.userId);
-    if (claudeKey) {
-      options.apiKey = claudeKey;
-    }
-  } else {
-    const openaiKey = await resolveOpenAiApiKey(input.userId);
-    if (openaiKey) {
-      options.apiKey = openaiKey;
-    }
-  }
-
-  if (input.options?.enableWebSearch === true) {
-    options.enableWebSearch = true;
-  }
+  const apiKey = await resolveProviderKey(input.userId, input.provider);
+  if (apiKey) options.apiKey = apiKey;
 
   const dateTimeMessage = buildDateTimeMessage(
     typeof options.timezone === 'string' ? options.timezone : undefined

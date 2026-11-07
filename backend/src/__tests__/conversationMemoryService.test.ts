@@ -39,7 +39,7 @@ jest.mock('../logger', () => ({
 import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from '../services/providerFactory';
-import * as geminiKeys from '../utils/geminiKeyResolver';
+import * as providerKeys from '../services/providers/resolveProviderKey';
 import {
   MAX_NOTE_CHARS,
   MAX_NOTES,
@@ -207,7 +207,7 @@ describe('conversationMemoryService', () => {
   });
 
   it('sends the user Gemini key and ignores a second refresh while one is running', async () => {
-    jest.spyOn(geminiKeys, 'resolveGeminiApiKey').mockResolvedValue('gem-user');
+    jest.spyOn(providerKeys, 'resolveProviderKey').mockResolvedValue('gem-user');
     mockedPrisma.message.findMany.mockResolvedValue([{ role: 'user', content: 'факт' }]);
     mockedPrisma.userSettings.findUnique.mockResolvedValue({
       defaultProvider: 'gemini',

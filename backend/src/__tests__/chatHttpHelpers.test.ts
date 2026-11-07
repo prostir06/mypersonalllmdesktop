@@ -1,13 +1,9 @@
-jest.mock('../utils/geminiKeyResolver', () => ({
-  resolveGeminiApiKey: jest.fn(),
+jest.mock('../services/providers/resolveProviderKey', () => ({
+  resolveProviderKey: jest.fn(),
 }));
 
-jest.mock('../utils/openaiKeyResolver', () => ({
-  resolveOpenAiApiKey: jest.fn(),
-}));
-
-jest.mock('../utils/claudeKeyResolver', () => ({
-  resolveClaudeApiKey: jest.fn(),
+jest.mock('../services/ollama/showCapabilities', () => ({
+  loadOllamaShowCapabilities: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../services/chat/ownership', () => ({
@@ -45,9 +41,7 @@ import {
   publicErrorJson,
 } from '../services/chat/httpHelpers';
 import { prepareMessages } from '../services/chat/prepare';
-import { resolveGeminiApiKey } from '../utils/geminiKeyResolver';
-import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
-import { resolveClaudeApiKey } from '../utils/claudeKeyResolver';
+import { resolveProviderKey } from '../services/providers/resolveProviderKey';
 import { sendMessage, streamMessage } from '../controllers/chatController';
 import ChatService from '../services/ChatService';
 import type { AuthRequest } from '../types/express';
@@ -87,13 +81,11 @@ describe('chat httpHelpers', () => {
 describe('prepareMessages Gemini integration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (resolveGeminiApiKey as jest.Mock).mockResolvedValue(null);
-    (resolveOpenAiApiKey as jest.Mock).mockResolvedValue(null);
-    (resolveClaudeApiKey as jest.Mock).mockResolvedValue(null);
+    (resolveProviderKey as jest.Mock).mockResolvedValue(null);
   });
 
-  it('calls resolveGeminiApiKey when input.provider is gemini and assigns options.apiKey', async () => {
-    (resolveGeminiApiKey as jest.Mock).mockResolvedValue('test-gemini-key');
+  it('assigns the key returned for the requested provider', async () => {
+    (resolveProviderKey as jest.Mock).mockResolvedValue('test-gemini-key');
 
     const prepared = await prepareMessages({
       userId: 42,
@@ -103,48 +95,40 @@ describe('prepareMessages Gemini integration', () => {
       model: 'gemini-2.0-flash',
     });
 
-    expect(resolveGeminiApiKey).toHaveBeenCalledWith(42);
-    expect(resolveOpenAiApiKey).not.toHaveBeenCalled();
-    expect(resolveClaudeApiKey).not.toHaveBeenCalled();
+    expect(resolveProviderKey).toHaveBeenCalledWith(42, 'gemini');
     expect(prepared.options.apiKey).toBe('test-gemini-key');
   });
 
-  it('calls resolveClaudeApiKey when input.provider is anthropic and assigns options.apiKey', async () => {
-    (resolveClaudeApiKey as jest.Mock).mockResolvedValue('test-claude-key');
+  it('asks for the anthropic key when the provider is anthropic', async () => {
+    (resolveProviderKey as jest.Mock).mockResolvedValue('test-claude-key');
 
     const prepared = await prepareMessages({
       userId: 42,
       conversationId: 101,
       message: 'Hello Claude',
       provider: 'anthropic',
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-5',
     });
 
-    expect(resolveClaudeApiKey).toHaveBeenCalledWith(42);
-    expect(resolveGeminiApiKey).not.toHaveBeenCalled();
-    expect(resolveOpenAiApiKey).not.toHaveBeenCalled();
+    expect(resolveProviderKey).toHaveBeenCalledWith(42, 'anthropic');
     expect(prepared.options.apiKey).toBe('test-claude-key');
   });
 
-  it('calls resolveOpenAiApiKey when input.provider is not gemini nor anthropic', async () => {
-    (resolveOpenAiApiKey as jest.Mock).mockResolvedValue('test-openai-key');
-
+  it('does not set apiKey when the provider has none', async () => {
     const prepared = await prepareMessages({
       userId: 42,
       conversationId: 101,
-      message: 'Hello OpenAI',
-      provider: 'openai',
-      model: 'gpt-3.5-turbo',
+      message: 'Hello local',
+      provider: 'ollama',
+      model: 'llama3.2',
     });
 
-    expect(resolveOpenAiApiKey).toHaveBeenCalledWith(42);
-    expect(resolveGeminiApiKey).not.toHaveBeenCalled();
-    expect(resolveClaudeApiKey).not.toHaveBeenCalled();
-    expect(prepared.options.apiKey).toBe('test-openai-key');
+    expect(resolveProviderKey).toHaveBeenCalledWith(42, 'ollama');
+    expect(prepared.options.apiKey).toBeUndefined();
   });
 
   it('preserves and propagates options.enableWebSearch when provided in input.options', async () => {
-    (resolveGeminiApiKey as jest.Mock).mockResolvedValue('test-gemini-key');
+    (resolveProviderKey as jest.Mock).mockResolvedValue('test-gemini-key');
 
     const prepared = await prepareMessages({
       userId: 42,
