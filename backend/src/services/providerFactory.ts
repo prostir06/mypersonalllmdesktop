@@ -4,48 +4,38 @@ import geminiService from './geminiService';
 import claudeService from './claudeService';
 import logger from '../logger';
 import { ChatError } from './chat/types';
+import { createProviderAdapter, readAbortSignal } from './providers/adapter';
+import type { ProviderAdapter } from './providers/adapter';
 import type { ProviderMessage, ProviderSendResult } from './providers/types';
 
-type SendFn = (
-  messages: ProviderMessage[],
-  model?: string,
-  options?: Record<string, unknown>
-) => Promise<ProviderSendResult>;
-
-type StreamFn = (
-  messages: ProviderMessage[],
-  model?: string,
-  options?: Record<string, unknown>,
-  onChunk?: (token: string) => void
-) => Promise<ProviderSendResult>;
-
-type ProviderHandlers = { send: SendFn; stream: StreamFn };
-
 class ProviderFactory {
-  static providers: Record<string, ProviderHandlers> = {
-    openai: {
-      send: openaiService.sendOpenAIMessage,
-      stream: openaiService.streamOpenAIMessage,
-    },
-    ollama: {
-      send: ollamaService.sendOllamaMessage,
-      stream: ollamaService.streamOllamaMessage,
-    },
-    gemini: {
-      send: geminiService.sendGeminiMessage,
-      stream: geminiService.streamGeminiMessage,
-    },
-    anthropic: {
-      send: claudeService.sendClaudeMessage,
-      stream: claudeService.streamClaudeMessage,
-    },
+  static providers: Record<string, ProviderAdapter> = {
+    openai: createProviderAdapter(
+      'openai',
+      openaiService.sendOpenAIMessage,
+      openaiService.streamOpenAIMessage
+    ),
+    ollama: createProviderAdapter(
+      'ollama',
+      ollamaService.sendOllamaMessage,
+      ollamaService.streamOllamaMessage
+    ),
+    gemini: createProviderAdapter(
+      'gemini',
+      geminiService.sendGeminiMessage,
+      geminiService.streamGeminiMessage
+    ),
+    anthropic: createProviderAdapter(
+      'anthropic',
+      claudeService.sendClaudeMessage,
+      claudeService.streamClaudeMessage
+    ),
   };
 
-  static getProvider(name?: string): ProviderHandlers {
+  static getProvider(name?: string): ProviderAdapter {
     const providerName = (name?.toLowerCase() || 'openai').trim();
-    if (this.providers[providerName]) {
-      return this.providers[providerName];
-    }
+    const adapter = this.providers[providerName];
+    if (adapter) return adapter;
     throw new ChatError(400, `Unsupported LLM provider: "${name}"`);
   }
 
@@ -54,11 +44,11 @@ class ProviderFactory {
     messages: ProviderMessage[],
     model: string,
     options: Record<string, unknown> = {}
-  ) {
+  ): Promise<ProviderSendResult> {
     try {
-      const p = this.getProvider(provider);
+      const adapter = this.getProvider(provider);
       logger.info(`Sending message via ${provider} with model ${model}`);
-      return await p.send(messages, model, options);
+      return await adapter.send(messages, { ...options, model }, readAbortSignal(options));
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Error in ProviderFactory.sendMessage: ${message}`);
@@ -72,11 +62,16 @@ class ProviderFactory {
     model: string,
     options: Record<string, unknown> = {},
     onChunk?: (token: string) => void
-  ) {
+  ): Promise<ProviderSendResult> {
     try {
-      const p = this.getProvider(provider);
+      const adapter = this.getProvider(provider);
       logger.info(`Streaming message via ${provider} with model ${model}`);
-      return await p.stream(messages, model, options, onChunk);
+      return await adapter.stream(
+        messages,
+        { ...options, model },
+        readAbortSignal(options),
+        onChunk
+      );
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(`Error in ProviderFactory.streamMessage: ${message}`);

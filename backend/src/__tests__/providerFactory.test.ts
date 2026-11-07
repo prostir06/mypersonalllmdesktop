@@ -67,7 +67,6 @@ jest.mock('../logger', () => ({
 
 import ProviderFactory from '../services/providerFactory';
 import openaiService from '../services/openaiService';
-import ollamaService from '../services/ollamaService';
 import geminiService from '../services/geminiService';
 import claudeService from '../services/claudeService';
 import { ChatError } from '../services/chat/types';
@@ -75,22 +74,25 @@ import { ChatError } from '../services/chat/types';
 describe('ProviderFactory', () => {
   afterEach(() => jest.clearAllMocks());
 
-  it('resolves known providers by name', () => {
-    expect(ProviderFactory.getProvider('openai').send).toBe(
-      openaiService.sendOpenAIMessage
+  it('resolves an adapter and passes abort as its own argument', async () => {
+    const messages = [{ role: 'user', content: 'Привіт' }];
+    const signal = new AbortController().signal;
+    await ProviderFactory.getProvider('openai').send(
+      messages,
+      { model: 'gpt-4o-mini', temperature: 0.2 },
+      signal
     );
-    expect(ProviderFactory.getProvider('ollama').send).toBe(
-      ollamaService.sendOllamaMessage
-    );
-    expect(ProviderFactory.getProvider('gemini').send).toBe(
-      geminiService.sendGeminiMessage
-    );
-    expect(ProviderFactory.getProvider('anthropic').send).toBe(
-      claudeService.sendClaudeMessage
-    );
-    expect(ProviderFactory.getProvider('OPENAI').send).toBe(
-      openaiService.sendOpenAIMessage
-    );
+    expect(openaiService.sendOpenAIMessage).toHaveBeenCalledWith(messages, 'gpt-4o-mini', {
+      temperature: 0.2,
+      signal,
+    });
+    expect(ProviderFactory.getProvider('OPENAI').capabilities('gpt-4o')).toMatchObject({
+      tools: true,
+      vision: true,
+    });
+    expect(ProviderFactory.getProvider('ollama').capabilities('llama2').tools).toBe(false);
+    expect(typeof ProviderFactory.getProvider('gemini').stream).toBe('function');
+    expect(typeof ProviderFactory.getProvider('anthropic').send).toBe('function');
   });
 
   it('throws ChatError 400 for unknown providers', () => {
