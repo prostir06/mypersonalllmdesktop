@@ -263,10 +263,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
   return (
     <ChatSessionProvider value={{ documents, attachments, model }}>
-    <div
-      className="glass-panel p-3 d-flex flex-column"
-      style={{ height: 'calc(100vh - 120px)' }}
-    >
+    <div className="glass-panel p-3 d-flex flex-column chat-panel">
       <ChatControls
         streaming={streaming}
         onShowPromptModal={() => setShowPromptModal(true)}
@@ -289,6 +286,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
           dismissible
           onClose={() => setError(null)}
           className="py-2"
+          role="alert"
         >
           <div className="small mb-2">{error}</div>
           <div className="d-flex gap-2">
@@ -301,7 +299,10 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
                     ...(webSearchEnabled ? { enableWebSearch: true } : {}),
                     toolsEnabled,
                   };
-                  void sendMessage(lastUserContentRef.current, setMessages, sendOpts);
+                  void sendMessage(lastUserContentRef.current, setMessages, {
+                    ...sendOpts,
+                    skipOptimisticUser: true,
+                  });
                 }
               }}
             >
@@ -320,8 +321,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
 
       <div className={`d-flex flex-grow-1 overflow-hidden ${activeArtifact ? 'flex-row gap-3' : 'flex-column'}`}>
         <div
-          className={`d-flex flex-column flex-grow-1 overflow-hidden ${activeArtifact ? 'w-50' : ''}`}
-          style={{ minWidth: 0 }}
+          className={`d-flex flex-column flex-grow-1 overflow-hidden chat-thread ${activeArtifact ? 'chat-thread-beside-artifact' : ''}`}
         >
           <MessageList
             messages={messages}
@@ -357,10 +357,7 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         </div>
 
         {activeArtifact && (
-          <div
-            className="d-flex flex-column flex-grow-1 overflow-hidden w-50"
-            style={{ minWidth: 0 }}
-          >
+          <div className="artifact-panel-slot d-flex flex-column flex-grow-1 overflow-hidden">
             <ArtifactPanel
               artifact={activeArtifact}
               onClose={() => setActiveArtifact(null)}

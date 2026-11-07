@@ -93,6 +93,7 @@ const MessageList = React.memo(function MessageList({
             onSwitchBranch={onSwitchBranch}
             onOpenArtifact={onOpenArtifact}
             streaming={streaming}
+            announce={!streaming && idx === messages.length - 1 && msg.role === 'assistant'}
           />
         )}
         components={{

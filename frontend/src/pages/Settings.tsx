@@ -87,7 +87,11 @@ const SettingsView: React.FC<SettingsViewProps> = ({ activeTab, onTabChange }) =
     setHydratedKey(settingsFingerprint);
     setProvider(normalizeProvider(settingsData.default_provider));
     setModel(settingsData.default_model || '');
-    setTemperature(parseFloat(String(settingsData.temperature ?? 0.7)) || 0.7);
+    const parsedTemperature =
+      typeof settingsData.temperature === 'number'
+        ? settingsData.temperature
+        : parseFloat(String(settingsData.temperature ?? ''));
+    setTemperature(Number.isFinite(parsedTemperature) ? parsedTemperature : 0.7);
     setMaxTokens(parseInt(String(settingsData.max_tokens ?? 4096), 10) || 4096);
     setOllamaHost(
       settingsData.default_ollama_host ||

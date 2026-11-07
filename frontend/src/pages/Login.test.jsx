@@ -61,7 +61,7 @@ describe('Login', () => {
     await waitFor(() => {
       expect(authAPI.login).toHaveBeenCalledWith('a@b.com', 'secret');
       expect(loginFn).toHaveBeenCalledWith('tok-1');
-      expect(navigateFn).toHaveBeenCalledWith('/dashboard');
+      expect(navigateFn).toHaveBeenCalledWith('/dashboard', { replace: true });
     });
   });
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MessageInput from './MessageInput';
 
@@ -97,6 +97,17 @@ describe('MessageInput', () => {
     const webSearchBtn = screen.getByRole('button', { name: /Перемикач пошуку в інтернеті/i });
     expect(webSearchBtn).toBeDisabled();
     expect(webSearchBtn).toHaveAttribute('title', 'Веб-пошук доступний для Google Gemini');
+  });
+
+  it('keeps the field editable while streaming and skips IME Enter', () => {
+    const onSubmit = vi.fn((e) => e?.preventDefault?.());
+    render(<MessageInput {...baseProps} streaming onSubmit={onSubmit} />);
+    const field = screen.getByLabelText('Введення повідомлення');
+    expect(field).toBeEnabled();
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it('shows active title on web search toggle button when enabled', () => {

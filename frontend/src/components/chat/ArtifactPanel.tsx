@@ -135,7 +135,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
     ? { zIndex: 1050 }
     : {};
 
-  const contentMinHeight = isFullscreen ? 'calc(100vh - 120px)' : '420px';
+  const contentMinHeight = isFullscreen ? 'calc(100dvh - 120px)' : '420px';
 
   return (
     <div
@@ -163,7 +163,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             title="Копіювати код"
             className="d-inline-flex align-items-center gap-1 py-1 px-2"
           >
-            <span>📋</span>
+            <span aria-hidden="true">📋</span>
             <span className="d-none d-md-inline">Копіювати</span>
           </Button>
 
@@ -175,7 +175,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             title="Завантажити файл"
             className="d-inline-flex align-items-center gap-1 py-1 px-2"
           >
-            <span>⬇️</span>
+            <span aria-hidden="true">⬇️</span>
             <span className="d-none d-md-inline">Завантажити</span>
           </Button>
 
@@ -187,7 +187,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             title={isFullscreen ? 'Згорнути' : 'На весь екран'}
             className="d-inline-flex align-items-center gap-1 py-1 px-2"
           >
-            <span>{isFullscreen ? '🗗' : '⛶'}</span>
+            <span aria-hidden="true">{isFullscreen ? '🗗' : '⛶'}</span>
             <span className="d-none d-md-inline">
               {isFullscreen ? 'Згорнути' : 'На весь екран'}
             </span>
@@ -201,7 +201,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             title="Закрити"
             className="py-1 px-2 text-light"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </Button>
         </div>
       </div>

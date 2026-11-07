@@ -292,4 +292,13 @@ def foo():
       title: 'Векторне зображення SVG',
     });
   });
+
+  it('scopes artifact ids so the same block in two messages does not collide', () => {
+    const markdown = '```html\n<div>A</div>\n```';
+    const first = parseArtifacts(markdown, '11');
+    const second = parseArtifacts(markdown, '22');
+    expect(first[0].id).toBe('artifact-11-1');
+    expect(second[0].id).toBe('artifact-22-1');
+    expect(first[0].id).not.toBe(second[0].id);
+  });
 });

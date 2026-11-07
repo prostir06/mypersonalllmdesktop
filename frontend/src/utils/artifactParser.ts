@@ -83,7 +83,7 @@ function extractTitle(
 /**
  * Parses markdown text to detect HTML and SVG code blocks that qualify as interactive artifacts.
  */
-export function parseArtifacts(markdown: string): Artifact[] {
+export function parseArtifacts(markdown: string, scope?: string): Artifact[] {
   if (!markdown || typeof markdown !== 'string') {
     return [];
   }
@@ -148,7 +148,9 @@ export function parseArtifacts(markdown: string): Artifact[] {
     }
 
     const title = extractTitle(trimmedContent, beforeBlock, type);
-    const id = `artifact-${artifacts.length + 1}`;
+    const ordinal = artifacts.length + 1;
+    const safeScope = scope?.replace(/[^\w-]/g, '');
+    const id = safeScope ? `artifact-${safeScope}-${ordinal}` : `artifact-${ordinal}`;
 
     artifacts.push({
       id,

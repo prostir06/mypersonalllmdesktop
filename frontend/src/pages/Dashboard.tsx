@@ -156,7 +156,7 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <Row className="g-3" style={{ minHeight: 'calc(100vh - 100px)' }}>
+    <Row className="g-3 dashboard-shell">
       <Col md={4} lg={3}>
         <DashboardSidebar
           conversations={conversations}

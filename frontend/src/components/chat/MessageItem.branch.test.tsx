@@ -42,4 +42,24 @@ describe('MessageItem branch controls', () => {
     await user.click(screen.getByTitle('Перегенерувати відповідь'));
     expect(onRegenerate).toHaveBeenCalledWith(0);
   });
+
+  it('announces a finished assistant message', () => {
+    const msg: ChatMessageView = {
+      id: 9,
+      role: 'assistant',
+      content: 'готова відповідь',
+    };
+    render(
+      <MessageItem
+        msg={msg}
+        idx={3}
+        speakingIdx={null}
+        onSpeak={vi.fn()}
+        onCopy={vi.fn()}
+        announce
+      />
+    );
+    const bubble = screen.getByText('готова відповідь').closest('.message-bubble');
+    expect(bubble).toHaveAttribute('aria-live', 'polite');
+  });
 });

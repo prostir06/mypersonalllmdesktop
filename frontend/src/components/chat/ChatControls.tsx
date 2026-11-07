@@ -62,6 +62,7 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
     toolsSupported,
   } = props;
   const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   return (
     <>
@@ -100,6 +101,20 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
           </Form.Select>
           </div>
 
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            className="d-md-none"
+            aria-expanded={actionsOpen}
+            aria-controls="chat-toolbar-actions"
+            onClick={() => setActionsOpen((open) => !open)}
+          >
+            Дії
+          </Button>
+          <div
+            id="chat-toolbar-actions"
+            className={`chat-toolbar-actions d-flex flex-wrap align-items-center gap-2${actionsOpen ? ' is-open' : ''}`}
+          >
           <Button
             variant="outline-info"
             size="sm"
@@ -225,6 +240,7 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
               </Button>
             </>
           )}
+          </div>
         </div>
 
         <div className="d-flex align-items-center gap-2" style={{ minWidth: '180px' }}>

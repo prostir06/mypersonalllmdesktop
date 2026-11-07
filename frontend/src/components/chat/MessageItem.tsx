@@ -44,7 +44,7 @@ const CodeBlock = ({ inline, className, children, ...props }: CodeBlockProps) =>
             padding: '2px 8px',
           }}
         >
-          📋 Copy
+          <span aria-hidden="true">📋</span> Copy
         </Button>
         <Suspense
           fallback={
@@ -100,6 +100,7 @@ export type MessageItemProps = {
   onSwitchBranch?: (assistantIdx: number, branchIdx: number) => void;
   onOpenArtifact?: (artifact: Artifact) => void;
   streaming?: boolean;
+  announce?: boolean;
 };
 
 const MessageItem = React.memo(function MessageItem({
@@ -112,12 +113,17 @@ const MessageItem = React.memo(function MessageItem({
   onSwitchBranch,
   onOpenArtifact,
   streaming = false,
+  announce = false,
 }: MessageItemProps) {
   const components = useMemo(
     () => ({ ...markdownComponents, code: CodeBlock }),
     []
   );
-  const artifacts = useMemo(() => (msg.role === 'assistant' ? parseArtifacts(msg.content) : []), [msg.role, msg.content]);
+  const artifactScope = msg.id != null ? String(msg.id) : `m${idx}`;
+  const artifacts = useMemo(
+    () => (msg.role === 'assistant' ? parseArtifacts(msg.content, artifactScope) : []),
+    [artifactScope, msg.role, msg.content]
+  );
   const branchCount = msg.branches?.length ?? 0;
   const branchIndex = msg.branch_index ?? 0;
   const [showTokens, setShowTokens] = React.useState<boolean>(() => {
@@ -137,7 +143,7 @@ const MessageItem = React.memo(function MessageItem({
   const usage = msg.tokenUsage || msg.token_usage;
 
   return (
-    <div className={`message-bubble ${msg.role}`}>
+    <div className={`message-bubble ${msg.role}`} aria-live={announce ? 'polite' : undefined}>
       <div className="message-header d-flex justify-content-between align-items-center">
         <span>{msg.role === 'user' ? '👤 Ви' : '🤖 Assistant'}</span>
         <div className="d-flex align-items-center gap-2">
@@ -150,8 +156,9 @@ const MessageItem = React.memo(function MessageItem({
                 disabled={branchIndex <= 0 || streaming}
                 onClick={() => onSwitchBranch(idx, branchIndex - 1)}
                 title="Попередня версія"
+                aria-label="Попередня версія"
               >
-                ◀
+                <span aria-hidden="true">◀</span>
               </Button>
               <span>
                 {branchIndex + 1}/{branchCount}
@@ -163,8 +170,9 @@ const MessageItem = React.memo(function MessageItem({
                 disabled={branchIndex >= branchCount - 1 || streaming}
                 onClick={() => onSwitchBranch(idx, branchIndex + 1)}
                 title="Наступна версія"
+                aria-label="Наступна версія"
               >
-                ▶
+                <span aria-hidden="true">▶</span>
               </Button>
             </span>
           )}
@@ -176,8 +184,9 @@ const MessageItem = React.memo(function MessageItem({
               onClick={() => onRegenerate(idx)}
               disabled={streaming}
               title="Перегенерувати відповідь"
+              aria-label="Перегенерувати відповідь"
             >
-              🔄
+              <span aria-hidden="true">🔄</span>
             </Button>
           )}
           {msg.role === 'assistant' && (
@@ -191,8 +200,10 @@ const MessageItem = React.memo(function MessageItem({
                   ? 'Зупинити озвучку'
                   : 'Озвучити голосом (TTS)'
               }
+              aria-label={speakingIdx === idx ? 'Зупинити озвучку' : 'Озвучити голосом'}
             >
-              {speakingIdx === idx ? '🔊 (грає...)' : '🔊'}
+              <span aria-hidden="true">{speakingIdx === idx ? '🔊' : '🔊'}</span>
+              {speakingIdx === idx ? ' (грає...)' : null}
             </Button>
           )}
           <Button
@@ -201,8 +212,9 @@ const MessageItem = React.memo(function MessageItem({
             className="p-0 text-muted text-decoration-none ms-1"
             onClick={() => onCopy(msg.content)}
             title="Копіювати повідомлення"
+            aria-label="Копіювати повідомлення"
           >
-            📋
+            <span aria-hidden="true">📋</span>
           </Button>
         </div>
       </div>
@@ -246,7 +258,7 @@ const MessageItem = React.memo(function MessageItem({
                 className="d-inline-flex align-items-center gap-1 py-1 px-2"
                 onClick={() => onOpenArtifact?.(art)}
               >
-                <span>🎨</span>
+                <span aria-hidden="true">🎨</span>
                 <span>Переглянути артефакт: {art.title}</span>
               </Button>
             ))}

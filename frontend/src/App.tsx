@@ -2,7 +2,7 @@
  * App shell: routing, auth, React Query. Heavy pages are code-split.
  */
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { Container, Spinner } from 'react-bootstrap';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -64,6 +64,7 @@ const AppRoutes = () => {
             path="/"
             element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />}
           />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Container>
     </>
@@ -71,10 +72,20 @@ const AppRoutes = () => {
 };
 
 const LoadingFallback = () => (
-  <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+  <div className="d-flex justify-content-center align-items-center app-loading">
     <Spinner animation="border" variant="primary" />
   </div>
 );
+
+function NotFound() {
+  return (
+    <div className="text-center py-5">
+      <h1 className="fw-bold">404</h1>
+      <p className="text-muted">Сторінку не знайдено</p>
+      <Link to="/">На головну</Link>
+    </div>
+  );
+}
 
 function App() {
   return (

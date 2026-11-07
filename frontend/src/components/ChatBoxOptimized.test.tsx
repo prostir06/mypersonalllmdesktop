@@ -213,6 +213,7 @@ describe('ChatBoxOptimized', () => {
   afterEach(() => {
     sessionStorage.clear();
     chatStreamState.error = null;
+    chatStreamState.streaming = false;
     chatAttachmentsState.attachedImage = null;
     chatAttachmentsState.chatAttachments = [];
     mockMessages = [];
@@ -241,9 +242,18 @@ describe('ChatBoxOptimized', () => {
       2,
       'hello',
       expect.any(Function),
-      { toolsEnabled: true }
+      { toolsEnabled: true, skipOptimisticUser: true }
     );
+    expect(screen.getByRole('alert')).toHaveTextContent('Помилка');
     expect(navigateMock).toHaveBeenCalledWith('/settings');
+  });
+
+  it('keeps the composer editable while a reply is streaming', () => {
+    chatStreamState.streaming = true;
+    render(<ChatBoxOptimized conversationId={null} />);
+    expect(screen.getByLabelText(/Введення повідомлення/i)).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /надіслати/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Зупинити генерацію/i })).toBeInTheDocument();
   });
 
   it('sends attachment fallback when only attachedImage is present', async () => {

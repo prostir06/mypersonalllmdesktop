@@ -56,6 +56,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
     ? session.model.selectedProvider === 'gemini'
     : props.isGeminiProvider ?? false;
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.key === 'Process') return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       onSubmit(e);
@@ -94,7 +95,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
             title="Видалити зображення"
             aria-label="Видалити зображення"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </Button>
         </div>
       )}
@@ -120,7 +121,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
                 title="Видалити вкладення"
                 aria-label={`Видалити вкладення ${a.filename}`}
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </Button>
             </div>
           ))}
@@ -135,7 +136,6 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
           value={inputMessage}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={streaming}
           aria-label="Введення повідомлення"
           className="bg-dark text-light border-secondary shadow-none"
           style={{ resize: 'none' }}
@@ -151,7 +151,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
             aria-label="Додати зображення"
             className="py-3 px-3"
           >
-            🖼️
+            <span aria-hidden="true">🖼️</span>
           </Button>
         )}
 
@@ -162,9 +162,9 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
           disabled={streaming}
           title="Додати файл (PDF, XLSX, TXT, MD)"
           aria-label="Додати файл"
-          className="py-3 px-3"
+            className="py-3 px-3"
         >
-          📎
+          <span aria-hidden="true">📎</span>
         </Button>
 
         <Button
@@ -180,7 +180,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
           aria-label="Перемикач пошуку в інтернеті"
           className="py-3 px-3"
         >
-          🌐
+          <span aria-hidden="true">🌐</span>
         </Button>
 
         <Button
@@ -192,7 +192,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
           aria-label={isListening ? 'Зупинити запис' : 'Увімкнути голосове введення'}
           className="py-3 px-3"
         >
-          {isListening ? '⏹️' : '🎤'}
+          <span aria-hidden="true">{isListening ? '⏹️' : '🎤'}</span>
         </Button>
 
         {streaming ? (
@@ -216,7 +216,7 @@ const MessageInput = React.memo(function MessageInput(props: MessageInputProps) 
               !attachedImage
             }
           >
-            <span>Надіслати 🚀</span>
+            <span>Надіслати <span aria-hidden="true">🚀</span></span>
           </Button>
         )}
       </Form>

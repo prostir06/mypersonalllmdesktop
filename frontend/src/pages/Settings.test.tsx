@@ -88,6 +88,12 @@ describe('Settings', () => {
     cleanup();
   });
 
+  it('keeps a saved temperature of 0', () => {
+    settingsData = { ...settingsData, temperature: 0 };
+    render(<Settings />);
+    expect(screen.getByLabelText(/Температура креативності/i)).toHaveValue('0');
+  });
+
   it('renders all settings tabs', () => {
     render(<Settings />);
     expect(screen.getByRole('tab', { name: /Загальні/i })).toBeInTheDocument();

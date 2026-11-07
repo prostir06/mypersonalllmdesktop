@@ -2,7 +2,7 @@
  * Protected route — redirects to /login when unauthenticated.
  */
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 type ProtectedRouteProps = {
@@ -13,6 +13,7 @@ export default function ProtectedRoute({
   component: Component,
 }: ProtectedRouteProps) {
   const { isAuthenticated, authReady } = useAuth();
+  const location = useLocation();
 
   if (!authReady) {
     return (
@@ -21,7 +22,7 @@ export default function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   return <Component />;

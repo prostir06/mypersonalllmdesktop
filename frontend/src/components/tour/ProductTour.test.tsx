@@ -6,6 +6,7 @@ import { ProductTourProvider } from '../../context/ProductTourContext';
 
 describe('ProductTour Component', () => {
   beforeEach(() => {
+    localStorage.clear();
     document.body.innerHTML = `
       <div data-tour="test-target" style="width: 100px; height: 50px;">Target Element</div>
     `;
@@ -55,5 +56,34 @@ describe('ProductTour Component', () => {
     // Escape closes tour
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByText('Крок 2')).not.toBeInTheDocument();
+  });
+
+  it('ignores Enter from an editable field and traps Tab in the dialog', () => {
+    const testSteps = [
+      { id: 's1', target: '[data-tour="test-target"]', title: 'Крок 1', content: 'Опис 1' },
+      { id: 's2', target: '[data-tour="test-target"]', title: 'Крок 2', content: 'Опис 2' },
+    ];
+
+    render(
+      <>
+        <input aria-label="чернетка" />
+        <ProductTourProvider steps={testSteps}>
+          <ProductTour autoStart={true} />
+        </ProductTourProvider>
+      </>
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+
+    const draft = screen.getByLabelText('чернетка');
+    draft.focus();
+    fireEvent.keyDown(draft, { key: 'Enter' });
+    expect(screen.getByText('Крок 1')).toBeInTheDocument();
+
+    const next = screen.getByRole('button', { name: /Далі/i });
+    next.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Закрити тур' })).toHaveFocus();
   });
 });

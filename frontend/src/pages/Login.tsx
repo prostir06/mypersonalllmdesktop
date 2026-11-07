@@ -5,11 +5,20 @@
 
 import React, { useState, type FormEvent } from 'react';
 import { Form, Button, Container, Row, Col, Alert, Spinner } from 'react-bootstrap';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { AxiosError } from 'axios';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+
+function returnPath(state: unknown): string {
+  const from = (state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const path = from?.pathname ?? '';
+  if (!path.startsWith('/') || path.startsWith('//') || path === '/login' || path === '/register') {
+    return '/dashboard';
+  }
+  return `${path}${from?.search ?? ''}`;
+}
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -17,6 +26,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -28,7 +38,7 @@ const Login: React.FC = () => {
       const response = await authAPI.login(email, password);
       login(response.data.token);
       toast.success('Успішний вхід! 🚀');
-      navigate('/dashboard');
+      navigate(returnPath(location.state), { replace: true });
     } catch (err: unknown) {
       const ax = err as AxiosError<{ error?: string }>;
       const msg = ax.response?.data?.error || 'Помилка при вході';

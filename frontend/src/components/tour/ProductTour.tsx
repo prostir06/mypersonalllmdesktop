@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, Badge } from 'react-bootstrap';
 import { useProductTour } from '../../context/ProductTourContext';
@@ -28,6 +28,7 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
   } = useProductTour();
 
   const [rect, setRect] = useState<TargetRect | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   // Auto-start for new users / new versions if requested (disabled under automated test drivers like Playwright)
   useEffect(() => {
@@ -88,10 +89,19 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
     }
   }, [isActive, updatePosition, currentStepIndex]);
 
-  // Keyboard navigation
+  // Keyboard navigation. Typing in a field must not move the tour.
   useEffect(() => {
     if (!isActive) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.isComposing) return;
+      const target = e.target;
+      const editable =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT');
+      if (editable) return;
       if (e.key === 'Escape') {
         dismissTour();
       } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
@@ -103,6 +113,36 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isActive, nextStep, prevStep, dismissTour]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const root = dialogRef.current;
+    if (!root) return;
+    root.focus();
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = Array.from(
+        root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea')
+      );
+      if (items.length === 0) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || active === root)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onTab);
+    return () => document.removeEventListener('keydown', onTab);
+  }, [isActive, currentStepIndex]);
 
   if (!isActive || !currentStep) return null;
 
@@ -227,7 +267,10 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
           borderRadius: 12,
         }}
         role="dialog"
-        aria-label="Product Tour Step"
+        aria-modal="true"
+        aria-labelledby="product-tour-title"
+        tabIndex={-1}
+        ref={dialogRef}
       >
         <div className="d-flex justify-content-between align-items-center mb-2">
           <div className="d-flex align-items-center gap-2">
@@ -247,11 +290,11 @@ export const ProductTour: React.FC<ProductTourProps> = ({ autoStart = false }) =
             title="Закрити тур"
             aria-label="Закрити тур"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </Button>
         </div>
 
-        <h6 className="fw-bold mb-2 text-white">{currentStep.title}</h6>
+        <h6 id="product-tour-title" className="fw-bold mb-2 text-white">{currentStep.title}</h6>
         <p className="small text-muted mb-3" style={{ lineHeight: 1.5 }}>
           {currentStep.content}
         </p>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type FormEvent, type MouseEvent } from 'react';
+import React, { useMemo, useState, type FormEvent, type HTMLAttributes, type MouseEvent } from 'react';
 import { Button, Form, Spinner } from 'react-bootstrap';
 import MessageSearch from '../../components/MessageSearch';
 import VirtualFrame from '../../components/VirtualFrame';
@@ -28,6 +28,18 @@ type Props = {
   onNewConversation: () => void;
   onTogglePin?: (convId: string | number, e: MouseEvent) => void;
 };
+
+const SidebarList = React.forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function SidebarList(props, ref) {
+    return <div {...props} ref={ref} role="list" aria-label="Список розмов" />;
+  }
+);
+
+const SidebarRow = React.forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
+  function SidebarRow(props, ref) {
+    return <div {...props} ref={ref} role="listitem" />;
+  }
+);
 
 function DashboardSidebar({
   conversations,
@@ -84,8 +96,7 @@ function DashboardSidebar({
     return (
       <div
         key={conv.id}
-        role="option"
-        aria-selected={isActive}
+        aria-current={isActive ? 'true' : undefined}
         tabIndex={0}
         className={`conversation-card ${isActive ? 'active' : ''}`}
         onClick={() => selectConversation(conv.id)}
@@ -112,8 +123,8 @@ function DashboardSidebar({
               autoFocus
               className="bg-dark text-light border-secondary shadow-none"
             />
-            <Button type="submit" size="sm" variant="success">
-              ✓
+            <Button type="submit" size="sm" variant="success" aria-label="Зберегти назву">
+              <span aria-hidden="true">✓</span>
             </Button>
           </Form>
         ) : (
@@ -133,7 +144,7 @@ function DashboardSidebar({
             title={isPinned ? 'Відкріпити' : 'Закріпити'}
             aria-label={isPinned ? 'Відкріпити' : 'Закріпити'}
           >
-            <span className={isPinned ? 'opacity-100' : 'opacity-50'}>
+            <span aria-hidden="true" className={isPinned ? 'opacity-100' : 'opacity-50'}>
               📌
             </span>
           </Button>
@@ -144,8 +155,9 @@ function DashboardSidebar({
               className="p-0 text-muted text-decoration-none"
               onClick={(e) => startRename(conv, e)}
               title="Перейменувати"
+              aria-label="Перейменувати"
             >
-              ✏️
+              <span aria-hidden="true">✏️</span>
             </Button>
           )}
           <Button
@@ -154,8 +166,9 @@ function DashboardSidebar({
             className="p-0 text-muted hover-white text-decoration-none"
             onClick={(e) => handleDeleteConversation(conv.id, e)}
             title="Видалити розмову"
+            aria-label="Видалити розмову"
           >
-            🗑️
+            <span aria-hidden="true">🗑️</span>
           </Button>
         </div>
       </div>
@@ -169,7 +182,7 @@ function DashboardSidebar({
           className="btn-accent w-100 mb-3 py-2.5 d-flex align-items-center justify-content-center gap-2"
           onClick={onNewConversation}
         >
-          <span>➕</span> Нова розмова
+          <span aria-hidden="true">➕</span> Нова розмова
         </Button>
 
         <MessageSearch
@@ -183,8 +196,6 @@ function DashboardSidebar({
 
       <div
         className="conversation-scroll flex-grow-1 pr-1"
-        role="listbox"
-        aria-label="Список розмов"
       >
         {isLoading && conversations.length === 0 ? (
           <div className="text-center p-4" aria-live="polite" aria-busy="true">
@@ -203,6 +214,7 @@ function DashboardSidebar({
           <VirtualFrame
             data={rows}
             computeItemKey={(_index, row) => row.key}
+            components={{ List: SidebarList, Item: SidebarRow }}
             itemContent={(_index, row) => {
               if (row.kind === 'header') {
                 return (

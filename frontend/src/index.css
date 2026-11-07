@@ -423,6 +423,7 @@ code, pre {
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
   height: calc(100vh - 85px);
+  height: calc(100dvh - 85px);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -501,6 +502,49 @@ code, pre {
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
+.chat-panel {
+  height: calc(100vh - 120px);
+  height: calc(100dvh - 120px);
+}
+
+.dashboard-shell {
+  min-height: calc(100vh - 100px);
+  min-height: calc(100dvh - 100px);
+}
+
+.app-loading {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.chat-thread {
+  min-width: 0;
+}
+
+.chat-thread-beside-artifact,
+.artifact-panel-slot {
+  width: 50%;
+  min-width: 0;
+}
+
+@media (max-width: 767.98px) {
+  .chat-toolbar-actions:not(.is-open) {
+    display: none !important;
+  }
+
+  .chat-thread-beside-artifact {
+    display: none !important;
+  }
+
+  .artifact-panel-slot {
+    position: fixed;
+    inset: 0;
+    z-index: 1040;
+    width: 100%;
+    background: #0f1115;
+  }
+}
+
 @media (max-width: 768px) {
   .message-bubble { max-width: 100%; }
   .messages-list { padding: 1rem; }

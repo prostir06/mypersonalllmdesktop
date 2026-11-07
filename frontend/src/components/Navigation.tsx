@@ -114,7 +114,7 @@ const Navigation: React.FC = () => {
                 title="Переключити тему"
                 aria-label="Переключити тему"
               >
-                {theme === 'dark' ? '☀️' : '🌙'}
+                <span aria-hidden="true">{theme === 'dark' ? '☀️' : '🌙'}</span>
               </Button>
               <Button
                 variant="outline-danger"
