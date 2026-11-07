@@ -2,7 +2,12 @@ import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from './providerFactory';
 import { defaultModelFor } from '../config/models';
+import { resolveOpenAiApiKey } from '../utils/openaiKeyResolver';
+import { resolveGeminiApiKey } from '../utils/geminiKeyResolver';
+import { resolveClaudeApiKey } from '../utils/claudeKeyResolver';
 import type { ChatMessage } from './chat/types';
+
+const summaryInFlight = new Set<number>();
 
 export const MAX_NOTES = 20;
 export const MAX_NOTE_CHARS = 500;
@@ -37,7 +42,7 @@ function truncate(input: string, maxChars: number): string {
 async function ensureConversationAccess(userId: number, conversationId: number) {
   const owned = await prisma.conversation.findFirst({
     where: { id: conversationId, userId },
-    select: { id: true, summary: true, summaryUpdatedAt: true },
+    select: { id: true, summary: true, summaryUpdatedAt: true, messagesSinceSummary: true },
   });
   if (owned) return owned;
   throw new MemoryError(404, 'Conversation not found');
@@ -169,11 +174,20 @@ export async function buildMemorySystemMessages(
   return systemMessages;
 }
 
+async function resolveSummaryApiKey(userId: number, provider: string): Promise<string | null> {
+  if (provider === 'gemini') return resolveGeminiApiKey(userId);
+  if (provider === 'anthropic' || provider === 'claude') return resolveClaudeApiKey(userId);
+  if (provider === 'ollama') return null;
+  return resolveOpenAiApiKey(userId);
+}
+
 export async function maybeRefreshSummary(
   userId: number,
   conversationId: number,
   opts: { force?: boolean } = {}
 ): Promise<{ refreshed: boolean }> {
+  if (summaryInFlight.has(conversationId)) return { refreshed: false };
+  summaryInFlight.add(conversationId);
   try {
     const conversation = await ensureConversationAccess(userId, conversationId);
     const force = Boolean(opts.force);
@@ -185,22 +199,13 @@ export async function maybeRefreshSummary(
       process.env.SUMMARY_EVERY_N,
       DEFAULT_SUMMARY_EVERY_N
     );
+    const messagesSince = conversation.messagesSinceSummary ?? 0;
+    const beforeFirstSummary = !conversation.summary && !conversation.summaryUpdatedAt;
 
-    const totalMessages = await prisma.message.count({ where: { conversationId } });
-    if (!force && totalMessages <= summaryThreshold) return { refreshed: false };
-
-    if (!force) {
-      let messagesSince = totalMessages;
-      if (conversation.summaryUpdatedAt) {
-        messagesSince = await prisma.message.count({
-          where: {
-            conversationId,
-            createdAt: { gt: conversation.summaryUpdatedAt },
-          },
-        });
-      }
-      if (messagesSince < summaryEveryN) return { refreshed: false };
+    if (!force && beforeFirstSummary && messagesSince <= summaryThreshold) {
+      return { refreshed: false };
     }
+    if (!force && messagesSince < summaryEveryN) return { refreshed: false };
 
     const recentMessages = await prisma.message.findMany({
       where: { conversationId },
@@ -232,11 +237,12 @@ export async function maybeRefreshSummary(
       },
     ];
 
+    const apiKey = await resolveSummaryApiKey(userId, provider);
     const result = await ProviderFactory.sendMessage(
       provider,
       summarizeMessages,
       model,
-      {}
+      apiKey ? { apiKey } : {}
     );
     const summary = truncate((result?.content || '').trim(), MAX_SUMMARY_CHARS);
     if (!summary) return { refreshed: false };
@@ -246,6 +252,7 @@ export async function maybeRefreshSummary(
       data: {
         summary,
         summaryUpdatedAt: new Date(),
+        messagesSinceSummary: 0,
       },
     });
     return { refreshed: true };
@@ -258,6 +265,8 @@ export async function maybeRefreshSummary(
       `conversationMemoryService.maybeRefreshSummary skipped: ${message}`
     );
     return { refreshed: false };
+  } finally {
+    summaryInFlight.delete(conversationId);
   }
 }
 

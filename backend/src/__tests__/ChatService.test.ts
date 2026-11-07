@@ -1141,7 +1141,10 @@ describe('ChatService', () => {
 
       expect(mockedPrisma.conversation.update).toHaveBeenCalledWith({
         where: { id: 5 },
-        data: { updatedAt: expect.any(Date) },
+        data: {
+          updatedAt: expect.any(Date),
+          messagesSinceSummary: { increment: 2 },
+        },
       });
     });
 

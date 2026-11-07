@@ -51,6 +51,7 @@ export async function persistTurn(
         where: { id: conversationId },
         data: {
           updatedAt: new Date(),
+          messagesSinceSummary: { increment: opts.skipUserMessage ? 1 : 2 },
           ...(shouldTitle ? { title: conversationTitle(userContent) } : {}),
         },
       });
@@ -71,7 +72,7 @@ export async function persistAssistantMessage(
   parentId?: number,
   toolTrace?: ToolTraceEntry[] | Prisma.InputJsonValue
 ): Promise<Message> {
-  return prisma.message.create({
+  const created = await prisma.message.create({
     data: {
       conversationId,
       role: 'assistant',
@@ -82,4 +83,9 @@ export async function persistAssistantMessage(
       parentId,
     },
   });
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: { messagesSinceSummary: { increment: 1 } },
+  });
+  return created;
 }

@@ -39,6 +39,7 @@ jest.mock('../logger', () => ({
 import prisma from '../config/prisma';
 import logger from '../logger';
 import ProviderFactory from '../services/providerFactory';
+import * as geminiKeys from '../utils/geminiKeyResolver';
 import {
   MAX_NOTE_CHARS,
   MAX_NOTES,
@@ -142,9 +143,16 @@ describe('conversationMemoryService', () => {
   });
 
   it('does not summarize when message count is <= default threshold', async () => {
-    mockedPrisma.message.count.mockResolvedValue(40);
+    mockedPrisma.conversation.findFirst.mockResolvedValue({
+      id: 7,
+      userId: 9,
+      summary: null,
+      summaryUpdatedAt: null,
+      messagesSinceSummary: 40,
+    });
     const result = await maybeRefreshSummary(9, 7);
     expect(result).toEqual({ refreshed: false });
+    expect(mockedPrisma.message.count).not.toHaveBeenCalled();
     expect(mockedProviderFactory.sendMessage).not.toHaveBeenCalled();
     expect(mockedPrisma.conversation.update).not.toHaveBeenCalled();
   });
@@ -159,10 +167,8 @@ describe('conversationMemoryService', () => {
       userId: 9,
       summary: 'existing',
       summaryUpdatedAt,
+      messagesSinceSummary: 5,
     });
-    mockedPrisma.message.count
-      .mockResolvedValueOnce(100)
-      .mockResolvedValueOnce(5);
 
     const result = await maybeRefreshSummary(9, 7);
 
@@ -195,8 +201,41 @@ describe('conversationMemoryService', () => {
       data: expect.objectContaining({
         summary: 'y'.repeat(4000),
         summaryUpdatedAt: expect.any(Date),
+        messagesSinceSummary: 0,
       }),
     });
+  });
+
+  it('sends the user Gemini key and ignores a second refresh while one is running', async () => {
+    jest.spyOn(geminiKeys, 'resolveGeminiApiKey').mockResolvedValue('gem-user');
+    mockedPrisma.message.findMany.mockResolvedValue([{ role: 'user', content: 'факт' }]);
+    mockedPrisma.userSettings.findUnique.mockResolvedValue({
+      defaultProvider: 'gemini',
+      defaultModel: 'gemini-2.0-flash',
+    });
+    let release: (value: { content: string }) => void = () => {};
+    const started = new Promise<void>((resolve) => {
+      mockedProviderFactory.sendMessage.mockImplementation(
+        () => new Promise((done) => {
+          release = done as (value: { content: string }) => void;
+          resolve();
+        })
+      );
+    });
+
+    const first = maybeRefreshSummary(9, 7, { force: true });
+    await expect(maybeRefreshSummary(9, 7, { force: true })).resolves.toEqual({ refreshed: false });
+    await started;
+    release({ content: 'коротко' });
+    await expect(first).resolves.toEqual({ refreshed: true });
+
+    expect(mockedProviderFactory.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mockedProviderFactory.sendMessage).toHaveBeenCalledWith(
+      'gemini',
+      expect.any(Array),
+      'gemini-2.0-flash',
+      { apiKey: 'gem-user' }
+    );
   });
 
   it('swallows summarize errors and logs warn', async () => {
