@@ -261,6 +261,112 @@ describe('ToolOrchestrator', () => {
       expect(toolMsg.content.length).toBeLessThanOrEqual(4000 + '... [truncated]'.length);
       expect(toolMsg.content).toContain('... [truncated]');
       expect(result.content).toBe('Received truncated output');
+      expect(result.toolTrace?.[0].result).toEqual(expect.any(String));
+      expect(String(result.toolTrace?.[0].result).length).toBeLessThan(600);
+      expect(String(result.toolTrace?.[0].result)).toContain('... [truncated]');
+    });
+
+    it('runs read tools together, records one assistant tool message, and sums usage', async () => {
+      let started = 0;
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const execute = async () => {
+        started += 1;
+        if (started === 2) release();
+        await gate;
+        return { ok: true };
+      };
+      toolRegistry.register({
+        name: 'parallel_a',
+        description: 'a',
+        category: 'read',
+        parameters: { type: 'object' },
+        execute,
+      });
+      toolRegistry.register({
+        name: 'parallel_b',
+        description: 'b',
+        category: 'read',
+        parameters: { type: 'object' },
+        execute,
+      });
+
+      mockProviderFactory.sendMessage
+        .mockResolvedValueOnce({
+          content: '',
+          tokenUsage: { promptTokens: 10, completionTokens: 4, totalTokens: 14, estimatedCostUsd: 0.001 },
+          toolCalls: [
+            { id: 'a', name: 'parallel_a', argumentsJson: '{}' },
+            { id: 'b', name: 'parallel_b', argumentsJson: '{}' },
+          ],
+        })
+        .mockResolvedValueOnce({
+          content: 'готово',
+          tokenUsage: { promptTokens: 20, completionTokens: 2, totalTokens: 22, estimatedCostUsd: 0.002 },
+          toolCalls: [],
+        });
+
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'паралельно',
+        chatMessages: [{ role: 'user', content: 'паралельно' }],
+        provider: 'openai',
+        model: 'gpt-4o',
+      });
+
+      const messages = mockProviderFactory.sendMessage.mock.calls[1][1];
+      const assistantCall = messages.find((message: { role?: string; tool_calls?: unknown }) =>
+        message.role === 'assistant' && Array.isArray(message.tool_calls)
+      );
+      expect(assistantCall.tool_calls).toHaveLength(2);
+      expect(messages.filter((message: { role?: string }) => message.role === 'tool')).toHaveLength(2);
+      expect(result.content).toBe('готово');
+      expect(result.tokenUsage).toEqual({
+        promptTokens: 30,
+        completionTokens: 6,
+        totalTokens: 36,
+        estimatedCostUsd: 0.003,
+      });
+    });
+
+    it('persists every streamed token the user saw', async () => {
+      mockProviderFactory.streamMessage
+        .mockImplementationOnce(async (_provider, _messages, _model, _opts, onToken) => {
+          onToken('Шукаю. ');
+          return {
+            content: 'Шукаю. ',
+            tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+            toolCalls: [
+              { id: 'c1', name: 'calculate', argumentsJson: JSON.stringify({ expression: '1+1' }) },
+            ],
+          };
+        })
+        .mockImplementationOnce(async (_provider, _messages, _model, _opts, onToken) => {
+          onToken('Два.');
+          return {
+            content: 'Два.',
+            tokenUsage: { promptTokens: 2, completionTokens: 1, totalTokens: 3 },
+            toolCalls: [],
+          };
+        });
+
+      const seen: string[] = [];
+      const result = await runToolOrchestratedTurn({
+        userId: 1,
+        conversationId: 10,
+        userMessage: 'порахуй',
+        chatMessages: [{ role: 'user', content: 'порахуй' }],
+        provider: 'openai',
+        model: 'gpt-4o',
+        onToken: (token) => seen.push(token),
+      });
+
+      expect(seen.join('')).toBe('Шукаю. Два.');
+      expect(result.content).toBe('Шукаю. Два.');
+      expect(result.tokenUsage).toMatchObject({ promptTokens: 3, completionTokens: 2, totalTokens: 5 });
     });
 
     it('pauses on write tools, creates PendingToolAction, emits tool_confirmation_required, and does NOT execute write tool', async () => {

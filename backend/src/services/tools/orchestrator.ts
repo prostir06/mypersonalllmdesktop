@@ -6,6 +6,7 @@ import { persistTurn } from '../chat/persist';
 import ProviderFactory from '../providerFactory';
 import { modelSupportsTools } from '../../utils/modelCapabilities';
 import { defaultModelFor } from '../../config/models';
+import { sumTokenUsage } from '../providers/shared';
 import { writeSseEvent } from '../../utils/sse';
 import toolRegistry from './registry';
 import type {
@@ -19,7 +20,8 @@ import type { NormalizedToolCall } from '../providers/types';
 export const MAX_TOOL_ITERATIONS = 5;
 export const PENDING_ACTION_TTL_MS = 15 * 60 * 1000; // 15 minutes
 export { TOOL_TIMEOUT_MS, MAX_TOOL_OUTPUT_CHARS } from './toolExecutor';
-import { executeReadTool } from './toolExecutor';
+import { executeReadTool, summarizeToolPayload } from './toolExecutor';
+import { synthesizeEmptyToolReply } from './emptyToolReply';
 
 export interface ToolOrchestrationOptions {
   userId: number;
@@ -128,7 +130,15 @@ export async function runToolOrchestratedTurn(
   ];
   const toolTrace: ToolTraceEntry[] = [];
   const accumulatedSources: RagSource[] = [...(options.sources || [])];
+  const usageParts: Array<TokenUsage | undefined> = [];
+  let streamedVisible = '';
   let lastResponse: any = null;
+
+  const recordVisible = (token: string) => {
+    if (!token) return;
+    streamedVisible += token;
+    options.onToken?.(token);
+  };
 
   for (let iteration = 1; iteration <= MAX_TOOL_ITERATIONS; iteration++) {
     const toolDefinitions = toolRegistry.getDefinitions();
@@ -139,6 +149,7 @@ export async function runToolOrchestratedTurn(
     };
 
     const isStreaming = Boolean(options.onToken);
+    let iterationEmitted = false;
     let response: any;
     if (isStreaming) {
       response = await ProviderFactory.streamMessage(
@@ -146,7 +157,10 @@ export async function runToolOrchestratedTurn(
         dialogueHistory,
         model,
         providerOpts,
-        options.onToken
+        (token: string) => {
+          iterationEmitted = true;
+          recordVisible(token);
+        }
       );
     } else {
       response = await ProviderFactory.sendMessage(
@@ -157,6 +171,10 @@ export async function runToolOrchestratedTurn(
       );
     }
     lastResponse = response;
+    usageParts.push(response.tokenUsage);
+    if (isStreaming && !iterationEmitted && typeof response.content === 'string' && response.content) {
+      recordVisible(response.content);
+    }
 
     if (response.sources && Array.isArray(response.sources)) {
       accumulatedSources.push(...(response.sources as RagSource[]));
@@ -208,22 +226,39 @@ export async function runToolOrchestratedTurn(
       }
     }
 
-    // Execute read tools
-    for (const { call, tool, args } of readToolCalls) {
-      const ctx: ToolExecutionContext = {
-        userId: options.userId,
-        conversationId: options.conversationId,
-        provider,
-        model,
-        signal: options.signal,
-      };
-      await executeReadTool(call, tool, args, ctx, {
-        res: options.res,
-        responseContent: response.content || '',
-        dialogueHistory,
-        accumulatedSources,
-        toolTrace,
+    const ctx: ToolExecutionContext = {
+      userId: options.userId,
+      conversationId: options.conversationId,
+      provider,
+      model,
+      signal: options.signal,
+    };
+    const executions = await Promise.all(
+      readToolCalls.map(({ call, tool, args }) =>
+        executeReadTool(call, tool, args, ctx, {
+          res: options.res,
+          accumulatedSources,
+          toolTrace,
+        })
+      )
+    );
+    if (executions.length > 0) {
+      dialogueHistory.push({
+        role: 'assistant',
+        content: response.content || '',
+        tool_calls: executions.map(({ call }) => ({
+          id: call.id,
+          type: 'function',
+          function: { name: call.name, arguments: call.argumentsJson },
+        })),
       });
+      for (const exec of executions) {
+        dialogueHistory.push({
+          role: 'tool',
+          tool_call_id: exec.call.id,
+          content: exec.resultStr,
+        });
+      }
     }
 
     // Handle write tool pause if called
@@ -273,16 +308,19 @@ export async function runToolOrchestratedTurn(
         durationMs: 0,
       });
 
+      const pauseContent = options.onToken ? streamedVisible : (response.content || '');
+      const pauseUsage = sumTokenUsage(usageParts);
+      const pauseTrace = storedToolTrace(toolTrace);
       const assistant = await persistTurn(
         options.conversationId,
         options.userMessage || '',
-        response.content || '',
+        pauseContent,
         {
           skipUserMessage: options.skipUserMessage,
           regenerateFromMessageId: options.regenerateFromMessageId,
           sources: accumulatedSources,
-          tokenUsage: response.tokenUsage,
-          toolTrace,
+          tokenUsage: pauseUsage,
+          toolTrace: pauseTrace,
         }
       );
 
@@ -316,11 +354,11 @@ export async function runToolOrchestratedTurn(
       return {
         conversationId: options.conversationId,
         messageId: assistant.id,
-        content: response.content || '',
+        content: pauseContent,
         role: 'assistant' as const,
         timestamp: assistant.createdAt,
         sources: accumulatedSources,
-        toolTrace,
+        toolTrace: pauseTrace,
         pendingAction: {
           actionId: effectiveActionId,
           toolName: call.name,
@@ -332,7 +370,7 @@ export async function runToolOrchestratedTurn(
           expiresAt: effectiveExpiresAt,
         },
         status: 'pending_confirmation',
-        tokenUsage: response.tokenUsage,
+        tokenUsage: pauseUsage,
       };
     }
 
@@ -350,92 +388,47 @@ export async function runToolOrchestratedTurn(
 
   let finalText = lastResponse?.content || '';
   if (!finalText.trim() && toolTrace.length > 0) {
-    const successfulCalc = toolTrace.find(
-      (t) =>
-        t.tool === 'calculate' &&
-        t.status === 'completed' &&
-        t.result !== null &&
-        typeof t.result === 'object' &&
-        'result' in (t.result as Record<string, unknown>)
-    );
-    const successfulTime = toolTrace.find(
-      (t) =>
-        t.tool === 'get_current_time' &&
-        t.status === 'completed' &&
-        t.result !== null &&
-        typeof t.result === 'object' &&
-        'local' in (t.result as Record<string, unknown>)
-    );
-    const successfulWeb = toolTrace.find(
-      (t) =>
-        t.tool === 'web_search' &&
-        t.status === 'completed' &&
-        t.result !== null &&
-        typeof t.result === 'object'
-    );
-    const successfulDocSearch = toolTrace.find(
-      (t) =>
-        t.tool === 'search_documents' &&
-        t.status === 'completed' &&
-        t.result !== null &&
-        typeof t.result === 'object' &&
-        'count' in (t.result as Record<string, unknown>)
-    );
-    const successfulDocList = toolTrace.find(
-      (t) =>
-        t.tool === 'list_documents' &&
-        t.status === 'completed' &&
-        Array.isArray(t.result)
-    );
-
-    if (successfulCalc && typeof successfulCalc.result === 'object' && successfulCalc.result !== null) {
-      const calcResult = (successfulCalc.result as Record<string, unknown>).result;
-      finalText = `Результат обчислення: **${String(calcResult)}**`;
-    } else if (successfulTime && typeof successfulTime.result === 'object' && successfulTime.result !== null) {
-      const res = successfulTime.result as Record<string, unknown>;
-      finalText = `Поточний час (${res.timezone || 'Europe/Kyiv'}): **${String(res.local)}**`;
-    } else if (successfulWeb && typeof successfulWeb.result === 'object' && successfulWeb.result !== null) {
-      const res = successfulWeb.result as Record<string, unknown>;
-      finalText = `Знайдено результатів у вебі за запитом "${String(res.query || '')}": **${String(res.results_count ?? 0)}**`;
-    } else if (successfulDocSearch && typeof successfulDocSearch.result === 'object' && successfulDocSearch.result !== null) {
-      const res = successfulDocSearch.result as Record<string, unknown>;
-      finalText = `Знайдено фрагментів у документах: **${String(res.count ?? 0)}**`;
-    } else if (successfulDocList && Array.isArray(successfulDocList.result)) {
-      finalText = `Знайдено доступних документів: **${successfulDocList.result.length}**`;
-    } else {
-      const completedTools = toolTrace.filter((t) => t.status === 'completed');
-      if (completedTools.length > 0) {
-        finalText = `Виконано інструменти: ${completedTools.map((t) => t.tool).join(', ')}.`;
-      }
-    }
-    if (options.onToken && finalText) {
-      options.onToken(finalText);
+    const synthesized = synthesizeEmptyToolReply(toolTrace);
+    if (synthesized) {
+      finalText = synthesized;
+      if (options.onToken) recordVisible(finalText);
     }
   }
 
+  const persistedContent = options.onToken ? streamedVisible : finalText;
+  const persistedUsage = sumTokenUsage(usageParts);
+  const persistedTrace = toolTrace.length > 0 ? storedToolTrace(toolTrace) : undefined;
   const assistant = await persistTurn(
     options.conversationId,
     options.userMessage || '',
-    finalText,
+    persistedContent,
     {
       skipUserMessage: options.skipUserMessage,
       regenerateFromMessageId: options.regenerateFromMessageId,
       sources: accumulatedSources,
-      tokenUsage: lastResponse?.tokenUsage,
-      toolTrace: toolTrace.length > 0 ? toolTrace : undefined,
+      tokenUsage: persistedUsage,
+      toolTrace: persistedTrace,
     }
   );
 
   return {
     conversationId: options.conversationId,
     messageId: assistant.id,
-    content: finalText,
+    content: persistedContent,
     role: 'assistant' as const,
     timestamp: assistant.createdAt,
     sources: accumulatedSources,
-    toolTrace,
-    tokenUsage: lastResponse?.tokenUsage,
+    toolTrace: persistedTrace,
+    tokenUsage: persistedUsage,
   };
+}
+
+function storedToolTrace(trace: ToolTraceEntry[]): ToolTraceEntry[] {
+  return trace.map((entry) => ({
+    ...entry,
+    args: summarizeToolPayload(entry.args) as Record<string, unknown>,
+    result: summarizeToolPayload(entry.result),
+  }));
 }
 
 export { resolvePendingToolAction } from './actionResolver';
