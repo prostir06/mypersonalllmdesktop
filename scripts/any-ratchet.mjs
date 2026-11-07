@@ -1,50 +1,105 @@
-/**
- * Fail when @typescript-eslint/no-explicit-any warnings grow past the baseline.
- * Usage: node scripts/any-ratchet.mjs frontend|backend
- */
+#!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const project = process.argv[2];
-if (project !== 'frontend' && project !== 'backend') {
-  console.error('usage: node scripts/any-ratchet.mjs frontend|backend');
-  process.exit(2);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const baseline = JSON.parse(
+  readFileSync(join(root, 'scripts/any-baseline.json'), 'utf8')
+);
+
+export const RULE = '@typescript-eslint/no-explicit-any';
+
+export function resolveEslintBin(project) {
+  const localBin = join(root, project, 'node_modules', 'eslint', 'bin', 'eslint.js');
+  if (existsSync(localBin)) return localBin;
+  const rootBin = join(root, 'node_modules', 'eslint', 'bin', 'eslint.js');
+  if (existsSync(rootBin)) return rootBin;
+  throw new Error(`ESLint binary not found for ${project} at ${localBin}`);
 }
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const baseline = JSON.parse(readFileSync(path.join(root, 'scripts', 'any-baseline.json'), 'utf8'));
-const allowed = baseline[project];
-if (typeof allowed !== 'number') {
-  console.error(`missing baseline for ${project}`);
-  process.exit(2);
+export function parseEslintJsonOutput(stdout, status, error, stderr = '', project = '') {
+  const prefix = project ? `[${project}] ` : '';
+  if (error) {
+    throw new Error(`${prefix}Failed to spawn ESLint: ${error.message}`);
+  }
+  if (status !== 0 && status !== 1) {
+    throw new Error(
+      `${prefix}ESLint exited with status ${status}:\n${stderr || stdout || '(no output)'}`
+    );
+  }
+  const raw = (stdout || '').trim();
+  if (!raw) {
+    throw new Error(
+      `${prefix}ESLint produced empty JSON output:\n${stderr || '(no stderr)'}`
+    );
+  }
+
+  const files = JSON.parse(raw);
+  let count = 0;
+  for (const file of files) {
+    for (const msg of file.messages || []) {
+      if (msg.ruleId === RULE) count += 1;
+    }
+  }
+  return count;
 }
 
-const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const result = spawnSync(npx, ['eslint', '.', '-f', 'json'], {
-  cwd: path.join(root, project),
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-});
+export function countAny(project) {
+  const cwd = join(root, project);
+  const eslintBin = resolveEslintBin(project);
+  const result = spawnSync(
+    process.execPath,
+    [eslintBin, '.', '-f', 'json'],
+    {
+      cwd,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    }
+  );
 
-let report;
-try {
-  report = JSON.parse(result.stdout || '[]');
-} catch {
-  console.error(result.stderr || result.stdout || 'eslint did not return JSON');
-  process.exit(1);
+  return parseEslintJsonOutput(
+    result.stdout,
+    result.status,
+    result.error,
+    result.stderr,
+    project
+  );
 }
 
-let count = 0;
-for (const file of report) {
-  for (const message of file.messages || []) {
-    if (message.ruleId === '@typescript-eslint/no-explicit-any') count += 1;
+export function runCli(argv = process.argv.slice(2)) {
+  const target = argv[0];
+  const projects = target ? [target] : ['backend', 'frontend'];
+  let failed = false;
+
+  for (const project of projects) {
+    if (project !== 'backend' && project !== 'frontend') {
+      console.error(`Unknown project: ${project}. Expected 'backend' or 'frontend'.`);
+      process.exit(2);
+    }
+    try {
+      const actual = countAny(project);
+      const limit = baseline[project];
+      const status = actual <= limit ? 'OK' : 'FAIL';
+      console.log(`${status} ${project}: ${actual} explicit any (baseline <= ${limit})`);
+      if (actual > limit) failed = true;
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      failed = true;
+    }
+  }
+
+  if (failed) {
+    console.error('\nExplicit `any` count exceeded baseline or ESLint failed.');
+    process.exit(1);
   }
 }
 
-console.log(`${project} explicit any: ${count} (baseline ${allowed})`);
-if (count > allowed) {
-  console.error(`${project} explicit any grew from ${allowed} to ${count}`);
-  process.exit(1);
+const isDirectRun =
+  process.argv[1] &&
+  resolve(process.argv[1]).toLowerCase() === fileURLToPath(import.meta.url).toLowerCase();
+
+if (isDirectRun) {
+  runCli();
 }
