@@ -247,3 +247,35 @@ export async function retryDocument(
     jsonError(res, req, classified.status, classified.message);
   }
 }
+
+export async function getDocumentContent(
+  req: AuthRequest,
+  res: Response
+): Promise<void> {
+  await withDocErrors(
+    req,
+    res,
+    `GET /documents/${req.params.id}/content error`,
+    'Не вдалося отримати вміст документа',
+    async () => {
+      const id = requireDocumentId(req, res);
+      if (id == null) return;
+      const result = await DocumentService.getFullContent(id, req.userId!);
+      if (result.status === 'not_found') {
+        jsonError(res, req, 404, 'Документ не знайдено');
+        return;
+      }
+      if (result.status === 'not_ready') {
+        jsonError(
+          res,
+          req,
+          409,
+          'Документ ще обробляється або пошкоджений'
+        );
+        return;
+      }
+      res.json(result.data);
+    }
+  );
+}
+

@@ -10,6 +10,7 @@ import {
   getDocumentChunks,
   retryDocument,
   reindexDocument,
+  getDocumentContent,
 } from '../controllers/documentsController';
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.get('/status', auth, getDocumentStatuses);
 router.get('/:id/chunks', auth, getDocumentChunks);
 router.post('/:id/reindex', auth, reindexDocument);
 router.post('/:id/retry', auth, retryDocument);
+router.get('/:id/content', auth, getDocumentContent);
 router.get('/:id', auth, getDocument);
 router.delete('/:id', auth, deleteDocument);
 

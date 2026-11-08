@@ -254,4 +254,61 @@ describe('DocumentModal', () => {
       expect(screen.getByText(/Аркуш: Inventory/)).toBeInTheDocument();
     });
   });
+
+  it('renders "Відкрити в Артефактах" button for ready document and calls onOpenInArtifact on click', async () => {
+    const onOpenInArtifact = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={docs}
+        onOpenInArtifact={onOpenInArtifact}
+      />
+    );
+
+    const openBtn = screen.getByRole('button', {
+      name: 'Відкрити документ notes.pdf в панелі артефактів',
+    });
+    expect(openBtn).toBeInTheDocument();
+    await user.click(openBtn);
+    expect(onOpenInArtifact).toHaveBeenCalledWith(docs[0]);
+  });
+
+  it('shows spinner and disables "Відкрити в Артефактах" button when openingDocId matches', () => {
+    const onOpenInArtifact = vi.fn();
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={docs}
+        onOpenInArtifact={onOpenInArtifact}
+        openingDocId={docs[0].id}
+      />
+    );
+
+    const openBtn = screen.getByRole('button', {
+      name: 'Відкрити документ notes.pdf в панелі артефактів',
+    });
+    expect(openBtn).toBeDisabled();
+    expect(openBtn.querySelector('.spinner-border')).toBeInTheDocument();
+  });
+
+  it('does not render "Відкрити в Артефактах" button for pending or failed documents', () => {
+    const onOpenInArtifact = vi.fn();
+    render(
+      <DocumentModal
+        {...baseProps}
+        userDocuments={[
+          { id: 10, filename: 'pending.pdf', status: 'pending' },
+          { id: 11, filename: 'failed.pdf', status: 'failed' },
+        ]}
+        onOpenInArtifact={onOpenInArtifact}
+      />
+    );
+
+    expect(
+      screen.queryByRole('button', {
+        name: /в панелі артефактів/,
+      })
+    ).not.toBeInTheDocument();
+  });
 });

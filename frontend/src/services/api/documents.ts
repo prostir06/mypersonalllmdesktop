@@ -1,6 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import type {
   DocumentChunkRecord,
+  DocumentContentResponse,
   DocumentDeleteResponse,
   DocumentRecord,
   DocumentStatusResponse,
@@ -34,4 +35,8 @@ export const documentsAPI = {
     api.post(`/documents/${id}/retry`),
   reindex: (id: string | number): Promise<AxiosResponse<DocumentUploadResponse>> =>
     api.post(`/documents/${id}/reindex`),
+  getContent: (
+    id: string | number
+  ): Promise<AxiosResponse<DocumentContentResponse>> =>
+    api.get(`/documents/${id}/content`),
 };

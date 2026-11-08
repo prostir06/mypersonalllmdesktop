@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, type FormEvent } from 
 import { Alert } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import type { AxiosError } from 'axios';
+import { documentsAPI } from '../services/api';
 import { useSettings, useUpdateSettings } from '../hooks/useSettings';
 import { useSpeech } from '../hooks/useSpeech';
 import { useChatDocuments } from '../hooks/useChatDocuments';
@@ -14,7 +16,7 @@ import { useSystemKnowledge } from '../hooks/useSystemKnowledge';
 import { copyTextWithToast } from '../utils/clipboard';
 import { useGuideModal } from '../context/GuideModalContext';
 import { ChatSessionProvider } from '../context/ChatSessionContext';
-import type { Artifact, Message, AdvisoryTip } from '../types/api';
+import type { Artifact, Message, AdvisoryTip, DocumentRecord } from '../types/api';
 import ChatControls from './chat/ChatControls';
 import MessageList from './chat/MessageList';
 import MessageInput from './chat/MessageInput';
@@ -77,6 +79,35 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     useSpeech(setInputMessage);
   const documents = useChatDocuments();
   const { selectedDocIds, setShowDocModal } = documents;
+  const [openingDocId, setOpeningDocId] = useState<string | number | null>(null);
+
+  const handleOpenDocInArtifact = useCallback(
+    async (doc: DocumentRecord) => {
+      try {
+        setOpeningDocId(doc.id);
+        const res = await documentsAPI.getContent(doc.id);
+        setActiveArtifact({
+          id: `doc-${doc.id}`,
+          type: 'docx',
+          title: doc.filename || String(doc.id),
+          language: 'markdown',
+          content: res.data.content,
+        });
+        setShowDocModal(false);
+      } catch (err: unknown) {
+        const ax = err as AxiosError<{ error?: string }> & { message?: string };
+        const msg =
+          ax?.response?.data?.error ||
+          ax?.message ||
+          'Не вдалося завантажити вміст документа';
+        toast.error(msg);
+      } finally {
+        setOpeningDocId(null);
+      }
+    },
+    [setShowDocModal]
+  );
+
   const attachments = useChatAttachments();
   const {
     attachedImage,
@@ -357,6 +388,8 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onPromptsChanged={() => {
           void refetchSystemKnowledge();
         }}
+        onOpenInArtifact={handleOpenDocInArtifact}
+        openingDocId={openingDocId}
       />
     </div>
     </ChatSessionProvider>

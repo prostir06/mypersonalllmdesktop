@@ -10,4 +10,5 @@ export {
   getDocumentChunks,
   reindexDocument,
   retryDocument,
+  getDocumentContent,
 } from '../services/documents/httpHandlers';

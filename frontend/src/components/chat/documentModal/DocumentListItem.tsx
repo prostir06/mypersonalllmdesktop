@@ -14,6 +14,9 @@ type Props = {
   onDeleteDoc: (docId: string | number) => void;
   onRetryDoc: (docId: string | number) => void;
   onReindexDoc: (docId: string | number) => void;
+  onOpenInArtifact?: (doc: DocumentRecord) => void;
+  onOpenDocInArtifact?: (doc: DocumentRecord) => void;
+  openingDocId?: string | number | null;
 };
 
 export default function DocumentListItem({
@@ -26,7 +29,11 @@ export default function DocumentListItem({
   onDeleteDoc,
   onRetryDoc,
   onReindexDoc,
+  onOpenInArtifact,
+  onOpenDocInArtifact,
+  openingDocId,
 }: Props) {
+  const handleOpenArtifact = onOpenInArtifact || onOpenDocInArtifact;
   const status = doc.status || 'ready';
   const isReady = status === 'ready';
   const isFailed = status === 'failed';
@@ -74,6 +81,22 @@ export default function DocumentListItem({
         )}
         {isReady && (doc.chunks_count ?? 0) > 0 && (
           <ChunkPreview docId={doc.id} />
+        )}
+        {isReady && handleOpenArtifact && (
+          <Button
+            variant="outline-light"
+            size="sm"
+            className="mt-2 me-2"
+            disabled={uploadingDoc || isBusy || openingDocId === doc.id}
+            onClick={() => handleOpenArtifact(doc)}
+            aria-label={`Відкрити документ ${doc.filename} в панелі артефактів`}
+          >
+            {openingDocId === doc.id ? (
+              <Spinner size="sm" animation="border" />
+            ) : (
+              '📄 Відкрити в Артефактах'
+            )}
+          </Button>
         )}
         {isReady && doc.needs_reindex && (
           <Button

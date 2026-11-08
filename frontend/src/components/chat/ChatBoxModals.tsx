@@ -28,6 +28,9 @@ type Props = {
   ragEmbeddingMode: 'openai' | 'ollama' | 'fallback';
   onApplySystemPrompt: (promptText: string) => Promise<void>;
   onPromptsChanged?: () => void;
+  onOpenInArtifact?: (doc: DocumentRecord) => void;
+  onOpenDocInArtifact?: (doc: DocumentRecord) => void;
+  openingDocId?: string | number | null;
 };
 
 export default function ChatBoxModals(props: Props) {
@@ -79,6 +82,8 @@ export default function ChatBoxModals(props: Props) {
         onLoadMore={loadMoreDocuments}
         loadingMore={loadingMoreDocuments}
         ragEmbeddingMode={ragEmbeddingMode}
+        onOpenInArtifact={props.onOpenInArtifact || props.onOpenDocInArtifact}
+        openingDocId={props.openingDocId}
       />
 
       <PromptLibraryModal

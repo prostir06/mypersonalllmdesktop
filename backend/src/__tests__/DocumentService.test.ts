@@ -634,4 +634,67 @@ describe('DocumentService (Prisma)', () => {
       accessSpy.mockRestore();
     });
   });
+
+  describe('mergeOrderedChunks', () => {
+    it('returns empty string for empty chunks', () => {
+      expect(DocumentService.mergeOrderedChunks([])).toBe('');
+    });
+
+    it('returns single chunk unchanged', () => {
+      expect(DocumentService.mergeOrderedChunks(['Hello world'])).toBe('Hello world');
+    });
+
+    it('merges overlapping chunks by removing the overlap', () => {
+      const c1 = '# Договір\n\nРозділ 1. Загальні умови. Додатковий текст для перекриття довжиною понад 20 символів.';
+      const overlap = 'Додатковий текст для перекриття довжиною понад 20 символів.';
+      const c2 = `${overlap}\n\nРозділ 2. Оплата.`;
+      const merged = DocumentService.mergeOrderedChunks([c1, c2]);
+      expect(merged).toBe(`${c1}\n\nРозділ 2. Оплата.`);
+    });
+
+    it('joins non-overlapping chunks with double newline', () => {
+      const merged = DocumentService.mergeOrderedChunks(['Chunk 1', 'Chunk 2']);
+      expect(merged).toBe('Chunk 1\n\nChunk 2');
+    });
+  });
+
+  describe('getFullContent', () => {
+    it('returns not_found when document does not exist', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue(null);
+      const res = await DocumentService.getFullContent(99, 1);
+      expect(res).toEqual({ status: 'not_found' });
+    });
+
+    it('returns not_ready when document status is pending', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue({
+        id: 43,
+        filename: 'pending.docx',
+        fileType: 'text/plain',
+        status: 'pending',
+      });
+      const res = await DocumentService.getFullContent(43, 1);
+      expect(res).toEqual({ status: 'not_ready', docStatus: 'pending' });
+    });
+
+    it('reconstructs full document content from ordered chunks for ready document', async () => {
+      mockedPrisma.document.findFirst.mockResolvedValue({
+        id: 42,
+        filename: 'contract.docx',
+        fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        status: 'ready',
+      });
+      mockedPrisma.documentChunk.findMany.mockResolvedValue([
+        { chunkIndex: 0, content: '# Договір\n\nРозділ 1. Загальні умови.' },
+        { chunkIndex: 1, content: 'Розділ 1. Загальні умови.\n\nРозділ 2. Оплата.' },
+      ]);
+      const res = await DocumentService.getFullContent(42, 1);
+      expect(res.status).toBe('ok');
+      if (res.status === 'ok') {
+        expect(res.data.id).toBe(42);
+        expect(res.data.filename).toBe('contract.docx');
+        expect(res.data.content).toContain('# Договір');
+        expect(res.data.content).toContain('Розділ 2. Оплата.');
+      }
+    });
+  });
 });

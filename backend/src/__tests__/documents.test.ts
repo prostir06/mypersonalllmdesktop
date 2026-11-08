@@ -18,6 +18,7 @@ jest.mock('../services/DocumentService', () => ({
     retryIndexing: jest.fn(),
     reindexEmbeddings: jest.fn(),
     delete: jest.fn(),
+    getFullContent: jest.fn(),
   },
 }));
 
@@ -45,6 +46,7 @@ const mockedService = DocumentService as unknown as {
   retryIndexing: jest.Mock;
   reindexEmbeddings: jest.Mock;
   delete: jest.Mock;
+  getFullContent: jest.Mock;
 };
 
 describe('Documents API (Prisma routes)', () => {
@@ -333,5 +335,61 @@ describe('Documents API (Prisma routes)', () => {
     );
     const res = await request(app).post('/api/documents/1/reindex');
     expect(res.status).toBe(409);
+  });
+
+  describe('GET /api/documents/:id/content', () => {
+    it('returns 200 and reconstructs full document content from service for ready document', async () => {
+      mockedService.getFullContent.mockResolvedValueOnce({
+        status: 'ok',
+        data: {
+          id: 42,
+          filename: 'contract.docx',
+          file_type:
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          content: '# Договір\n\nРозділ 1. Загальні умови.\n\nРозділ 2. Оплата.',
+        },
+      });
+
+      const res = await request(app).get('/api/documents/42/content');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        id: 42,
+        filename: 'contract.docx',
+      });
+      expect(res.body.content).toContain('# Договір');
+      expect(res.body.content).toContain('Розділ 2. Оплата.');
+      expect(mockedService.getFullContent).toHaveBeenCalledWith(42, 1);
+    });
+
+    it('returns 409 when document is still pending or failed', async () => {
+      mockedService.getFullContent.mockResolvedValueOnce({
+        status: 'not_ready',
+        docStatus: 'pending',
+      });
+
+      const res = await request(app).get('/api/documents/43/content');
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('Документ ще обробляється або пошкоджений');
+    });
+
+    it('returns 404 when document is not found', async () => {
+      mockedService.getFullContent.mockResolvedValueOnce({
+        status: 'not_found',
+      });
+
+      const res = await request(app).get('/api/documents/99/content');
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Документ не знайдено');
+    });
+
+    it('returns 400 for invalid document id', async () => {
+      const res = await request(app).get('/api/documents/invalid/content');
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Некоректний ідентифікатор документа');
+    });
   });
 });

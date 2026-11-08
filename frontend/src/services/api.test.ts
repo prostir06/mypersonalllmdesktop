@@ -199,6 +199,7 @@ describe('api service wrappers', () => {
     documentsAPI.getChunks(3, { offset: 10 });
     documentsAPI.retry(3);
     documentsAPI.reindex(3);
+    documentsAPI.getContent(3);
 
     expect(mocks.apiInstance.post).toHaveBeenCalledWith('/chat/send', {
       conversationId: 5,

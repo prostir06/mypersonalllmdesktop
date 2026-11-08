@@ -227,6 +227,58 @@ class DocumentService {
 
     return result.count > 0;
   }
+  static mergeOrderedChunks(chunks: string[]): string {
+    if (chunks.length === 0) return '';
+    let merged = chunks[0];
+    for (let i = 1; i < chunks.length; i += 1) {
+      const next = chunks[i];
+      if (!next) continue;
+      const maxOverlap = Math.min(400, merged.length, next.length);
+      let overlapLen = 0;
+      for (let len = maxOverlap; len >= 20; len -= 1) {
+        if (merged.slice(-len) === next.slice(0, len)) {
+          overlapLen = len;
+          break;
+        }
+      }
+      merged = overlapLen > 0 ? merged + next.slice(overlapLen) : `${merged}\n\n${next}`;
+    }
+    return merged;
+  }
+
+  static async getFullContent(docId: number, userId: number) {
+    const doc = await prisma.document.findFirst({
+      where: { id: docId, userId },
+      select: {
+        id: true,
+        filename: true,
+        fileType: true,
+        status: true,
+      },
+    });
+    if (!doc) return { status: 'not_found' as const };
+    if (doc.status && doc.status !== 'ready') {
+      return { status: 'not_ready' as const, docStatus: doc.status };
+    }
+
+    const rows = await prisma.documentChunk.findMany({
+      where: { documentId: docId },
+      orderBy: { chunkIndex: 'asc' },
+      select: { chunkIndex: true, content: true },
+    });
+
+    const content = this.mergeOrderedChunks(rows.map((r) => r.content));
+    return {
+      status: 'ok' as const,
+      data: {
+        id: doc.id,
+        filename: doc.filename,
+        file_type: doc.fileType,
+        content,
+      },
+    };
+  }
+
 }
 
 export default DocumentService;

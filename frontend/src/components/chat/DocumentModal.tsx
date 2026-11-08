@@ -26,6 +26,9 @@ export type DocumentModalProps = {
   onLoadMore?: () => void;
   loadingMore?: boolean;
   ragEmbeddingMode?: 'openai' | 'ollama' | 'fallback';
+  onOpenInArtifact?: (doc: DocumentRecord) => void;
+  onOpenDocInArtifact?: (doc: DocumentRecord) => void;
+  openingDocId?: string | number | null;
 };
 
 const DocumentModal = React.memo(function DocumentModal({
@@ -47,6 +50,9 @@ const DocumentModal = React.memo(function DocumentModal({
   onLoadMore,
   loadingMore,
   ragEmbeddingMode = 'fallback',
+  onOpenInArtifact,
+  onOpenDocInArtifact,
+  openingDocId,
 }: DocumentModalProps) {
   return (
     <Modal show={show} onHide={onHide} centered className="glass-modal">
@@ -120,6 +126,8 @@ const DocumentModal = React.memo(function DocumentModal({
                 onDeleteDoc={onDeleteDoc}
                 onRetryDoc={onRetryDoc}
                 onReindexDoc={onReindexDoc}
+                onOpenInArtifact={onOpenInArtifact || onOpenDocInArtifact}
+                openingDocId={openingDocId}
               />
             ))}
           </ListGroup>
