@@ -13,8 +13,8 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 - **Human-in-the-Loop Confirmation with Visual Diff (v18):** Confirmation-gated write operations (`add_user_memory_note`, `add_conversation_note`, `update_settings`) automatically pause execution and render an interactive `ConfirmActionCard` featuring before/after parameter diffs and single-click Approve / Reject (`/api/chat/tool-actions/:id/approve|reject`).
 - **Universal Web Search (v18):** Live web search for OpenAI, Claude, and Ollama. A configured **Tavily** key is tried first; self-hosted **SearXNG** is used when Tavily is unset or the request fails. SearXNG runs in Docker and still queries the public web, so it is not an air gap. Gemini keeps native **Google Search Grounding**. Snippets are wrapped in `<untrusted_web_result>` and shown as citation chips.
 - **Safe Arithmetic Engine (v18):** Deterministic mathematical expression evaluation (`calculate`) using a sandboxed arithmetic parser without dangerous dynamic `eval`.
-- **Multimodal Vision & Inline File Attachments:** Analyze images (PNG, JPEG, WEBP, GIF) with vision-capable models and attach PDF, DOCX, XLSX, TXT, or MD files directly into a conversation turn.
-- **Interactive Artifacts Split-View:** Render generated HTML and SVG blocks inside a sandboxed preview pane (`/artifact-sandbox.html` with isolated CSP), switch between **Preview / Code**, copy, download, or inspect in fullscreen.
+- **Multimodal Vision & Client-Side Image Preprocessing:** Analyze images (PNG, JPEG, WEBP, GIF) with cloud models (GPT-4o, Claude 3.5, Gemini) and local Ollama vision models (Gemma 4, LLaVA, Qwen 2.5-VL). Features automatic client-side scaling to 1920px, resilient Cyrillic/Unicode attachment naming, and inline attachment support for PDF, DOCX, XLSX, TXT, and MD.
+- **Interactive Artifacts Split-View & Word .docx Studio (v20):** Render generated HTML and SVG blocks inside a sandboxed preview pane, view documents in an A4 Word sheet layout with live editing, export cleanly formatted `.docx` files with table styling and pagination, or inspect RAG document content directly.
 - **Google Search Grounding:** Toggle live web search on Gemini models with clickable external source citations below assistant replies.
 - **Hybrid RAG Knowledge Base:** Asynchronous background document indexing (`PDF`, `DOCX`, `XLSX` via `exceljs`, `TXT`, `MD`) combining **`pgvector` semantic embeddings** (OpenAI or local Ollama `nomic-embed-text`) with **PostgreSQL Full-Text Search (`tsvector`)** reciprocal fusion, chunk preview, retry, and one-click re-indexing.
 - **Dual-Layer AI Memory:**
@@ -35,7 +35,7 @@ Supports **OpenAI**, **Anthropic Claude**, **Google Gemini** (with live Google S
 ```text
 .
 ├── backend/                 # Express + TypeScript API (src/ → dist/)
-│   ├── prisma/              # Prisma 7 schema + 26 SQL migrations (pgvector + FTS)
+│   ├── prisma/              # Prisma 7 schema + 27 SQL migrations (pgvector + FTS)
 │   ├── src/
 │   │   ├── config/          # Env validation, Prisma pg pool, model pricing
 │   │   ├── controllers/     # Thin HTTP controllers
@@ -219,6 +219,7 @@ CORS_ORIGIN=http://localhost:3000
 
 ### Documents (Hybrid RAG)
 - `POST /api/documents/upload` — Async upload (`202 Accepted`) & background indexing
+- `GET /api/documents/:id/content` — Raw document text content inspection for ArtifactPanel
 - `GET /api/documents` & `GET /api/documents/:id` — Status, chunk counts, embedding mode
 - `GET /api/documents/:id/chunks` — Paginated chunk preview
 - `POST /api/documents/:id/retry` — Retry failed indexing job
