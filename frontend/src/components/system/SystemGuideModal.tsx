@@ -17,6 +17,7 @@ import type {
   KnowledgeCategory,
 } from '../../types/api';
 import SystemGuideErrorState from './SystemGuideErrorState';
+import SystemStatusSummary from './SystemStatusSummary';
 
 export interface SystemGuideModalProps {
   show: boolean;
@@ -150,60 +151,7 @@ const SystemGuideModal: React.FC<SystemGuideModalProps> = ({
                 </span>
               }
             >
-              {snapshot && (
-                <Card className="bg-dark border-secondary mb-4 shadow-sm">
-                  <Card.Body className="p-3">
-                    <div className="fw-semibold text-muted small mb-2 text-uppercase">
-                      Поточний статус системи
-                    </div>
-                    <Row className="g-2">
-                      <Col md={3} sm={6}>
-                        <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-25 h-100">
-                          <div className="text-muted small">Провайдер</div>
-                          <div className="fw-bold text-truncate">
-                            {snapshot.activeProvider} ({snapshot.activeModel})
-                          </div>
-                        </div>
-                      </Col>
-                      <Col md={3} sm={6}>
-                        <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-25 h-100">
-                          <div className="text-muted small">RAG База</div>
-                          <div className="fw-bold text-truncate">
-                            {snapshot.ragEmbeddingMode} (
-                            {snapshot.documents.ready} готових,{' '}
-                            {snapshot.documents.selectedInChat} обрано)
-                          </div>
-                        </div>
-                      </Col>
-                      <Col md={3} sm={6}>
-                        <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-25 h-100">
-                          <div className="text-muted small">Можливості</div>
-                          <div className="fw-bold text-truncate">
-                            Vision (
-                            {snapshot.modelSupportsVision ? '✅' : '❌'}),
-                            Пошук (
-                            {snapshot.modelSupportsWebSearch
-                              ? snapshot.webSearchEnabled
-                                ? '🌐 Увімкнено'
-                                : 'Звичайний'
-                              : '—'}
-                            )
-                          </div>
-                        </div>
-                      </Col>
-                      <Col md={3} sm={6}>
-                        <div className="p-2 rounded bg-body-tertiary border border-secondary border-opacity-25 h-100">
-                          <div className="text-muted small">Пам'ять та Ролі</div>
-                          <div className="fw-bold text-truncate">
-                            {snapshot.userMemoryNotesCount} глобальних фактів,{' '}
-                            {snapshot.pinnedPromptsCount} закріплених ролей
-                          </div>
-                        </div>
-                      </Col>
-                    </Row>
-                  </Card.Body>
-                </Card>
-              )}
+              {snapshot && <SystemStatusSummary snapshot={snapshot} />}
 
               {advisories.length === 0 ? (
                 <Card className="bg-success bg-opacity-10 border-success text-light text-center p-4">

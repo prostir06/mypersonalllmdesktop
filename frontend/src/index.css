@@ -208,6 +208,30 @@ code, pre {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.nav-tabs .nav-link.active {
+  color: #0f172a !important;
+  background-color: #ffffff;
+  font-weight: 600;
+}
+
+/* ─── System Guide Status Tiles (high-contrast text on light background) ─── */
+.system-status-tile {
+  color: #0f172a !important;
+}
+
+.system-status-tile .status-label {
+  color: #475569 !important;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.system-status-tile .status-value {
+  color: #0f172a !important;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 [data-theme='light'] .nav-link:hover, [data-theme='light'] .nav-link:focus {
   background: rgba(0, 0, 0, 0.04);
 }
