@@ -28,6 +28,11 @@ function handleClaudeError(error: unknown, signal?: AbortSignal): never {
     statusCode?: number;
     message?: string;
   };
+  // Rethrow stream callback errors directly without masking them as user aborts
+  if (errObj.name === 'StreamCallbackError') {
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+
   if (
     isAbortOrCallbackError(error) ||
     isAbortError(error) ||
@@ -250,6 +255,7 @@ export async function streamClaudeMessage(
     }
 
     let fullText = '';
+    let callbackError: unknown = null;
     stream.on('text', (delta: string) => {
       fullText += delta;
       if (onChunk) {
@@ -258,6 +264,10 @@ export async function streamClaudeMessage(
             logger.error(`Помилка в onChunk коллбеку Claude: ${msg}`);
           });
         } catch (cbError: unknown) {
+          // Зберігаємо першу помилку коллбеку, щоб прокинути її назовні після завершення або переривання стріму
+          if (!callbackError) {
+            callbackError = cbError;
+          }
           try {
             stream?.controller.abort();
           } catch (abortErr: unknown) {
@@ -265,14 +275,22 @@ export async function streamClaudeMessage(
             const message = abortErr instanceof Error ? abortErr.message : String(abortErr);
             logger.warn(`Failed to abort Claude stream controller after callback error: ${message}`);
           }
-          if (isAbortOrCallbackError(cbError)) {
-            return;
-          }
         }
       }
     });
 
-    const finalMessage = await stream.finalMessage();
+    let finalMessage;
+    try {
+      finalMessage = await stream.finalMessage();
+    } catch (streamErr: unknown) {
+      if (callbackError) {
+        throw callbackError;
+      }
+      throw streamErr;
+    }
+    if (callbackError) {
+      throw callbackError;
+    }
 
     const toolCalls: NormalizedToolCall[] = [];
     if (finalMessage?.content) {

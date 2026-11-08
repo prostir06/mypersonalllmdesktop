@@ -23,7 +23,10 @@ export const markdownComponents: Components = {
           const bridge = (window as unknown as { electron?: ElectronBridge }).electron;
           if (bridge?.openExternal) {
             event.preventDefault();
-            void bridge.openExternal(href);
+            // Запобігаємо unhandled rejection у вікні Electron
+            void bridge.openExternal(href).catch((err: unknown) => {
+              console.warn('Failed to open external link in desktop app:', err);
+            });
           }
         }}
       >

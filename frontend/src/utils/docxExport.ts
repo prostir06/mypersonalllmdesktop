@@ -380,9 +380,13 @@ export async function downloadArtifactAsDocx(
   });
   const filename = sanitizeDocxFilename(title);
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+  } finally {
+    // Звільняємо URL об'єкта навіть у разі збою генерації події завантаження
+    URL.revokeObjectURL(url);
+  }
 }

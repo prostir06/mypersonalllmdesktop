@@ -82,4 +82,34 @@ describe('docxExport', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
+
+  it('revokes blob url even if DOM click throws an error', async () => {
+    const createObjectURLMock = vi.fn().mockReturnValue('blob:mock-error-url');
+    const revokeObjectURLMock = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: createObjectURLMock,
+      revokeObjectURL: revokeObjectURLMock,
+    });
+
+    const origCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      const el = origCreateElement(tagName);
+      if (tagName === 'a') {
+        el.click = () => {
+          throw new Error('Download blocked by security policy');
+        };
+      }
+      return el;
+    });
+
+    await expect(downloadArtifactAsDocx('# Crash doc', 'Report')).rejects.toThrow(
+      'Download blocked by security policy'
+    );
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:mock-error-url');
+
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 });

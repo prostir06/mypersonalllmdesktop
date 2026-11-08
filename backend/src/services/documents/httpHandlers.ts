@@ -46,7 +46,7 @@ export async function uploadDocument(
       requestId: req.id,
     });
   } catch (error: unknown) {
-    await deleteTempUpload(req.file.path ?? null);
+    await deleteTempUpload(req.file?.path ?? null);
     if (error instanceof DocumentQueueFullError) {
       jsonError(res, req, 429, 'Черга індексації переповнена — спробуйте пізніше');
       return;

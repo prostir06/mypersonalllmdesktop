@@ -93,4 +93,15 @@ describe('resolvePendingToolAction claim', () => {
       })
     );
   });
+
+  it('propagates the original execution error even if marking action as failed rejects in database', async () => {
+    mockPrisma.pendingToolAction.updateMany.mockResolvedValue({ count: 1 });
+    execute.mockRejectedValueOnce(new Error('External disk full'));
+    mockPrisma.pendingToolAction.update.mockRejectedValueOnce(new Error('DB connection reset'));
+
+    await expect(resolvePendingToolAction('act-1', 1, 'approve')).rejects.toMatchObject({
+      statusCode: 500,
+      message: expect.stringContaining('External disk full'),
+    });
+  });
 });

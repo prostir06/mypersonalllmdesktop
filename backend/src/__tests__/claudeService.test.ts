@@ -428,7 +428,9 @@ describe('claudeService', () => {
           }),
           finalMessage: jest.fn().mockImplementation(async () => {
             await new Promise((r) => setImmediate(r));
-            throw new Error('UI callback failed');
+            const abortErr = new Error('Request was aborted.');
+            abortErr.name = 'APIUserAbortError';
+            throw abortErr;
           }),
         };
         return streamObj;
@@ -443,12 +445,55 @@ describe('claudeService', () => {
             throw new Error('DOM render crash');
           }
         )
-      ).rejects.toThrow();
+      ).rejects.toThrow('DOM render crash');
 
       expect(abortFn).toHaveBeenCalled();
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringMatching(/onChunk коллбеку Claude: DOM render crash/)
       );
+    });
+
+    it('rethrows callback error even if finalMessage resolves cleanly before abort', async () => {
+      const abortFn = jest.fn();
+      mockMessagesStream.mockImplementationOnce(() => {
+        const streamObj: any = {
+          controller: { abort: abortFn },
+          on: jest.fn((event: string, handler: (...args: any[]) => void) => {
+            if (event === 'text') {
+              process.nextTick(() => {
+                handler('chunk');
+              });
+            }
+            return streamObj;
+          }),
+          finalMessage: jest.fn().mockImplementation(async () => {
+            await new Promise((r) => setImmediate(r));
+            return {
+              id: 'msg_1',
+              type: 'message',
+              role: 'assistant',
+              content: [{ type: 'text', text: 'chunk' }],
+              model: 'claude-3-5-sonnet-20241022',
+              stop_reason: 'end_turn',
+              usage: { input_tokens: 10, output_tokens: 5 },
+            };
+          }),
+        };
+        return streamObj;
+      });
+
+      await expect(
+        claudeService.streamClaudeMessage(
+          [{ role: 'user', content: 'hi' }],
+          'claude-3-5-sonnet-20241022',
+          { apiKey: 'sk-ant-test' },
+          () => {
+            throw new Error('UI callback synchronous break');
+          }
+        )
+      ).rejects.toThrow('UI callback synchronous break');
+
+      expect(abortFn).toHaveBeenCalled();
     });
 
     it('logs warning if aborting Claude stream controller fails', async () => {

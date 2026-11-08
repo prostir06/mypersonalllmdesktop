@@ -264,6 +264,28 @@ describe('ToolRegistry', () => {
         expect(result.count).toBe(1);
         expect(result.snippets).toContain('Keyword fallback snippet');
       });
+
+      it('returns graceful diagnostic error response when chunk retrieval fails', async () => {
+        (EmbeddingService.generateEmbedding as jest.Mock).mockResolvedValueOnce(null);
+        (EmbeddingService.findRelevantChunks as jest.Mock).mockRejectedValueOnce(
+          new Error('pgvector index unreachable')
+        );
+
+        const result = (await searchTool.execute({ query: 'budget' }, ctx)) as {
+          query: string;
+          count: number;
+          snippets: string;
+          sources: unknown[];
+          results: unknown[];
+          error?: string;
+        };
+
+        expect(result.count).toBe(0);
+        expect(result.snippets).toBe('');
+        expect(result.sources).toEqual([]);
+        expect(result.results).toEqual([]);
+        expect(result.error).toContain('pgvector index unreachable');
+      });
     });
 
     describe('list_documents', () => {

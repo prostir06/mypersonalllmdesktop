@@ -107,10 +107,16 @@ export async function resolvePendingToolAction(
     logger.error(
       `Malformed pending tool action arguments for action ${actionId}: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
     );
-    await prisma.pendingToolAction.update({
-      where: { id: actionId },
-      data: { status: 'failed', resolvedAt: new Date() },
-    });
+    // Вторинне оновлення статусу не повинно маскувати первинну помилку виконання
+    try {
+      await prisma.pendingToolAction.update({
+        where: { id: actionId },
+        data: { status: 'failed', resolvedAt: new Date() },
+      });
+    } catch (markErr: unknown) {
+      const markMsg = markErr instanceof Error ? markErr.message : String(markErr);
+      logger.error(`Failed to mark pending action ${actionId} as failed: ${markMsg}`);
+    }
     throw new ChatError(400, 'Invalid tool arguments format', { cause: parseErr });
   }
 
@@ -121,10 +127,16 @@ export async function resolvePendingToolAction(
     logger.error(
       `Failed to execute approved tool "${action.toolName}": ${execErr instanceof Error ? execErr.message : String(execErr)}`
     );
-    await prisma.pendingToolAction.update({
-      where: { id: actionId },
-      data: { status: 'failed', resolvedAt: new Date() },
-    });
+    // Вторинне оновлення статусу не повинно маскувати первинну помилку виконання
+    try {
+      await prisma.pendingToolAction.update({
+        where: { id: actionId },
+        data: { status: 'failed', resolvedAt: new Date() },
+      });
+    } catch (markErr: unknown) {
+      const markMsg = markErr instanceof Error ? markErr.message : String(markErr);
+      logger.error(`Failed to mark pending action ${actionId} as failed: ${markMsg}`);
+    }
     if (execErr instanceof ChatError || execErr instanceof ToolValidationError) {
       throw execErr;
     }

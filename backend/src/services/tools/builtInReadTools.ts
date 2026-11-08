@@ -69,16 +69,32 @@ export const builtInReadTools: RegisteredTool[] = [
         }
       );
       const provider = embedCtx.provider !== 'none' ? embedCtx.provider : null;
-      const chunks = await EmbeddingService.findRelevantChunks(
-        queryEmbedding,
-        ctx.userId,
-        [],
-        limit,
-        {},
-        provider,
-        queryText
-      );
-      const safeChunks = (Array.isArray(chunks) ? chunks : []) as ChunkRecord[];
+      let chunks: ChunkRecord[];
+      try {
+        const rawChunks = await EmbeddingService.findRelevantChunks(
+          queryEmbedding,
+          ctx.userId,
+          [],
+          limit,
+          {},
+          provider,
+          queryText
+        );
+        chunks = (Array.isArray(rawChunks) ? rawChunks : []) as ChunkRecord[];
+      } catch (findErr: unknown) {
+        // Безпечний фолбек: повертаємо порожній результат із діагностичною помилкою для моделі
+        const message = findErr instanceof Error ? findErr.message : String(findErr);
+        logger.warn(`search_documents tool: chunk retrieval failed: ${message}`);
+        return {
+          query: queryText,
+          count: 0,
+          snippets: '',
+          sources: [],
+          results: [],
+          error: `Пошук по документах тимчасово недоступний: ${message}`,
+        };
+      }
+      const safeChunks = chunks;
       return {
         query: queryText,
         count: safeChunks.length,
