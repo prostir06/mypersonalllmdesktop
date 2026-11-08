@@ -1,11 +1,12 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ArtifactPanel, { buildSafeSrcDoc } from './ArtifactPanel';
 import type { Artifact } from '../../types/api';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { downloadTextFile } from '../../hooks/useChatExport';
+import { downloadArtifactAsDocx } from '../../utils/docxExport';
 
 vi.mock('../../utils/clipboard', () => ({
   copyTextWithToast: vi.fn(),
@@ -13,6 +14,10 @@ vi.mock('../../utils/clipboard', () => ({
 
 vi.mock('../../hooks/useChatExport', () => ({
   downloadTextFile: vi.fn(),
+}));
+
+vi.mock('../../utils/docxExport', () => ({
+  downloadArtifactAsDocx: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('ArtifactPanel', () => {
@@ -180,6 +185,118 @@ describe('ArtifactPanel', () => {
     await user.click(collapseBtn);
 
     expect(panel).not.toHaveClass('position-fixed');
+  });
+
+  it('renders A4 document sheet preview for docx artifact, supports live editing, and triggers .docx download', async () => {
+    const docxArtifact: Artifact = {
+      id: 'art-docx-1',
+      type: 'docx',
+      title: 'Договір поставки',
+      language: 'markdown',
+      content: '# Договір поставки\n\nПункт 1. Загальні положення.',
+    };
+
+    render(<ArtifactPanel artifact={docxArtifact} onClose={vi.fn()} />);
+
+    expect(screen.getByText('DOCX')).toBeInTheDocument();
+    expect(screen.getByTestId('artifact-docx-sheet')).toHaveTextContent('Договір поставки');
+
+    // Switch to Edit tab
+    fireEvent.click(screen.getByRole('button', { name: /Редагувати/i }));
+    const editor = screen.getByTestId('artifact-editor-textarea') as HTMLTextAreaElement;
+    expect(editor.value).toContain('Пункт 1. Загальні положення.');
+
+    fireEvent.change(editor, {
+      target: { value: '# Договір поставки\n\nПункт 1. Оновлена редакція.' },
+    });
+
+    // Switch back to Preview tab and verify live updated text
+    fireEvent.click(screen.getByRole('button', { name: /Перегляд/i }));
+    expect(screen.getByTestId('artifact-docx-sheet')).toHaveTextContent(
+      'Пункт 1. Оновлена редакція.'
+    );
+
+    // Primary .docx download button
+    const downloadDocxBtn = screen.getByRole('button', {
+      name: /завантажити документ у форматі word/i,
+    });
+    fireEvent.click(downloadDocxBtn);
+    expect(downloadArtifactAsDocx).toHaveBeenCalledWith(
+      '# Договір поставки\n\nПункт 1. Оновлена редакція.',
+      'Договір поставки'
+    );
+  });
+
+  it('supports resetting changes with "Скинути зміни" button in edit mode', () => {
+    const docxArtifact: Artifact = {
+      id: 'art-docx-2',
+      type: 'docx',
+      title: 'Акт виконаних робіт',
+      language: 'markdown',
+      content: '# Акт виконаних робіт\n\nРоботи виконано повністю.',
+    };
+
+    render(<ArtifactPanel artifact={docxArtifact} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Редагувати/i }));
+    expect(screen.queryByRole('button', { name: /Скинути зміни/i })).not.toBeInTheDocument();
+
+    const editor = screen.getByTestId('artifact-editor-textarea') as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: 'Змінений текст' } });
+
+    const resetBtn = screen.getByRole('button', { name: /Скинути зміни/i });
+    expect(resetBtn).toBeInTheDocument();
+
+    fireEvent.click(resetBtn);
+    expect(editor.value).toBe(docxArtifact.content);
+    expect(screen.queryByRole('button', { name: /Скинути зміни/i })).not.toBeInTheDocument();
+  });
+
+  it('provides secondary .docx download button for html artifacts', async () => {
+    render(<ArtifactPanel artifact={htmlArtifact} onClose={vi.fn()} />);
+
+    const docxBtn = screen.getByRole('button', { name: /word \(\.docx\)/i });
+    expect(docxBtn).toBeInTheDocument();
+
+    fireEvent.click(docxBtn);
+    expect(downloadArtifactAsDocx).toHaveBeenCalledWith(
+      htmlArtifact.content,
+      htmlArtifact.title
+    );
+  });
+
+  it('updates editedContent when artifact streaming updates content if not dirty, but keeps dirty content', () => {
+    const { rerender } = render(
+      <ArtifactPanel artifact={htmlArtifact} onClose={vi.fn()} />
+    );
+
+    // Switch to edit tab
+    fireEvent.click(screen.getByRole('button', { name: /Редагувати/i }));
+    let editor = screen.getByTestId('artifact-editor-textarea') as HTMLTextAreaElement;
+    expect(editor.value).toBe(htmlArtifact.content);
+
+    // Streaming update without dirty
+    rerender(
+      <ArtifactPanel
+        artifact={{ ...htmlArtifact, content: `${htmlArtifact.content} <p>Додаток</p>` }}
+        onClose={vi.fn()}
+      />
+    );
+    editor = screen.getByTestId('artifact-editor-textarea') as HTMLTextAreaElement;
+    expect(editor.value).toContain('<p>Додаток</p>');
+
+    // User types into editor making it dirty
+    fireEvent.change(editor, { target: { value: 'Користувацька правка' } });
+
+    // Another streaming update arrives
+    rerender(
+      <ArtifactPanel
+        artifact={{ ...htmlArtifact, content: `${htmlArtifact.content} <p>Новий стрім</p>` }}
+        onClose={vi.fn()}
+      />
+    );
+    editor = screen.getByTestId('artifact-editor-textarea') as HTMLTextAreaElement;
+    expect(editor.value).toBe('Користувацька правка');
   });
 
   describe('buildSafeSrcDoc helper', () => {

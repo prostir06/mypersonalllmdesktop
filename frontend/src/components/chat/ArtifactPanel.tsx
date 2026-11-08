@@ -5,6 +5,9 @@ import { toast } from 'react-toastify';
 import { copyTextWithToast } from '../../utils/clipboard';
 import { downloadTextFile } from '../../hooks/useChatExport';
 import { injectArtifactGuard } from './artifactGuard';
+import { downloadArtifactAsDocx } from '../../utils/docxExport';
+import ReactMarkdown from 'react-markdown';
+import '../../styles/chat/_chat-layout.css';
 
 export interface ArtifactPanelProps {
   artifact: Artifact;
@@ -13,35 +16,10 @@ export interface ArtifactPanelProps {
 
 export function buildSafeSrcDoc(artifact: Artifact): string {
   if (artifact.type === 'svg') {
-    return injectArtifactGuard(`<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: #ffffff;
-      overflow: auto;
-    }
-    svg {
-      max-width: 95%;
-      max-height: 95%;
-      height: auto;
-    }
-  </style>
-</head>
-<body>
-  ${artifact.content}
-</body>
-</html>`);
+    return injectArtifactGuard(`<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>*, *::before, *::after { box-sizing: border-box; } html, body { margin: 0; padding: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background-color: #ffffff; overflow: auto; } svg { max-width: 95%; max-height: 95%; height: auto; }</style>
+</head><body>${artifact.content}</body></html>`);
   }
 
   const isFullDocument =
@@ -51,35 +29,40 @@ export function buildSafeSrcDoc(artifact: Artifact): string {
     return injectArtifactGuard(artifact.content);
   }
 
-  return injectArtifactGuard(`<!DOCTYPE html>
-<html lang="uk">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 1rem;
-      font-family: Inter, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-      line-height: 1.5;
-      color: #212529;
-      background-color: #ffffff;
-    }
-  </style>
-</head>
-<body>
-  ${artifact.content}
-</body>
-</html>`);
+  return injectArtifactGuard(`<!DOCTYPE html><html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>*, *::before, *::after { box-sizing: border-box; } body { margin: 0; padding: 1rem; font-family: Inter, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.5; color: #212529; background-color: #ffffff; }</style>
+</head><body>${artifact.content}</body></html>`);
 }
 
 export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
-  const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'preview' | 'edit' | 'code'>('preview');
+  const [editedContent, setEditedContent] = useState<string>(artifact.content ?? '');
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const [prevId, setPrevId] = useState<string>(artifact.id);
+  const [prevContent, setPrevContent] = useState<string>(artifact.content ?? '');
+  const [exportingDocx, setExportingDocx] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-  const safeDoc = useMemo(() => buildSafeSrcDoc(artifact), [artifact]);
+  // Sync state during render when artifact id changes or content streams (standard React pattern)
+  if (prevId !== artifact.id) {
+    setPrevId(artifact.id);
+    setEditedContent(artifact.content ?? '');
+    setPrevContent(artifact.content ?? '');
+    setIsDirty(false);
+  } else if (!isDirty && prevContent !== artifact.content) {
+    setPrevContent(artifact.content ?? '');
+    setEditedContent(artifact.content ?? '');
+  }
+
+  const effectiveTab =
+    artifact.type === 'svg' && activeTab === 'edit' ? 'preview' : activeTab;
+
+  const safeDoc = useMemo(
+    () => buildSafeSrcDoc({ ...artifact, content: editedContent }),
+    [artifact, editedContent]
+  );
 
   // Isolated /artifact-sandbox.html avoids inheriting parent's strict script-src 'self' CSP.
   const sendArtifactToSandbox = useCallback(() => {
@@ -89,7 +72,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
   }, [safeDoc]);
 
   useEffect(() => {
-    if (activeTab !== 'preview') return;
+    if (effectiveTab !== 'preview' || artifact.type === 'docx') return;
     const handleMessage = (event: MessageEvent) => {
       if (event.source !== iframeRef.current?.contentWindow) return;
       if (event.data?.type === 'ARTIFACT_SANDBOX_READY') {
@@ -101,15 +84,21 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [activeTab, sendArtifactToSandbox]);
+  }, [effectiveTab, artifact.type, sendArtifactToSandbox]);
+
+  useEffect(() => {
+    if (effectiveTab === 'preview' && artifact.type !== 'docx') {
+      sendArtifactToSandbox();
+    }
+  }, [effectiveTab, artifact.type, sendArtifactToSandbox]);
 
   const lineCount = useMemo(
-    () => artifact.content.split('\n').length,
-    [artifact.content]
+    () => editedContent.split('\n').length,
+    [editedContent]
   );
 
   const handleCopy = () => {
-    copyTextWithToast(artifact.content, 'Код скопійовано в буфер');
+    copyTextWithToast(editedContent, 'Код скопійовано в буфер');
   };
 
   const handleDownload = () => {
@@ -124,16 +113,29 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
         .trim()
         .replace(/[^\w\u0400-\u04FF-]+/gi, '_')
         .replace(/^_+|_+$/g, '') || 'artifact';
-    downloadTextFile(artifact.content, `${safeTitle}.${extension}`, mimeType);
+    downloadTextFile(editedContent, `${safeTitle}.${extension}`, mimeType);
+  };
+
+  const handleExportDocx = async () => {
+    try {
+      setExportingDocx(true);
+      await downloadArtifactAsDocx(editedContent, artifact.title);
+    } catch (err) {
+      toast.error('Не вдалося експортувати документ у .docx');
+      console.error('Docx export failed:', err);
+    } finally {
+      setExportingDocx(false);
+    }
+  };
+
+  const handleResetEdit = () => {
+    setEditedContent(artifact.content ?? '');
+    setIsDirty(false);
   };
 
   const containerClasses = isFullscreen
     ? 'artifact-panel card bg-dark text-light border-secondary shadow-lg position-fixed top-0 start-0 w-100 h-100 m-0 rounded-0'
     : 'artifact-panel card bg-dark text-light border-secondary shadow-sm h-100 rounded';
-
-  const containerStyle: React.CSSProperties = isFullscreen
-    ? { zIndex: 1050 }
-    : {};
 
   const contentMinHeight = isFullscreen ? 'calc(100dvh - 120px)' : '420px';
 
@@ -141,7 +143,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
     <div
       data-testid="artifact-panel"
       className={containerClasses}
-      style={containerStyle}
+      style={isFullscreen ? { zIndex: 1050 } : undefined}
     >
       {/* Header */}
       <div className="card-header bg-dark border-bottom border-secondary d-flex flex-wrap align-items-center justify-content-between p-2 gap-2">
@@ -167,17 +169,53 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
             <span className="d-none d-md-inline">Копіювати</span>
           </Button>
 
-          <Button
-            variant="outline-light"
-            size="sm"
-            onClick={handleDownload}
-            aria-label="Завантажити"
-            title="Завантажити файл"
-            className="d-inline-flex align-items-center gap-1 py-1 px-2"
-          >
-            <span aria-hidden="true">⬇️</span>
-            <span className="d-none d-md-inline">Завантажити</span>
-          </Button>
+          {artifact.type === 'docx' ? (
+            <Button
+              variant="outline-light"
+              size="sm"
+              onClick={handleExportDocx}
+              disabled={exportingDocx}
+              aria-label="Завантажити документ у форматі Word (.docx)"
+              title="Завантажити документ у форматі Word (.docx)"
+              className="d-inline-flex align-items-center gap-1 py-1 px-2"
+            >
+              <span aria-hidden="true">⬇️</span>
+              <span className="d-none d-md-inline">
+                {exportingDocx ? 'Експорт...' : '.docx'}
+              </span>
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="outline-light"
+                size="sm"
+                onClick={handleDownload}
+                aria-label="Завантажити"
+                title="Завантажити файл"
+                className="d-inline-flex align-items-center gap-1 py-1 px-2"
+              >
+                <span aria-hidden="true">⬇️</span>
+                <span className="d-none d-md-inline">Завантажити</span>
+              </Button>
+
+              {artifact.type === 'html' && (
+                <Button
+                  variant="outline-light"
+                  size="sm"
+                  onClick={handleExportDocx}
+                  disabled={exportingDocx}
+                  aria-label="Експорт у Word (.docx)"
+                  title="Експорт у Word (.docx)"
+                  className="d-inline-flex align-items-center gap-1 py-1 px-2"
+                >
+                  <span aria-hidden="true">📄</span>
+                  <span className="d-none d-md-inline">
+                    {exportingDocx ? 'Експорт...' : '.docx'}
+                  </span>
+                </Button>
+              )}
+            </>
+          )}
 
           <Button
             variant="outline-light"
@@ -211,24 +249,43 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
         <button
           type="button"
           className={`btn btn-sm ${
-            activeTab === 'preview'
+            effectiveTab === 'preview'
               ? 'btn-secondary text-white fw-semibold'
               : 'btn-outline-secondary text-light'
           }`}
           onClick={() => setActiveTab('preview')}
-          aria-pressed={activeTab === 'preview'}
+          aria-pressed={effectiveTab === 'preview'}
+          aria-label="Попередній перегляд"
         >
-          👁️ Попередній перегляд
+          👁️ Перегляд
         </button>
+
+        {(artifact.type === 'docx' || artifact.type === 'html') && (
+          <button
+            type="button"
+            className={`btn btn-sm ${
+              effectiveTab === 'edit'
+                ? 'btn-secondary text-white fw-semibold'
+                : 'btn-outline-secondary text-light'
+            }`}
+            onClick={() => setActiveTab('edit')}
+            aria-pressed={effectiveTab === 'edit'}
+            aria-label="Редагувати"
+          >
+            ✏️ Редагувати
+          </button>
+        )}
+
         <button
           type="button"
           className={`btn btn-sm ${
-            activeTab === 'code'
+            effectiveTab === 'code'
               ? 'btn-secondary text-white fw-semibold'
               : 'btn-outline-secondary text-light'
           }`}
           onClick={() => setActiveTab('code')}
-          aria-pressed={activeTab === 'code'}
+          aria-pressed={effectiveTab === 'code'}
+          aria-label="Код"
         >
           💻 Код
         </button>
@@ -236,21 +293,68 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
 
       {/* Body */}
       <div className="card-body p-2 d-flex flex-column flex-grow-1 overflow-hidden bg-dark">
-        {activeTab === 'preview' ? (
+        {effectiveTab === 'preview' ? (
+          artifact.type === 'docx' ? (
+            <div
+              className="artifact-docx-viewport"
+              style={{ minHeight: contentMinHeight }}
+            >
+              <div
+                className="artifact-docx-sheet"
+                data-testid="artifact-docx-sheet"
+              >
+                <ReactMarkdown>{editedContent}</ReactMarkdown>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="w-100 flex-grow-1 rounded overflow-hidden d-flex flex-column"
+              style={{ minHeight: contentMinHeight }}
+            >
+              <iframe
+                key={`${artifact.id}-${artifact.type}-${editedContent.length}`}
+                ref={iframeRef}
+                data-testid="artifact-iframe"
+                title={artifact.title}
+                sandbox="allow-scripts"
+                src="/artifact-sandbox.html"
+                onLoad={sendArtifactToSandbox}
+                className="w-100 h-100 border-0 bg-white rounded flex-grow-1"
+                style={{ minHeight: contentMinHeight }}
+              />
+            </div>
+          )
+        ) : effectiveTab === 'edit' ? (
           <div
-            className="w-100 flex-grow-1 rounded overflow-hidden d-flex flex-column"
+            className="w-100 flex-grow-1 d-flex flex-column rounded bg-dark p-2 border border-secondary"
             style={{ minHeight: contentMinHeight }}
           >
-            <iframe
-              key={`${artifact.id}-${artifact.type}-${artifact.content.length}`}
-              ref={iframeRef}
-              data-testid="artifact-iframe"
-              title={artifact.title}
-              sandbox="allow-scripts"
-              src="/artifact-sandbox.html"
-              onLoad={sendArtifactToSandbox}
-              className="w-100 h-100 border-0 bg-white rounded flex-grow-1"
-              style={{ minHeight: contentMinHeight }}
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <span className="text-secondary small">
+                {isDirty ? 'Є незбережені зміни' : 'Режим редагування'}
+              </span>
+              {isDirty && (
+                <Button
+                  variant="outline-warning"
+                  size="sm"
+                  onClick={handleResetEdit}
+                  className="py-0 px-2 small"
+                  aria-label="Скинути зміни"
+                >
+                  Скинути зміни
+                </Button>
+              )}
+            </div>
+            <textarea
+              data-testid="artifact-editor-textarea"
+              className="artifact-editor-textarea"
+              value={editedContent}
+              onChange={(e) => {
+                setEditedContent(e.target.value);
+                setIsDirty(true);
+              }}
+              placeholder="Введіть вміст артефакта..."
+              spellCheck={false}
             />
           </div>
         ) : (
@@ -276,7 +380,7 @@ export default function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps)
                 wordBreak: 'break-word',
               }}
             >
-              <code data-testid="artifact-raw-code">{artifact.content}</code>
+              <code data-testid="artifact-raw-code">{editedContent}</code>
             </pre>
           </div>
         )}
