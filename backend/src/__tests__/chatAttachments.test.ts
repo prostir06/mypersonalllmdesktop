@@ -105,4 +105,24 @@ describe('uploadChatAttachment cleanup', () => {
 
     expect(logger.warn).not.toHaveBeenCalled();
   });
+
+  it('decodes Latin-1 mojibake Ukrainian originalname to proper UTF-8', async () => {
+    const mojibake = Buffer.from('Контекст.txt', 'utf8').toString('latin1');
+    const req = {
+      id: 'rid-4',
+      userId: 1,
+      file: {
+        path: tmpPath,
+        mimetype: 'text/plain',
+        originalname: mojibake,
+      },
+    } as AuthRequest & { file: { path: string; mimetype: string; originalname: string } };
+    const res = mockRes();
+
+    await uploadChatAttachment(req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: 'Контекст.txt', chars: 16 })
+    );
+  });
 });

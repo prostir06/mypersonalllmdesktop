@@ -1,7 +1,9 @@
 import { renderHook, act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'react-toastify';
+import type { AxiosResponse } from 'axios';
 import { chatAPI } from '../services/api';
+import type { ChatAttachmentUploadResponse } from '../types/api';
 import { useChatAttachments } from './useChatAttachments';
 
 vi.mock('react-toastify', () => ({
@@ -38,5 +40,37 @@ describe('useChatAttachments', () => {
     );
     expect(toast.error).toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('attaches file and preserves Ukrainian filename in chat attachments', async () => {
+    const mockResponse: AxiosResponse<ChatAttachmentUploadResponse> = {
+      data: {
+        filename: 'Контекст.txt',
+        content: 'вміст файлу',
+        chars: 11,
+        truncated: false,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as AxiosResponse['config'],
+    };
+    vi.mocked(chatAPI.uploadAttachment).mockResolvedValue(mockResponse);
+
+    const { result } = renderHook(() => useChatAttachments());
+    const file = new File(['вміст файлу'], 'Контекст.txt', {
+      type: 'text/plain',
+    });
+
+    await act(async () => {
+      await result.current.handleFileAttach({
+        target: { files: [file], value: '' },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.chatAttachments).toEqual([
+      { filename: 'Контекст.txt', content: 'вміст файлу' },
+    ]);
+    expect(toast.success).toHaveBeenCalledWith('Файл додано до повідомлення');
   });
 });

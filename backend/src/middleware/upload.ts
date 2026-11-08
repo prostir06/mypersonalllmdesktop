@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import { getMaxUploadBytes } from '../utils/fileMagic';
+import { decodeMulterFilename } from '../utils/multerFilename';
 
 const ALLOWED_EXT = new Set(['pdf', 'docx', 'xlsx', 'txt', 'md']);
 
@@ -49,6 +50,9 @@ export function createUploadMiddleware(options: UploadMiddlewareOptions = {}) {
       file: { originalname: string },
       cb: (err: Error | null, name: string) => void
     ) => {
+      if (file.originalname) {
+        file.originalname = decodeMulterFilename(file.originalname);
+      }
       cb(null, storedFilename(file.originalname));
     },
   });
@@ -59,6 +63,9 @@ export function createUploadMiddleware(options: UploadMiddlewareOptions = {}) {
     fileFilter: applyTypeFilter
       ? (_req: unknown, file: MulterFile, cb: MulterCb) => {
           try {
+            if (file.originalname) {
+              file.originalname = decodeMulterFilename(file.originalname);
+            }
             const allowedMimeTypes = [
               'application/pdf',
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

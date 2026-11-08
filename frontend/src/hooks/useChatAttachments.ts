@@ -82,9 +82,10 @@ export function useChatAttachments(): UseChatAttachmentsResult {
         const formData = new FormData();
         formData.append('file', file);
         const res = await chatAPI.uploadAttachment(formData);
+        const resolvedFilename = res.data.filename || file.name;
         setChatAttachments((prev) => [
           ...prev,
-          { filename: res.data.filename, content: res.data.content },
+          { filename: resolvedFilename, content: res.data.content },
         ]);
         toast.success(
           res.data.truncated

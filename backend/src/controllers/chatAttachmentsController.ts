@@ -3,6 +3,7 @@ import fs from 'fs';
 import logger from '../logger';
 import { extractText } from '../services/documents/extraction';
 import { jsonError } from '../utils/httpJson';
+import { decodeMulterFilename } from '../utils/multerFilename';
 import type { AuthRequest } from '../types/express';
 
 const MAX_ATTACHMENT_CHARS = 12000;
@@ -26,6 +27,9 @@ export async function uploadChatAttachment(
     return;
   }
 
+  if (file.originalname) {
+    file.originalname = decodeMulterFilename(file.originalname);
+  }
   const mime = file.mimetype || '';
   const name = file.originalname || 'attachment';
   if (
@@ -58,9 +62,10 @@ export async function uploadChatAttachment(
 
     res.json({
       filename: name,
-      content,
       chars: content.length,
+      extractedChars: content.length,
       truncated,
+      content,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
