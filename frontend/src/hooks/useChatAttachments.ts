@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { toast } from 'react-toastify';
+import { processChatImage } from '../utils/imageCompressor';
 import type { AxiosError } from 'axios';
 import { chatAPI } from '../services/api';
 import type { ChatAttachmentPayload } from '../types/api';
@@ -41,15 +42,15 @@ export function useChatAttachments(): UseChatAttachmentsResult {
       toast.error('Будь ласка, оберіть зображення (JPG, PNG, WebP)');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setAttachedImage({
-        url: URL.createObjectURL(file),
-        base64: String(ev.target?.result || ''),
+    processChatImage(file)
+      .then((processed) => {
+        setAttachedImage(processed);
+        toast.info('🖼️ Зображення додано до повідомлення!');
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : 'Не вдалося обробити зображення';
+        toast.error(msg);
       });
-      toast.info('🖼️ Зображення додано до повідомлення!');
-    };
-    reader.readAsDataURL(file);
     if (imageInputRef.current) imageInputRef.current.value = '';
   }, []);
 

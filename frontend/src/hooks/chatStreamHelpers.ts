@@ -94,6 +94,14 @@ export function mapChatError(rawMessage: string | undefined | null): string {
   const lowered = source.toLowerCase();
 
   if (
+    lowered.includes('too large') ||
+    lowered.includes('413') ||
+    source.includes('перевищує ліміт')
+  ) {
+    return 'Розмір файлу або зображення занадто великий. Будь ласка, оберіть менший файл.';
+  }
+
+  if (
     lowered.includes('api key') ||
     lowered.includes('unauthorized') ||
     lowered.includes('401')
@@ -115,6 +123,10 @@ export function mapChatError(rawMessage: string | undefined | null): string {
     (lowered.includes('not found') || lowered.includes('unavailable'))
   ) {
     return 'Обрана модель недоступна. Змініть модель у Налаштуваннях AI.';
+  }
+
+  if (/[\u0400-\u04FF]/.test(source) && source.length < 200) {
+    return source;
   }
 
   return 'Не вдалося отримати відповідь від AI. Спробуйте ще раз.';
