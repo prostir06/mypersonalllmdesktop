@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import type { Response } from 'express';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import prisma from '../../config/prisma';
 import logger from '../../logger';
 import type { RagSource, TokenUsage } from '../chat/types';
