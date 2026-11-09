@@ -150,9 +150,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
     webSearchEnabled,
   });
 
-  const advisoryWarningCount =
-    systemKnowledge?.advisories.filter((a) => a.severity === 'warning').length ?? 0;
-
   const handleAdvisoryAction = useCallback(
     (tip: AdvisoryTip) => {
       switch (tip.actionType) {
@@ -278,8 +275,6 @@ const ChatBoxOptimized: React.FC<ChatBoxOptimizedProps> = ({
         onExportPdf={exportPdf}
         messagesCount={messages.length}
         conversationId={conversationId}
-        onShowGuideModal={() => guide.open()}
-        advisoryWarningCount={advisoryWarningCount}
         webSearchEnabled={webSearchEnabled}
         onToggleWebSearch={() => setWebSearchEnabled((prev) => !prev)}
         toolsEnabled={toolsEnabled}

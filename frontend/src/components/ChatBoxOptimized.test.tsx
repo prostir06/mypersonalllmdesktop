@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { GuideModalProvider } from '../context/GuideModalContext';
 import ChatBoxOptimized from './ChatBoxOptimized';
 
 const navigateMock = vi.fn();
@@ -439,19 +438,9 @@ describe('ChatBoxOptimized', () => {
     await user.click(screen.getByRole('button', { name: 'Вибрати RAG' }));
   });
 
-  it('renders guide button in controls with warning badge and opens SystemGuideModal', async () => {
-    const user = userEvent.setup();
-    render(
-      <GuideModalProvider>
-        <ChatBoxOptimized conversationId={null} />
-      </GuideModalProvider>
-    );
+  it('does not render a second guide button in the chat toolbar', () => {
+    render(<ChatBoxOptimized conversationId={null} />);
 
-    const guideBtn = screen.getByRole('button', { name: /🧭 Гід/i });
-    expect(guideBtn).toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument();
-
-    await user.click(guideBtn);
-    expect(screen.getByText(/Гід по системі та AI-асистент/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /🧭 Гід/i })).not.toBeInTheDocument();
   });
 });

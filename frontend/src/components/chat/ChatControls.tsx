@@ -1,5 +1,5 @@
 /**
- * Chat toolbar: provider, model, temperature, prompts, RAG, export.
+ * Chat toolbar: provider, model, prompts, RAG, export.
  */
 import React, { type ChangeEvent, useState } from 'react';
 import { Form, Button } from 'react-bootstrap';
@@ -14,8 +14,6 @@ export type ChatControlsProps = {
   selectedModel?: string;
   onModelChange?: (value: string) => void;
   availableModels?: ModelSelectOption[];
-  temperature?: number;
-  onTemperatureChange?: (value: number) => void;
   selectedDocIds?: Array<string | number>;
   onShowDocModal?: () => void;
   streaming: boolean;
@@ -24,8 +22,6 @@ export type ChatControlsProps = {
   onExportPdf: () => void;
   messagesCount: number;
   conversationId?: string | number | null;
-  onShowGuideModal?: () => void;
-  advisoryWarningCount?: number;
   webSearchEnabled?: boolean;
   onToggleWebSearch?: () => void;
   toolsEnabled?: boolean;
@@ -40,8 +36,6 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
   const selectedModel = session?.model.activeModel ?? props.selectedModel ?? '';
   const onModelChange = session?.model.setSelectedModel ?? props.onModelChange ?? (() => {});
   const availableModels = session?.model.availableModels ?? props.availableModels ?? [];
-  const temperature = session?.model.temperature ?? props.temperature ?? 0.7;
-  const onTemperatureChange = session?.model.setTemperature ?? props.onTemperatureChange ?? (() => {});
   const selectedDocIds = session?.documents.selectedDocIds ?? props.selectedDocIds ?? [];
   const onShowDocModal = session
     ? () => session.documents.setShowDocModal(true)
@@ -53,8 +47,6 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
     onExportPdf,
     messagesCount,
     conversationId,
-    onShowGuideModal,
-    advisoryWarningCount,
     webSearchEnabled,
     onToggleWebSearch,
     toolsEnabled,
@@ -197,27 +189,6 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
             </Button>
           )}
 
-          {onShowGuideModal && (
-            <Button
-              variant={
-                advisoryWarningCount && advisoryWarningCount > 0
-                  ? 'warning'
-                  : 'outline-light'
-              }
-              size="sm"
-              onClick={onShowGuideModal}
-              title="Гід по системі та поради"
-              className="d-flex align-items-center gap-1"
-            >
-              🧭 Гід
-              {advisoryWarningCount && advisoryWarningCount > 0 ? (
-                <span className="badge bg-danger ms-1">
-                  {advisoryWarningCount}
-                </span>
-              ) : null}
-            </Button>
-          )}
-
           {messagesCount > 0 && (
             <>
               <Button
@@ -241,19 +212,6 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
             </>
           )}
           </div>
-        </div>
-
-        <div className="d-flex align-items-center gap-2" style={{ minWidth: '180px' }}>
-          <small className="text-muted">🌡 {temperature}</small>
-          <Form.Range
-            min="0"
-            max="1.5"
-            step="0.1"
-            value={temperature}
-            onChange={(e) => onTemperatureChange(parseFloat(e.target.value))}
-            disabled={streaming}
-            aria-label="Температура"
-          />
         </div>
       </div>
 

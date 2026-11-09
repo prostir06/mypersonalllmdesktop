@@ -17,8 +17,6 @@ describe('ChatControls', () => {
         selectedModel="gpt-4"
         onModelChange={vi.fn()}
         availableModels={[{ value: 'gpt-4', label: 'GPT-4' }]}
-        temperature={0.7}
-        onTemperatureChange={vi.fn()}
         selectedDocIds={[]}
         streaming={false}
         onShowPromptModal={vi.fn()}
@@ -30,6 +28,7 @@ describe('ChatControls', () => {
     );
 
     expect(screen.getByLabelText(/Провайдер AI/i)).toBeInTheDocument();
+    expect(screen.queryByRole('slider', { name: /Температура/i })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Модель AI/i)).toHaveValue('gpt-4');
     await user.selectOptions(screen.getByLabelText(/Провайдер AI/i), 'ollama');
     expect(onProviderChange).toHaveBeenCalled();
@@ -44,8 +43,6 @@ describe('ChatControls', () => {
         selectedModel="gemini-2.0-flash"
         onModelChange={vi.fn()}
         availableModels={[{ value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }]}
-        temperature={0.7}
-        onTemperatureChange={vi.fn()}
         selectedDocIds={[]}
         streaming={false}
         onShowPromptModal={vi.fn()}
@@ -75,8 +72,6 @@ describe('ChatControls', () => {
             label: 'Claude 3.5 Sonnet',
           },
         ]}
-        temperature={0.7}
-        onTemperatureChange={vi.fn()}
         selectedDocIds={[]}
         streaming={false}
         onShowPromptModal={vi.fn()}
