@@ -6,14 +6,14 @@ describe('scripts/any-ratchet.mjs', () => {
   const scriptPath = path.join(repoRoot, 'scripts', 'any-ratchet.mjs');
 
   it('executes ESLint via node without EINVAL and reports actual explicit-any counts', () => {
-    const result = spawnSync(process.execPath, [scriptPath], {
+    const result = spawnSync(process.execPath, [scriptPath, 'backend'], {
       cwd: repoRoot,
       encoding: 'utf8',
     });
 
     expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
     expect(result.stdout).toContain('backend:');
-    expect(result.stdout).toContain('frontend:');
   });
 
   describe('parseEslintJsonOutput', () => {
