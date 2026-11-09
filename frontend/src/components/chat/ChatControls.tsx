@@ -2,7 +2,7 @@
  * Chat toolbar: provider, model, prompts, RAG, export.
  */
 import React, { type ChangeEvent, useState } from 'react';
-import { Form, Button } from 'react-bootstrap';
+import { Form, Button, Dropdown } from 'react-bootstrap';
 import { useChatSession } from '../../context/ChatSessionContext';
 import MemoryPanel from './MemoryPanel';
 
@@ -190,26 +190,23 @@ const ChatControls = React.memo(function ChatControls(props: ChatControlsProps) 
           )}
 
           {messagesCount > 0 && (
-            <>
-              <Button
-                variant="outline-warning"
+            <Dropdown align="end">
+              <Dropdown.Toggle
+                variant="outline-secondary"
                 size="sm"
-                onClick={onExportChat}
-                title="Експорт чату у Markdown"
-                className="d-flex align-items-center gap-1"
+                id="chat-export-menu"
               >
-                💾 Експорт MD
-              </Button>
-              <Button
-                variant="outline-danger"
-                size="sm"
-                onClick={onExportPdf}
-                title="Експорт чату у PDF"
-                className="d-flex align-items-center gap-1"
-              >
-                📕 Експорт PDF
-              </Button>
-            </>
+                Експорт
+              </Dropdown.Toggle>
+              <Dropdown.Menu variant="dark">
+                <Dropdown.Item onClick={onExportChat} title="Експорт чату у Markdown">
+                  💾 Експорт MD
+                </Dropdown.Item>
+                <Dropdown.Item onClick={onExportPdf} title="Експорт чату у PDF">
+                  📕 Експорт PDF
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
           )}
           </div>
         </div>

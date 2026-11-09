@@ -86,4 +86,37 @@ describe('ChatControls', () => {
     expect(providerSelect).toHaveValue('anthropic');
     expect(screen.getByRole('option', { name: /Anthropic Claude/i })).toBeInTheDocument();
   });
+
+  it('hides markdown and pdf export behind an Export menu', async () => {
+    const onExportChat = vi.fn();
+    const onExportPdf = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ChatControls
+        selectedProvider="openai"
+        onProviderChange={vi.fn()}
+        selectedModel="gpt-4"
+        onModelChange={vi.fn()}
+        availableModels={[{ value: 'gpt-4', label: 'GPT-4' }]}
+        selectedDocIds={[]}
+        streaming={false}
+        onShowPromptModal={vi.fn()}
+        onShowDocModal={vi.fn()}
+        onExportChat={onExportChat}
+        onExportPdf={onExportPdf}
+        messagesCount={2}
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: /Експорт MD/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Експорт PDF/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Експорт' }));
+    await user.click(screen.getByRole('button', { name: /Експорт MD/i }));
+    expect(onExportChat).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Експорт' }));
+    await user.click(screen.getByRole('button', { name: /Експорт PDF/i }));
+    expect(onExportPdf).toHaveBeenCalledTimes(1);
+  });
 });
