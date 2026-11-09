@@ -49,4 +49,21 @@ describe('requestId middleware', () => {
     expect(res.body.requestId).toBeTruthy();
     expect(res.body.requestId).toBe(res.headers['x-request-id']);
   });
+
+  it('errorHandler includes requestId when an async handler throws', async () => {
+    const app = express();
+    app.use(requestId);
+    app.get('/boom-async', async () => {
+      const err = new Error('boom') as Error & { statusCode?: number };
+      err.statusCode = 500;
+      throw err;
+    });
+    app.use(errorHandler);
+
+    const res = await request(app).get('/boom-async');
+    expect(res.status).toBe(500);
+    expect(res.body.requestId).toBeTruthy();
+    expect(res.body.requestId).toBe(res.headers['x-request-id']);
+    expect(res.body.error).toBeTruthy();
+  });
 });
