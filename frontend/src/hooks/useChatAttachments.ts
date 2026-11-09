@@ -23,8 +23,8 @@ type UseChatAttachmentsResult = {
   handleFileAttach: (e: ChangeEvent<HTMLInputElement>) => Promise<void>;
   clearAttachedImage: () => void;
   removeAttachment: (index: number) => void;
-  imageInputRef: RefObject<HTMLInputElement>;
-  chatFileInputRef: RefObject<HTMLInputElement>;
+  imageInputRef: RefObject<HTMLInputElement | null>;
+  chatFileInputRef: RefObject<HTMLInputElement | null>;
 };
 
 export function useChatAttachments(): UseChatAttachmentsResult {

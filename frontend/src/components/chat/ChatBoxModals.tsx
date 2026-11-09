@@ -20,7 +20,7 @@ type Props = {
   retryingDocId?: string | number | null;
   reindexingDocId?: string | number | null;
   uploadingDoc?: boolean;
-  fileInputRef?: RefObject<HTMLInputElement>;
+  fileInputRef?: RefObject<HTMLInputElement | null>;
   handleFileUpload?: (e: ChangeEvent<HTMLInputElement>) => void;
   hasMoreDocuments?: boolean;
   loadMoreDocuments?: () => void;

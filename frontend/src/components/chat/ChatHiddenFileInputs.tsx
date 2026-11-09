@@ -2,8 +2,8 @@ import React, { type ChangeEvent, type RefObject } from 'react';
 import { useChatSession } from '../../context/ChatSessionContext';
 
 type Props = {
-  chatFileInputRef?: RefObject<HTMLInputElement>;
-  imageInputRef?: RefObject<HTMLInputElement>;
+  chatFileInputRef?: RefObject<HTMLInputElement | null>;
+  imageInputRef?: RefObject<HTMLInputElement | null>;
   onFileAttach?: (e: ChangeEvent<HTMLInputElement>) => void;
   onImageAttach?: (e: ChangeEvent<HTMLInputElement>) => void;
 };
