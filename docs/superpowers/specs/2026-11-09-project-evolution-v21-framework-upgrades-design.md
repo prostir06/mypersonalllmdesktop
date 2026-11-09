@@ -1,7 +1,7 @@
 # Project Evolution v21 — Framework Upgrades
 
 **Date:** 2026-11-09  
-**Status:** Amended — TypeScript 7 parked; Express 5.3.0 then React 19.3.1  
+**Status:** Implemented (v21.1 Express 5.3.0, v21.2 React 19.3.1). TypeScript 7 stays parked until ts-jest accepts its compiler API. Prisma 8 is not part of this release.  
 **Parent:** Post v20 (code optimization and `.docx` artifacts), commit `679fd99`  
 **Target:** Small trusted team (2–10) on the existing Docker Compose stack  
 **Scope:** Two shippable waves. TypeScript 7 stays on the current 5.x line. No new chat behavior, no UI copy changes.
