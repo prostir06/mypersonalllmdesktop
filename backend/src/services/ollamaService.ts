@@ -16,6 +16,7 @@ import {
   mapProviderError,
   normalizeOptions,
   ProviderTimeoutError,
+  streamSilenceMessage,
   withTimeout,
 } from './providers/request';
 
@@ -216,8 +217,9 @@ async function streamOllamaMessage(
   const parent = options.signal instanceof AbortSignal ? options.signal : undefined;
   const idleController = new AbortController();
   const linked = linkAbortSignals(parent, idleController.signal);
+  let sawByte = false;
   const idle = createIdleWatchdog(() => {
-    idleController.abort(new ProviderTimeoutError('Немає токенів від моделі вже 60 с'));
+    idleController.abort(new ProviderTimeoutError(streamSilenceMessage(sawByte)));
   });
   try {
     const { ollama_host } = options;
@@ -277,6 +279,7 @@ async function streamOllamaMessage(
       linked.signal.addEventListener('abort', onAbort, { once: true });
 
       response.data.on('data', (chunk: Buffer) => {
+        sawByte = true;
         idle.touch();
         buffer += chunk.toString();
         const lines = buffer.split('\n');

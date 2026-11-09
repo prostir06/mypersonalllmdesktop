@@ -17,6 +17,7 @@ import {
   mapProviderError,
   normalizeOptions,
   ProviderTimeoutError,
+  streamSilenceMessage,
   withTimeout,
 } from './providers/request';
 import { defaultOpenAiModel } from '../config/models';
@@ -167,8 +168,9 @@ async function streamOpenAIMessage(
   const parent = options.signal instanceof AbortSignal ? options.signal : undefined;
   const idleController = new AbortController();
   const linked = linkAbortSignals(parent, idleController.signal);
+  let sawByte = false;
   const idle = createIdleWatchdog(() => {
-    idleController.abort(new ProviderTimeoutError('Немає токенів від моделі вже 60 с'));
+    idleController.abort(new ProviderTimeoutError(streamSilenceMessage(sawByte)));
   });
 
   try {
@@ -186,6 +188,7 @@ async function streamOpenAIMessage(
     const toolCallsAcc: Record<number, NormalizedToolCall> = {};
 
     for await (const chunk of stream) {
+      sawByte = true;
       idle.touch();
       if (linked.signal.aborted || idleController.signal.aborted) {
         if (idleController.signal.reason instanceof ProviderTimeoutError) {

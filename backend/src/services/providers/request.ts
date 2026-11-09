@@ -12,6 +12,7 @@ import type { NormalizedToolCall } from './types';
 export const REQUEST_TIMEOUT_MS = 60_000;
 export const REQUEST_MAX_RETRIES = 2;
 export const IDLE_STREAM_MS = 60_000;
+export const FIRST_TOKEN_MS = 180_000;
 
 const DEFAULT_TEMPERATURE = 0.7;
 const DEFAULT_MAX_TOKENS = 4096;
@@ -84,20 +85,27 @@ export async function withTimeout<T>(
   }
 }
 
+export function streamSilenceMessage(sawByte: boolean): string {
+  return sawByte
+    ? 'Немає токенів від моделі вже 60 с'
+    : 'Немає першого токена від моделі вже 3 хв';
+}
+
 export function createIdleWatchdog(
   onIdle: () => void,
-  idleMs = IDLE_STREAM_MS
+  idleMs = IDLE_STREAM_MS,
+  firstTokenMs = FIRST_TOKEN_MS
 ): { touch: () => void; stop: () => void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const arm = () => {
-    timer = setTimeout(onIdle, idleMs);
+  const arm = (ms: number) => {
+    timer = setTimeout(onIdle, ms);
     if (typeof timer.unref === 'function') timer.unref();
   };
-  arm();
+  arm(firstTokenMs);
   return {
     touch() {
       if (timer) clearTimeout(timer);
-      arm();
+      arm(idleMs);
     },
     stop() {
       if (timer) clearTimeout(timer);

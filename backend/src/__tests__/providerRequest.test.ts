@@ -1,5 +1,6 @@
 import { ChatError } from '../services/chat/types';
 import {
+  FIRST_TOKEN_MS,
   IDLE_STREAM_MS,
   accumulateToolCalls,
   createIdleWatchdog,
@@ -77,6 +78,17 @@ describe('provider request helpers', () => {
   describe('createIdleWatchdog', () => {
     afterEach(() => {
       jest.useRealTimers();
+    });
+
+    it('waits longer for the first token than for a gap between tokens', () => {
+      jest.useFakeTimers();
+      const onIdle = jest.fn();
+      const watchdog = createIdleWatchdog(onIdle);
+      jest.advanceTimersByTime(IDLE_STREAM_MS);
+      expect(onIdle).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(FIRST_TOKEN_MS - IDLE_STREAM_MS);
+      expect(onIdle).toHaveBeenCalledTimes(1);
+      watchdog.stop();
     });
 
     it('fires only after a quiet stretch and resets when touched', () => {
