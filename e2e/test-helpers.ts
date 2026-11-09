@@ -30,7 +30,12 @@ export async function registerViaApi(
   }
 
   expect(response, await response.text()).toBeOK();
-  const body = (await response.json()) as { token?: string };
+
+  const login = await request.post(`${API_BASE_URL}/api/auth/login`, {
+    data: { email: user.email, password: user.password },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  const body = (await login.json()) as { token?: string };
   expect(body.token).toBeTruthy();
   return body.token!;
 }
