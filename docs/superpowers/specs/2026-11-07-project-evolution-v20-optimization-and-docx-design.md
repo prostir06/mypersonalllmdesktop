@@ -1,7 +1,7 @@
 # Project Evolution Roadmap v20 — Code Optimization, Type-Safety Ratchet & Full-Cycle DOCX Artifacts
 
 **Date:** 2026-11-07  
-**Status:** Design approved — ready for implementation planning  
+**Status:** Implemented (W1 code optimization, W2 docx artifacts). Closeout E2E: `e2e/docx-artifact.spec.ts`.  
 **Parent:** Post v19.4 (Hardening, Provider Unification, Multi-User Readiness & Performance)  
 **Target Deployment Profile:** Small trusted team (2–10 users) on a shared self-hosted server (Docker Compose behind TLS reverse proxy) + Electron desktop shell  
 **Scope:** Two sequential gated waves:
