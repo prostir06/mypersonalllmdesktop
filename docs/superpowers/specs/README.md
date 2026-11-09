@@ -4,7 +4,7 @@ Superpowers SDD specs for this project. Newest first:
 
 | Spec | Status |
 |------|--------|
-| [2026-11-09-project-evolution-v21-framework-upgrades-design.md](./2026-11-09-project-evolution-v21-framework-upgrades-design.md) | Design approved — TypeScript 7.0.2, Express 5.3.0, React 19.3.1; Prisma 8 waits for a stable release |
+| [2026-11-09-project-evolution-v21-framework-upgrades-design.md](./2026-11-09-project-evolution-v21-framework-upgrades-design.md) | Amended — TypeScript 7 parked until ts-jest accepts it; Express 5.3.0 then React 19.3.1; Prisma 8 waits for a stable release |
 | [2026-11-07-project-evolution-v20-optimization-and-docx-design.md](./2026-11-07-project-evolution-v20-optimization-and-docx-design.md) | Implemented — W1 code optimization and W2 full-cycle `.docx` artifacts |
 | [2026-11-07-project-evolution-v19-hardening-design.md](./2026-11-07-project-evolution-v19-hardening-design.md) | Implemented (W1–W5, tags v19.0–v19.4) — hot fixes, provider unification, multi-user, performance, dependencies/tests/CI |
 | [2026-11-04-theme-modernization-design.md](./2026-11-04-theme-modernization-design.md) | Implemented — Cyber Aura Nexus dark theme and Clean Minimalist light theme |
