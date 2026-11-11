@@ -22,6 +22,18 @@ RUN npm run build
 # --- Stage 2: Serve with unprivileged Nginx (listens on 8080) ---
 FROM nginxinc/nginx-unprivileged:1.28-alpine3.23 AS production
 
+# Тег фіксує nginx=1.28.2-r1 у /etc/apk/world, тож звичайний upgrade його не чіпає.
+# Модулі geoip/image-filter/njs/xslt наша конфігурація не завантажує.
+USER root
+RUN sed -i -E '/^nginx/s/=.*//' /etc/apk/world \
+    && apk del --no-cache \
+         nginx-module-geoip \
+         nginx-module-image-filter \
+         nginx-module-njs \
+         nginx-module-xslt \
+    && apk upgrade --no-cache
+USER nginx
+
 COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
 COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
 COPY --chown=nginx:nginx nginx/security-headers.conf /etc/nginx/security-headers.conf
