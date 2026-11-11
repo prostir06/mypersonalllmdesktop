@@ -20,7 +20,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # --- Stage 2: Serve with unprivileged Nginx (listens on 8080) ---
-FROM nginxinc/nginx-unprivileged:1.28-alpine AS production
+FROM nginxinc/nginx-unprivileged:1.28-alpine3.23 AS production
 
 COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
 COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
