@@ -51,8 +51,10 @@ WORKDIR /app
 RUN apk add --no-cache openssl su-exec
 
 COPY package*.json ./
+# Node 24.22 bundles npm 11.19.1 (brace-expansion 5.0.9, undici 6.28.0).
 # prisma CLI stays available for `migrate deploy`; it is not a runtime library.
-RUN npm ci --omit=dev \
+RUN npm install -g npm@12.2.2 \
+  && npm ci --omit=dev \
   && PRISMA_VERSION="$(node -p "require('./package-lock.json').packages['node_modules/prisma'].version")" \
   && npm install --no-save --omit=dev "prisma@${PRISMA_VERSION}" \
   && npm cache clean --force
