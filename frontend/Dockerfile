@@ -20,7 +20,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # --- Stage 2: Serve with unprivileged Nginx (listens on 8080) ---
-FROM nginxinc/nginx-unprivileged:1.28-alpine3.23 AS production
+FROM nginxinc/nginx-unprivileged:1.31-alpine3.23 AS production
 
 # Тег фіксує nginx=1.28.2-r1 у /etc/apk/world, тож звичайний upgrade його не чіпає.
 # Модулі geoip/image-filter/njs/xslt наша конфігурація не завантажує.
