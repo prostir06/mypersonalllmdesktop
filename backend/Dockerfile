@@ -6,7 +6,7 @@
 # ============================================================
 
 # --- Stage 1: Dependencies + Prisma Client ---
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY package*.json ./
 RUN npm ci
 
 # --- Stage 2: Compile (also the dev compose target) ---
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 
 WORKDIR /app
 
@@ -44,7 +44,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["/bin/sh", "/app/docker-entrypoint.sh"]
 
 # --- Stage 3: Production runtime without devDependencies ---
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 
 WORKDIR /app
 
